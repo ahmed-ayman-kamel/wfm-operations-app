@@ -1,0 +1,21 @@
+# clasp project binding (script id of a live deployment)
+.clasp.json
+.clasprc.json
+# local env and secrets
+.env
+*.env
+*.pem
+*.key
+credentials*.json
+service-account*.json
+# data exports never belong in this repo
+*.csv
+*.xlsx
+*.xls
+# tooling
+node_modules/
+tools/screenshot-harness/out/
+tools/screenshot-harness/shots/
+tools/screenshot-harness/mock-data.json
+.DS_Store
+Thumbs.db

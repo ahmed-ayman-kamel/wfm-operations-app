@@ -1,0 +1,1206 @@
+<!-- Tickets_HTML.html: ticket list, create and detail drawers (styles + logic). Server side: Tickets.gs.
+     Included at the end of Index.html. Uses helpers from Index.html (AppState, escapeHtml, showToast,
+     setSyncState, renderStagedShelf, focusDrawer, restoreFocus, snapshotDrawer, isAssignedToMe,
+     emailListIncludes, formatRelativeTime, initialsOf, nameOf, parseEmailList, toLocalDateString). -->
+<style>
+  #view-tickets [hidden], #create-ticket-drawer [hidden], #detail-ticket-drawer [hidden] { display: none !important; }
+
+  /* Summary tiles double as quick filters */
+  #view-tickets .tk-metrics .metric-box { grid-column: span 2; text-align: left; font: inherit; color: inherit; cursor: pointer; -webkit-appearance: none; appearance: none; }
+  #view-tickets .tk-metrics .metric-box:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  #view-tickets .tk-metrics .metric-box.is-active { box-shadow: inset 0 0 0 2px var(--primary-blue), var(--shadow-sm); }
+  #view-tickets .tk-metrics .metric-box.is-alert .metric-val { color: var(--status-cancelled-text); }
+  #view-tickets .filter-card.tk-filters { flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; align-items: stretch; gap: 10px; }
+  .tk-filter-row { flex: 0 0 auto; }
+  .tk-filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tk-search { flex: 1 1 220px; max-width: 340px; }
+  .tk-spacer { flex: 1 1 0; }
+  .tk-filter-row-2 .select-input { height: 32px; font-size: 12px; }
+  .tk-filter-row-2 .tk-clear { height: 32px; padding: 0 12px; font-size: 12px; }
+  @media (max-width: 600px) {
+    .tk-search { max-width: none; flex-basis: 100%; }
+    .tk-spacer { display: none; }
+    #btn-create-ticket { width: 100%; justify-content: center; }
+    .tk-filter-row-2 .select-input { flex: 1 1 45%; }
+  }
+  .tk-count { font-size: 11.5px; color: var(--text-muted); font-weight: 600; padding: 0 6px; }
+
+  /* Table */
+  .tk-table td { vertical-align: top; }
+  .tk-id { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+  .tk-no { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 12px; color: var(--text-secondary); letter-spacing: 0.2px; white-space: nowrap; }
+  .tk-type { font-size: 10.5px; padding: 2px 8px; }
+  .tk-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; font-weight: 600; }
+  .tk-tag { font-weight: 700; }
+  .tk-tag-mine { color: var(--primary-blue); }
+  .tk-tag-public, .tk-tag-cc { color: var(--status-pending-text); }
+  .tk-pri { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .tk-pri::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .tk-pri-Urgent { color: #BE123C; }
+  .tk-pri-High { color: #C2410C; }
+  .tk-pri-Normal { color: var(--text-muted); font-weight: 700; }
+  .tk-pri-Low { color: var(--text-muted); font-weight: 600; opacity: 0.8; }
+  body.dark-mode .tk-pri-Urgent { color: #FB7185; }
+  body.dark-mode .tk-pri-High { color: #FDBA74; }
+  .tk-due { white-space: nowrap; font-weight: 600; }
+  .tk-due-over { color: var(--status-cancelled-text); font-weight: 800; }
+  .tk-due-today { color: var(--status-pending-text); font-weight: 800; }
+  .tk-muted { color: var(--text-muted); }
+  .tk-people { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .tk-avatars { display: inline-flex; }
+  .tk-avatars .assignee-avatar { border: 2px solid var(--surface-solid); margin-left: -6px; width: 22px; height: 22px; }
+  .tk-avatars .assignee-avatar:first-child { margin-left: 0; }
+  .tk-people-name { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  tr.tk-row-overdue td:first-child { box-shadow: inset 3px 0 0 #E11D48; }
+  tr.tk-row-closed td { opacity: 0.7; }
+  .tk-empty { text-align: center; padding: 36px 16px; color: var(--text-muted); font-size: 13px; }
+  .tk-empty strong { display: block; color: var(--text-primary); margin-bottom: 6px; font-size: 14px; }
+  .tk-empty .btn-secondary, .tk-empty .btn-primary { margin-top: 12px; }
+
+  /* Drawers */
+  .tk-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tk-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .tk-detail-head { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .tk-detail-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #detail-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 380px; }
+  .tk-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .tk-head-actions .btn-secondary { height: 32px; padding: 0 10px; font-size: 12px; }
+  .tk-seg { width: 100%; }
+  .tk-seg .segment-btn { flex: 1; padding: 7px 8px; }
+  .tk-seg .segment-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .tk-seg .segment-btn.active[data-status="In Progress"] { color: var(--status-pending-text); }
+  .tk-seg .segment-btn.active[data-status="Completed"] { color: var(--status-completed-text); }
+  .tk-seg .segment-btn.active[data-status="Cancelled"] { color: var(--status-cancelled-text); }
+  .tk-seg .segment-btn.active[data-priority="Urgent"] { color: #BE123C; }
+  .tk-seg .segment-btn.active[data-priority="High"] { color: #C2410C; }
+  .tk-hint { font-size: 11.5px; color: var(--text-muted); font-weight: 600; line-height: 1.4; }
+  .tk-desc { min-height: 110px; resize: vertical; line-height: 1.5; padding: 10px 12px; width: 100%; font: inherit; font-size: 13px; }
+  .tk-desc[readonly] { background: var(--surface-hover); cursor: default; }
+  .tk-meta { font-size: 11.5px; color: var(--text-muted); display: flex; flex-direction: column; gap: 3px; font-weight: 600; }
+  .tk-chip-allusers { font-weight: 700; color: var(--primary-blue); font-size: 12px; padding: 2px 4px; }
+  .tk-activity { border-top: 1px solid var(--border-subtle); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .tk-activity-head { font-size: 12px; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }
+  .tk-timeline { display: flex; flex-direction: column; gap: 10px; }
+  .tk-entry { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; }
+  .tk-event { color: var(--text-secondary); align-items: baseline; }
+  .tk-event-text { min-width: 0; line-height: 1.5; }
+  .tk-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-medium); flex-shrink: 0; margin: 0 6px 0 7px; position: relative; top: -1px; }
+  .tk-bubble { flex: 1; min-width: 0; background: var(--surface-hover); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 10px 12px; }
+  .tk-entry-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+  .tk-entry time { color: var(--text-muted); font-size: 11.5px; white-space: nowrap; }
+  .tk-entry-body { white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+  .tk-entry details { margin-top: 4px; }
+  .tk-entry summary { cursor: pointer; color: var(--primary-blue); font-weight: 700; font-size: 11.5px; }
+  .tk-entry details pre { white-space: pre-wrap; font: inherit; font-size: 12px; background: var(--surface-hover); padding: 8px 10px; border-radius: 8px; margin-top: 4px; max-height: 220px; overflow: auto; }
+  .tk-post { height: 30px; padding: 0 14px; font-size: 12px; }
+  .tk-footer-left { margin-right: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .tk-notify { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+  .tk-dirty { font-size: 11.5px; font-weight: 800; color: var(--status-pending-text); }
+  #detail-ticket-drawer .drawer-footer { align-items: center; flex-wrap: wrap; }
+  .tk-readonly-note { font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 10px 12px; background: var(--surface-hover); border-radius: var(--radius-sm); }
+
+  @media (max-width: 900px) {
+    #view-tickets .tk-metrics .metric-box { grid-column: span 4; }
+  }
+  @media (max-width: 700px) {
+    #view-tickets table.tk-table { min-width: 0; }
+    #view-tickets .tk-table thead { display: none; }
+    #view-tickets .tk-table tbody tr {
+      display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: "id title title" "pri people status" "due due upd";
+      gap: 8px 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle);
+    }
+    #view-tickets .tk-table tbody tr:last-child { border-bottom: none; }
+    #view-tickets .tk-table td { padding: 0; border: none; }
+    #view-tickets .tk-table td:nth-child(1) { grid-area: id; }
+    #view-tickets .tk-table td:nth-child(2) { grid-area: title; }
+    #view-tickets .tk-table td:nth-child(3) { grid-area: pri; align-self: center; }
+    #view-tickets .tk-table td:nth-child(4) { grid-area: people; align-self: center; }
+    #view-tickets .tk-table td:nth-child(5) { grid-area: status; align-self: center; }
+    #view-tickets .tk-table td:nth-child(6) { grid-area: due; }
+    #view-tickets .tk-table td:nth-child(7) { grid-area: upd; text-align: right; }
+    #view-tickets .tk-table td.tk-empty-cell { grid-column: 1 / -1; }
+    #view-tickets .tk-metrics .metric-box { grid-column: span 4; padding: 12px 14px; }
+    #view-tickets .tk-metrics .metric-val { font-size: 22px; }
+    .tk-grid-2, .tk-grid-3 { grid-template-columns: 1fr; }
+    #detail-title { max-width: 60vw; }
+  }
+</style>
+
+<script>
+  // ==========================================
+  // TICKETS: list, filters, create, detail, comments
+  // ==========================================
+
+  const TK_STATUSES = ['Open', 'In Progress', 'Completed', 'Cancelled'];
+  const TK_PRIORITIES = ['Low', 'Normal', 'High', 'Urgent'];
+  const TK_PRIORITY_RANK = { Urgent: 4, High: 3, Normal: 2, Low: 1 };
+  const TK_TYPE_LABEL = { Issue: '⚠️ Issue', Task: '📋 Task', Flags: '🚩 Flags' };
+  const TK_VIEW_STORE = 'wfm-ops-ticket-view';
+  const TK_DEFAULT_VIEW = { scope: 'all', type: 'ALL', status: 'ACTIVE', priority: 'ALL', sort: 'updated' };
+  const TK_QUICK = {
+    active:  { scope: 'all',  type: 'ALL',   status: 'ACTIVE',  priority: 'ALL' },
+    mine:    { scope: 'mine', type: 'ALL',   status: 'ACTIVE',  priority: 'ALL' },
+    overdue: { scope: 'all',  type: 'ALL',   status: 'OVERDUE', priority: 'ALL' },
+    urgent:  { scope: 'all',  type: 'ALL',   status: 'ACTIVE',  priority: 'HIGHPLUS' },
+    issues:  { scope: 'all',  type: 'Issue', status: 'Open',    priority: 'ALL' },
+    flags:   { scope: 'all',  type: 'Flags', status: 'ACTIVE',  priority: 'ALL' }
+  };
+
+  const Tk = {
+    loadToken: 0,
+    activityToken: 0,
+    creating: false,
+    posting: false,
+    savingStatus: false,
+    detail: null        // { key, base, assignees, cc, allUsers, activity }
+  };
+
+  // ---------- small helpers ----------
+
+  function tkToday() { return AppState.serverToday || toLocalDateString(); }
+  function tkIsActive(t) { return t.status === 'Open' || t.status === 'In Progress'; }
+  function tkIsOverdue(t) { return tkIsActive(t) && !!t.dueDate && t.dueDate < tkToday(); }
+  function tkIsDueToday(t) { return tkIsActive(t) && !!t.dueDate && t.dueDate === tkToday(); }
+  function tkKey(t) { return t.key || t.createdAt; }
+  function tkLabel(t) {
+    if (t.label) return t.label;
+    if (!t.no) return '';
+    const s = String(t.no);
+    return 'T-' + (s.length < 4 ? '0000'.substring(s.length) + s : s);
+  }
+  function tkTitle(t) {
+    const lines = String(t.description || '').split('\n').map(s => s.trim()).filter(Boolean);
+    return lines.length ? lines[0] : '(no description)';
+  }
+  function tkPriority(t) { return TK_PRIORITY_RANK[t.priority] ? t.priority : 'Normal'; }
+  function tkIsAllUsers(t) { return String(t.assignedTo || '').toLowerCase().trim() === 'all users'; }
+  // Operations can view and create tickets, but cannot comment on, move or edit them (see Tickets.gs).
+  function tkReadOnlyRole() { return AppState.user && AppState.user.role === 'Operations'; }
+  function tkPerms(t) {
+    if (t && t.perms) return t.perms;
+    // Fallback for data from an older server: what the old page allowed.
+    return { comment: !tkReadOnlyRole(), status: !tkReadOnlyRole(), edit: isElevatedRole(), assign: isElevatedRole() };
+  }
+  function tkFmtDate(ymd) {
+    if (!ymd) return '';
+    const p = String(ymd).split('-').map(Number);
+    if (p.length !== 3 || !p[0]) return ymd;
+    return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+  function tkFmtDateTime(iso) {
+    try { return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return iso; }
+  }
+  function tkWho(email) {
+    const e = String(email || '').toLowerCase().trim();
+    if (!e) return 'Someone';
+    return e === AppState.user.email ? 'You' : nameOf(e);
+  }
+  function tkFindTicket(key) {
+    return AppState.tickets.find(t => tkKey(t) === key || t.createdAt === key) || null;
+  }
+  function tkReplaceTicket(ticket) {
+    if (!ticket) return;
+    const key = tkKey(ticket);
+    const idx = AppState.tickets.findIndex(t => tkKey(t) === key);
+    if (idx >= 0) AppState.tickets[idx] = ticket; else AppState.tickets.unshift(ticket);
+    updateTicketMetrics();
+    filterTicketsTable();
+  }
+  function tkEmailNote(res) {
+    const e = (res && res.emails) || {};
+    if (e.error) return { text: ' Email not sent: ' + e.error, error: true };
+    if (e.sent && e.sent.length) return { text: ' Emailed ' + e.sent.map(nameOf).join(', ') + '.', error: false };
+    return { text: '', error: false };
+  }
+
+  // ---------- view state (remembered per browser) ----------
+
+  function tkView() {
+    if (!AppState.ticketView) {
+      let saved = null;
+      try { saved = window.localStorage ? JSON.parse(localStorage.getItem(TK_VIEW_STORE) || 'null') : null; } catch (e) { saved = null; }
+      AppState.ticketView = Object.assign({}, TK_DEFAULT_VIEW, saved && typeof saved === 'object' ? saved : {});
+      tkSyncControls();
+    }
+    return AppState.ticketView;
+  }
+
+  function tkSaveView() {
+    try { if (window.localStorage) localStorage.setItem(TK_VIEW_STORE, JSON.stringify(AppState.ticketView)); } catch (e) {}
+  }
+
+  function tkSyncControls() {
+    const v = AppState.ticketView;
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    setVal('ticket-filter-type', v.type);
+    setVal('ticket-filter-status', v.status);
+    setVal('ticket-filter-priority', v.priority);
+    setVal('ticket-sort', v.sort);
+    document.querySelectorAll('#ticket-scope .segment-btn').forEach(b => {
+      const on = b.dataset.scope === v.scope;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    AppState.ticketScope = v.scope;
+  }
+
+  function tkFiltersActive() {
+    const v = tkView();
+    const q = (document.getElementById('ticket-search') || {}).value || '';
+    return !!q.trim() || v.scope !== TK_DEFAULT_VIEW.scope || v.type !== TK_DEFAULT_VIEW.type ||
+      v.status !== TK_DEFAULT_VIEW.status || v.priority !== TK_DEFAULT_VIEW.priority;
+  }
+
+  function tkMatchesQuick(name) {
+    const v = tkView();
+    const p = TK_QUICK[name];
+    return !!p && v.scope === p.scope && v.type === p.type && v.status === p.status && v.priority === p.priority;
+  }
+
+  function tkQuickFilter(name) {
+    const v = tkView();
+    const preset = tkMatchesQuick(name) && name !== 'active' ? TK_QUICK.active : TK_QUICK[name];
+    if (!preset) return;
+    Object.assign(v, preset);
+    tkSyncControls();
+    filterTicketsTable();
+  }
+
+  function setTicketScope(scope) {
+    tkView().scope = scope;
+    tkSyncControls();
+    filterTicketsTable();
+  }
+
+  function clearTicketFilters() {
+    const v = tkView();
+    const sort = v.sort;
+    Object.assign(v, TK_DEFAULT_VIEW, { sort: sort });
+    const search = document.getElementById('ticket-search');
+    if (search) search.value = '';
+    tkSyncControls();
+    filterTicketsTable();
+  }
+
+  // ---------- loading ----------
+
+  function loadTickets() {
+    tkView();
+    tkApplyRoleToToolbar();
+    const firstLoad = !AppState.ticketsLoaded;
+    if (firstLoad) tkRenderSkeleton();
+    setSyncState(true, 'Loading tickets...');
+    const token = ++Tk.loadToken;
+
+    google.script.run
+      .withSuccessHandler(tickets => {
+        if (token !== Tk.loadToken) return;          // an older request answered late
+        AppState.tickets = Array.isArray(tickets) ? tickets : [];
+        AppState.ticketsLoaded = true;
+        updateTicketMetrics();
+        filterTicketsTable();
+        setSyncState(false, 'Synced');
+
+        if (AppState.pendingDeepLinkKey) {
+          const key = AppState.pendingDeepLinkKey;
+          AppState.pendingDeepLinkKey = null;
+          openTicketDetailDrawer(key);
+        }
+      })
+      .withFailureHandler(err => {
+        if (token !== Tk.loadToken) return;
+        setSyncState(false, 'Error');
+        showToast('Failed to fetch tickets: ' + err.message, 'error');
+        if (!AppState.ticketsLoaded) {
+          tkRenderMessage('<strong>Tickets could not be loaded.</strong>' + escapeHtml(err.message || '') +
+            '<br><button type="button" class="btn-secondary" onclick="loadTickets()">Try again</button>');
+        }
+      })
+      .getTickets();
+  }
+
+  // Every role, Operations included, can create a ticket, so the button is always shown.
+  function tkApplyRoleToToolbar() {
+    const btn = document.getElementById('btn-create-ticket');
+    if (btn) btn.hidden = false;
+  }
+
+  function tkRenderSkeleton() {
+    const tbody = document.getElementById('tickets-table-body');
+    if (!tbody) return;
+    let rows = '';
+    for (let i = 0; i < 5; i++) {
+      rows += '<tr>' + [60, 85, 50, 60, 55, 45, 40].map(w => `<td><div class="skeleton-cell" style="width:${w}%"></div></td>`).join('') + '</tr>';
+    }
+    tbody.innerHTML = rows;
+  }
+
+  function tkRenderMessage(html) {
+    const tbody = document.getElementById('tickets-table-body');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="tk-empty tk-empty-cell">${html}</td></tr>`;
+  }
+
+  // ---------- metrics ----------
+
+  function updateTicketMetrics() {
+    const list = AppState.tickets || [];
+    const active = list.filter(tkIsActive);
+    const counts = {
+      active: active.length,
+      mine: active.filter(isAssignedToMe).length,
+      overdue: active.filter(tkIsOverdue).length,
+      urgent: active.filter(t => tkPriority(t) === 'Urgent' || tkPriority(t) === 'High').length,
+      issues: list.filter(t => t.ticketType === 'Issue' && t.status === 'Open').length,
+      flags: active.filter(t => t.ticketType === 'Flags').length
+    };
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+    set('metric-active', counts.active);
+    set('metric-mine', counts.mine);
+    set('metric-overdue', counts.overdue);
+    set('metric-urgent', counts.urgent);
+    set('metric-issues', counts.issues);
+    set('metric-flags', counts.flags);
+    const overdueTile = document.querySelector('#view-tickets [data-quick="overdue"]');
+    if (overdueTile) overdueTile.classList.toggle('is-alert', counts.overdue > 0);
+    tkHighlightQuick();
+  }
+
+  function tkHighlightQuick() {
+    document.querySelectorAll('#view-tickets [data-quick]').forEach(tile => {
+      const on = tkMatchesQuick(tile.dataset.quick);
+      tile.classList.toggle('is-active', on);
+      tile.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  // ---------- filtering, sorting, rendering ----------
+
+  function filterTicketsTable() {
+    const v = tkView();
+    const read = (id, fallback) => { const el = document.getElementById(id); return el && el.value ? el.value : fallback; };
+    v.type = read('ticket-filter-type', v.type);
+    v.status = read('ticket-filter-status', v.status);
+    v.priority = read('ticket-filter-priority', v.priority);
+    v.sort = read('ticket-sort', v.sort);
+
+    const q = ((document.getElementById('ticket-search') || {}).value || '').toLowerCase().trim();
+    const qNum = q.replace(/^#?(t-)?0*/, '');
+    const me = AppState.user.email;
+
+    const filtered = (AppState.tickets || []).filter(t => {
+      if (v.scope === 'mine' && !isAssignedToMe(t)) return false;
+      if (v.scope === 'created' && String(t.assignedBy).toLowerCase() !== me) return false;
+      if (v.scope === 'cc' && !emailListIncludes(t.cc, me)) return false;
+
+      if (v.type !== 'ALL' && t.ticketType !== v.type) return false;
+
+      if (v.status === 'ACTIVE' && !tkIsActive(t)) return false;
+      if (v.status === 'OVERDUE' && !tkIsOverdue(t)) return false;
+      if (['ACTIVE', 'OVERDUE', 'ALL'].indexOf(v.status) === -1 && t.status !== v.status) return false;
+
+      const pr = tkPriority(t);
+      if (v.priority === 'HIGHPLUS' && pr !== 'Urgent' && pr !== 'High') return false;
+      if (v.priority !== 'ALL' && v.priority !== 'HIGHPLUS' && pr !== v.priority) return false;
+
+      if (q) {
+        if (/^\d+$/.test(qNum) && Number(qNum) === Number(t.no)) return true;
+        const hay = [tkLabel(t), t.description, t.assignedTo, t.assignedBy, t.cc, t.status, pr, t.ticketType]
+          .join(' ').toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    const byIso = (a, b, field) => String(b[field] || '').localeCompare(String(a[field] || ''));
+    filtered.sort((a, b) => {
+      if (v.sort === 'newest') return byIso(a, b, 'createdAt');
+      if (v.sort === 'oldest') return byIso(b, a, 'createdAt');
+      if (v.sort === 'priority') {
+        const d = TK_PRIORITY_RANK[tkPriority(b)] - TK_PRIORITY_RANK[tkPriority(a)];
+        if (d) return d;
+        const da = a.dueDate || '9999', db = b.dueDate || '9999';
+        if (da !== db) return da < db ? -1 : 1;
+        return byIso(a, b, 'updatedAt');
+      }
+      if (v.sort === 'due') {
+        const da = a.dueDate || '9999', db = b.dueDate || '9999';
+        if (da !== db) return da < db ? -1 : 1;
+        return TK_PRIORITY_RANK[tkPriority(b)] - TK_PRIORITY_RANK[tkPriority(a)];
+      }
+      return byIso(a, b, 'updatedAt');
+    });
+
+    tkSaveView();
+    renderTicketsTable(filtered);
+
+    const clear = document.getElementById('ticket-clear-filters');
+    if (clear) clear.hidden = !tkFiltersActive();
+    const count = document.getElementById('ticket-count');
+    if (count) {
+      const total = (AppState.tickets || []).length;
+      count.innerText = AppState.ticketsLoaded
+        ? 'Showing ' + filtered.length + ' of ' + total + ' ticket' + (total === 1 ? '' : 's') + '. Shortcuts: / search, N new ticket.'
+        : '';
+    }
+    tkHighlightQuick();
+  }
+
+  function renderTicketsTable(tickets) {
+    const tbody = document.getElementById('tickets-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!tickets.length) {
+      if (!(AppState.tickets || []).length) {
+        tkRenderMessage('<strong>No tickets yet.</strong>Issues, tasks and flags you are involved in will show here.' +
+          '<br><button type="button" class="btn-primary" onclick="openCreateTicketDrawer()">Create the first ticket</button>');
+      } else {
+        tkRenderMessage('<strong>No tickets match these filters.</strong>Try another status or clear the filters.' +
+          '<br><button type="button" class="btn-secondary" onclick="clearTicketFilters()">Clear filters</button>');
+      }
+      return;
+    }
+
+    const me = AppState.user.email;
+    const frag = document.createDocumentFragment();
+    tickets.forEach(t => {
+      const key = tkKey(t);
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.tabIndex = 0;
+      tr.setAttribute('role', 'button');
+      tr.setAttribute('aria-label', (tkLabel(t) ? tkLabel(t) + ', ' : '') + t.ticketType + ': ' + tkTitle(t).substring(0, 80));
+      if (tkIsOverdue(t)) tr.classList.add('tk-row-overdue');
+      if (!tkIsActive(t)) tr.classList.add('tk-row-closed');
+      tr.onclick = () => openTicketDetailDrawer(key);
+      tr.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTicketDetailDrawer(key); } };
+
+      // 1. Number + type
+      const tdId = document.createElement('td');
+      tdId.innerHTML = `<div class="tk-id"><span class="tk-no">${escapeHtml(tkLabel(t) || '—')}</span>` +
+        `<span class="badge tk-type type-${String(t.ticketType).replace(/[^\w-]/g, '')}">${escapeHtml(TK_TYPE_LABEL[t.ticketType] || t.ticketType)}</span></div>`;
+      tr.appendChild(tdId);
+
+      // 2. Title + who / when / comments / files
+      let tag = '';
+      if (isAssignedToMe(t) && !tkIsAllUsers(t)) tag = '<span class="tk-tag tk-tag-mine">[Assigned to you]</span> ';
+      else if (t.isPublic) tag = '<span class="tk-tag tk-tag-public">[Public]</span> ';
+      else if (emailListIncludes(t.cc, me)) tag = '<span class="tk-tag tk-tag-cc">[CC\'d]</span> ';
+      const bits = ['by ' + escapeHtml(tkWho(t.assignedBy)), 'opened ' + escapeHtml(formatRelativeTime(t.createdAt))];
+      if (t.commentCount) bits.push('💬 ' + t.commentCount);
+      if (t.attachments && t.attachments.length) bits.push('📎 ' + t.attachments.length);
+      const tdTitle = document.createElement('td');
+      tdTitle.innerHTML = `<div class="desc-cell">${tag}${escapeHtml(tkTitle(t))}</div><div class="tk-sub">${bits.join(' · ')}</div>`;
+      tdTitle.title = String(t.description || '').substring(0, 600);
+      tr.appendChild(tdTitle);
+
+      // 3. Priority
+      const pr = tkPriority(t);
+      const tdPri = document.createElement('td');
+      tdPri.innerHTML = `<span class="tk-pri tk-pri-${pr}">${pr}</span>`;
+      tr.appendChild(tdPri);
+
+      // 4. Assigned to
+      const tdPeople = document.createElement('td');
+      if (tkIsAllUsers(t)) {
+        tdPeople.innerHTML = '<span class="tk-people-name" style="color:var(--primary-blue);">🌐 All users</span>';
+      } else {
+        const people = parseEmailList(t.assignedTo);
+        const avatars = people.slice(0, 3).map(e => `<span class="assignee-avatar" title="${escapeHtml(e)}">${escapeHtml(initialsOf(e))}</span>`).join('');
+        const name = people.length ? tkWho(people[0]) + (people.length > 1 ? ' +' + (people.length - 1) : '') : 'Unassigned';
+        tdPeople.innerHTML = `<div class="tk-people"><span class="tk-avatars" aria-hidden="true">${avatars}</span><span class="tk-people-name">${escapeHtml(name)}</span></div>`;
+        tdPeople.title = people.join(', ');
+      }
+      tr.appendChild(tdPeople);
+
+      // 5. Status
+      const tdStatus = document.createElement('td');
+      tdStatus.innerHTML = `<span class="badge status-${String(t.status).replace(/[^\w-]/g, '')}">${escapeHtml(t.status)}</span>`;
+      tr.appendChild(tdStatus);
+
+      // 6. Due
+      const tdDue = document.createElement('td');
+      if (!t.dueDate) tdDue.innerHTML = '<span class="tk-muted">—</span>';
+      else if (tkIsOverdue(t)) tdDue.innerHTML = `<span class="tk-due tk-due-over">Overdue · ${escapeHtml(tkFmtDate(t.dueDate))}</span>`;
+      else if (tkIsDueToday(t)) tdDue.innerHTML = '<span class="tk-due tk-due-today">Due today</span>';
+      else tdDue.innerHTML = `<span class="tk-due">${escapeHtml(tkFmtDate(t.dueDate))}</span>`;
+      tr.appendChild(tdDue);
+
+      // 7. Updated
+      const tdUpd = document.createElement('td');
+      tdUpd.style.textAlign = 'right';
+      tdUpd.className = 'tk-muted';
+      tdUpd.innerText = formatRelativeTime(t.updatedAt || t.createdAt);
+      tdUpd.title = 'Updated ' + tkFmtDateTime(t.updatedAt || t.createdAt) + (t.updatedBy ? ' by ' + t.updatedBy : '');
+      tr.appendChild(tdUpd);
+
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+  }
+
+  // ---------- create ----------
+
+  function openCreateTicketDrawer() {
+    AppState.createTicketType = 'Issue';
+    AppState.createTicketAssignees = [];
+    AppState.createTicketCC = [];
+    AppState.stagedFiles.create = [];
+    setCreateTicketType('Issue');
+    setCreatePriority('Normal');
+    const due = document.getElementById('create-due');
+    if (due) { due.value = ''; due.min = tkToday(); }
+
+    document.getElementById('create-toggle-send').checked = true;
+    updateSendToggleText();
+    document.getElementById('create-toggle-public').checked = false;
+    handlePublicToggleChange();
+
+    document.getElementById('create-description').value = '';
+    renderAssigneeChips();
+    renderCcChips();
+    renderStagedShelf('create');
+
+    document.getElementById('create-ticket-overlay').style.display = 'block';
+    document.getElementById('create-ticket-drawer').classList.add('open');
+    snapshotDrawer('create');
+    focusDrawer('create-ticket-drawer');
+    const desc = document.getElementById('create-description');
+    if (desc) desc.focus();
+  }
+
+  function closeCreateTicketDrawer() {
+    document.getElementById('create-ticket-overlay').style.display = 'none';
+    document.getElementById('create-ticket-drawer').classList.remove('open');
+    AppState.stagedFiles.create = [];
+    restoreFocus();
+  }
+
+  function setCreateTicketType(type) {
+    AppState.createTicketType = type;
+    document.getElementById('create-type-issue').classList.toggle('active', type === 'Issue');
+    document.getElementById('create-type-task').classList.toggle('active', type === 'Task');
+    document.getElementById('create-type-flags').classList.toggle('active', type === 'Flags');
+  }
+
+  function setCreatePriority(priority) {
+    AppState.createTicketPriority = TK_PRIORITY_RANK[priority] ? priority : 'Normal';
+    document.querySelectorAll('#create-priority .segment-btn').forEach(b => {
+      const on = b.dataset.priority === AppState.createTicketPriority;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function updateSendToggleText() {
+    const isChecked = document.getElementById('create-toggle-send').checked;
+    document.getElementById('send-toggle-label').innerText = isChecked
+      ? 'On • The assignees and CCs get an email from you'
+      : 'Off • The ticket is created without an email';
+  }
+
+  function submitNewTicket() {
+    if (Tk.creating) return;                         // double click / Enter twice
+    const isPublic = document.getElementById('create-toggle-public').checked;
+    const description = document.getElementById('create-description').value.trim();
+    const shouldSendEmail = document.getElementById('create-toggle-send').checked;
+    const dueDate = (document.getElementById('create-due') || {}).value || '';
+    const btn = document.getElementById('btn-submit-ticket');
+
+    if (!description) { showToast('Please enter a description.', 'error'); document.getElementById('create-description').focus(); return; }
+    if (!isPublic && AppState.createTicketAssignees.length === 0) { showToast('Please select at least one assignee.', 'error'); return; }
+    if (dueDate && dueDate < tkToday() && !confirm('The due date is in the past. Create the ticket anyway?')) return;
+
+    Tk.creating = true;
+    btn.disabled = true;
+    btn.innerHTML = '<span>Creating...</span>';
+    setSyncState(true, AppState.stagedFiles.create.length ? 'Uploading attachments...' : 'Creating ticket...');
+
+    const payload = {
+      ticketType: AppState.createTicketType,
+      assignedTo: isPublic ? 'All Users' : AppState.createTicketAssignees,
+      description: description,
+      cc: AppState.createTicketCC,
+      priority: AppState.createTicketPriority || 'Normal',
+      dueDate: dueDate,
+      shouldSendEmail: shouldSendEmail,
+      isPublic: isPublic,
+      rawFiles: AppState.stagedFiles.create
+    };
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Tk.creating = false;
+        btn.disabled = false;
+        btn.innerHTML = '<span>Create Ticket</span>';
+        setSyncState(false, 'Synced');
+        closeCreateTicketDrawer();
+        const label = res && res.ticket ? tkLabel(res.ticket) : '';
+        if (res && res.ticket) tkReplaceTicket(res.ticket); else loadTickets();
+        if (res && res.emailError) showToast((label ? label + ' created' : 'Ticket created') + ', but the email failed: ' + res.emailError, 'error');
+        else if (res && res.emailDispatched) showToast((label || 'Ticket') + ' created and the email was sent.');
+        else showToast((label || 'Ticket') + ' created (no email sent).');
+      })
+      .withFailureHandler(err => {
+        Tk.creating = false;
+        btn.disabled = false;
+        btn.innerHTML = '<span>Create Ticket</span>';
+        setSyncState(false, 'Error');
+        showToast('Could not create the ticket: ' + err.message, 'error');
+      })
+      .createTicket(payload);
+  }
+
+  // ---------- detail drawer ----------
+
+  function openTicketDetailDrawer(key) {
+    const ticket = tkFindTicket(key);
+    if (!ticket) {
+      showToast('That ticket is not visible to you, or it no longer exists.', 'error');
+      return;
+    }
+    AppState.activeTicketKey = tkKey(ticket);
+    AppState.stagedFiles.detail = [];
+    renderStagedShelf('detail');
+    const comment = document.getElementById('ticket-comment-text');
+    if (comment) comment.value = '';
+    const notify = document.getElementById('ticket-notify');
+    if (notify) notify.checked = true;
+
+    tkFillDetail(ticket);
+
+    document.getElementById('detail-ticket-overlay').style.display = 'block';
+    document.getElementById('detail-ticket-drawer').classList.add('open');
+    snapshotDrawer('detail');
+    focusDrawer('detail-ticket-drawer');
+    tkLoadActivity(tkKey(ticket));
+  }
+
+  function closeTicketDetailDrawer() {
+    document.getElementById('detail-ticket-overlay').style.display = 'none';
+    document.getElementById('detail-ticket-drawer').classList.remove('open');
+    AppState.activeTicketKey = null;
+    AppState.stagedFiles.detail = [];
+    Tk.detail = null;
+    restoreFocus();
+  }
+
+  /** Puts a ticket into the drawer and resets unsaved field edits. */
+  function tkFillDetail(ticket) {
+    const perms = tkPerms(ticket);
+    const me = AppState.user.email;
+    Tk.detail = {
+      key: tkKey(ticket),
+      base: {
+        status: ticket.status,
+        description: ticket.description,
+        ticketType: ticket.ticketType,
+        priority: tkPriority(ticket),
+        dueDate: ticket.dueDate || '',
+        assignedTo: ticket.assignedTo,
+        cc: ticket.cc || '',
+        isPublic: ticket.isPublic === true
+      },
+      allUsers: tkIsAllUsers(ticket),
+      assignees: tkIsAllUsers(ticket) ? [] : parseEmailList(ticket.assignedTo),
+      cc: parseEmailList(ticket.cc),
+      activity: Tk.detail && Tk.detail.key === tkKey(ticket) ? Tk.detail.activity : null
+    };
+
+    const typeBadge = document.getElementById('detail-type-badge');
+    typeBadge.innerText = TK_TYPE_LABEL[ticket.ticketType] || ticket.ticketType;
+    typeBadge.className = 'badge type-' + String(ticket.ticketType).replace(/[^\w-]/g, '');
+    document.getElementById('detail-no').innerText = tkLabel(ticket);
+    document.getElementById('detail-public-indicator').hidden = !ticket.isPublic;
+    const title = document.getElementById('detail-title');
+    title.innerText = tkTitle(ticket);
+    title.title = tkTitle(ticket);
+
+    // Relation banner
+    const banner = document.getElementById('detail-relation-banner');
+    if (isAssignedToMe(ticket) && !tkIsAllUsers(ticket)) {
+      banner.className = 'relation-banner relation-assigned';
+      banner.innerText = '⚡ You are assigned to this ticket. You are responsible for actioning it.';
+    } else if (ticket.isPublic) {
+      banner.className = 'relation-banner relation-public';
+      banner.innerText = '🌐 Public ticket: visible to the whole team.';
+    } else if (String(ticket.assignedBy).toLowerCase() === me) {
+      banner.className = 'relation-banner relation-creator';
+      banner.innerText = '👤 You created this ticket.';
+    } else if (emailListIncludes(ticket.cc, me)) {
+      banner.className = 'relation-banner relation-cc';
+      banner.innerText = '👁️ You are CC\'d: you can read and comment.';
+    } else {
+      banner.className = 'relation-banner relation-creator';
+      banner.innerText = 'Operational overview';
+    }
+
+    // Status buttons (save at once)
+    const seg = document.getElementById('detail-status-actions');
+    seg.innerHTML = '';
+    TK_STATUSES.forEach(st => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'segment-btn' + (st === ticket.status ? ' active' : '');
+      b.dataset.status = st;
+      b.textContent = st;
+      b.setAttribute('aria-pressed', st === ticket.status ? 'true' : 'false');
+      b.disabled = !perms.status;
+      b.onclick = () => tkSetStatus(st);
+      seg.appendChild(b);
+    });
+    const statusHint = document.getElementById('detail-status-hint');
+    statusHint.innerText = perms.status
+      ? 'Changing the status saves at once.'
+      : (tkReadOnlyRole() ? 'Your role can view and create tickets, but not change them.' : 'Only the assignees, the creator or a Manager can change the status.');
+
+    // Fields
+    const pri = document.getElementById('detail-priority');
+    pri.innerHTML = '';
+    TK_PRIORITIES.slice().reverse().forEach(p => pri.add(new Option(p, p)));
+    pri.value = tkPriority(ticket);
+    pri.disabled = !perms.edit;
+    const due = document.getElementById('detail-due');
+    due.value = ticket.dueDate || '';
+    due.disabled = !perms.edit;
+    const type = document.getElementById('detail-type');
+    type.innerHTML = '';
+    ['Issue', 'Task', 'Flags'].forEach(tp => type.add(new Option(tp, tp)));
+    type.value = ticket.ticketType;
+    type.disabled = !perms.edit;
+
+    const desc = document.getElementById('detail-description');
+    desc.value = ticket.description || '';
+    desc.readOnly = !perms.edit;
+    document.getElementById('detail-desc-hint').innerText = perms.edit
+      ? ''
+      : 'Only the creator or a Manager can edit the description. Use a comment to add information.';
+
+    // People
+    tkRenderPeople();
+    const pubWrap = document.getElementById('detail-public-toggle-container');
+    pubWrap.hidden = !perms.assign;
+    document.getElementById('detail-toggle-public').checked = ticket.isPublic === true;
+
+    // Files
+    const existBox = document.getElementById('detail-existing-attachments');
+    const pillsBox = document.getElementById('detail-existing-pills');
+    if (ticket.attachments && ticket.attachments.length) {
+      existBox.hidden = false;
+      pillsBox.innerHTML = ticket.attachments.map(tkAttachmentPill).join('');
+    } else {
+      existBox.hidden = true;
+      pillsBox.innerHTML = '';
+    }
+
+    // Meta
+    document.getElementById('detail-meta').innerHTML =
+      `<span>Created by ${escapeHtml(ticket.assignedBy)} · ${escapeHtml(tkFmtDateTime(ticket.createdAt))}</span>` +
+      `<span>Last updated ${escapeHtml(formatRelativeTime(ticket.updatedAt || ticket.createdAt))}` +
+      (ticket.updatedBy ? ' by ' + escapeHtml(ticket.updatedBy) : '') + '</span>';
+
+    // Comment box
+    document.getElementById('ticket-comment-composer').hidden = !perms.comment;
+    document.getElementById('detail-readonly-note').hidden = perms.comment;
+
+    tkUpdateDirty();
+  }
+
+  function tkAttachmentPill(att) {
+    const fileId = att.id || att.url;
+    return `<button type="button" class="attachment-pill" data-file-id="${escapeHtml(fileId)}" data-file-name="${escapeHtml(att.name)}" onclick="handleAttachmentBtnClick(this)">` +
+      `💾 ${escapeHtml(att.name)} (${escapeHtml(att.size || 'File')})</button>`;
+  }
+
+  function tkRenderPeople() {
+    const d = Tk.detail;
+    if (!d) return;
+    const ticket = tkFindTicket(d.key);
+    const perms = tkPerms(ticket || {});
+    const renderChips = (containerId, list, onRemove, emptyHtml) => {
+      const box = document.getElementById(containerId);
+      box.innerHTML = '';
+      if (!list.length) { box.innerHTML = emptyHtml; return; }
+      list.forEach(email => {
+        const chip = document.createElement('span');
+        chip.className = 'assignee-chip' + (email === AppState.user.email ? ' is-me' : '');
+        chip.title = email;
+        chip.innerHTML = `<span class="assignee-avatar" aria-hidden="true">${escapeHtml(initialsOf(email))}</span>` +
+          `<span class="assignee-name">${escapeHtml(email === AppState.user.email ? 'You' : nameOf(email))}</span>`;
+        if (perms.assign) {
+          const x = document.createElement('button');
+          x.type = 'button';
+          x.className = 'assignee-x';
+          x.textContent = '×';
+          x.setAttribute('aria-label', 'Remove ' + email);
+          x.onclick = () => { onRemove(email); tkRenderPeople(); tkUpdateDirty(); };
+          chip.appendChild(x);
+        }
+        box.appendChild(chip);
+      });
+    };
+
+    renderChips('detail-assignees', d.assignees, email => { d.assignees = d.assignees.filter(e => e !== email); },
+      d.allUsers ? '<span class="tk-chip-allusers">🌐 All users</span>' : '<span class="assignee-empty">No assignee</span>');
+    renderChips('detail-cc', d.cc, email => { d.cc = d.cc.filter(e => e !== email); },
+      '<span class="assignee-empty">None</span>');
+
+    const fillAdd = (selectId, exclude, onAdd) => {
+      const sel = document.getElementById(selectId);
+      sel.hidden = !perms.assign;
+      if (!perms.assign) return;
+      sel.innerHTML = '';
+      sel.add(new Option('+ Add person', ''));
+      AppState.authorizedUsers.forEach(u => {
+        if (exclude.indexOf(u.email) !== -1) return;
+        sel.add(new Option(u.email === AppState.user.email ? 'Myself (' + u.email + ')' : u.email + ' (' + u.role + ')', u.email));
+      });
+      sel.onchange = (e) => { if (e.target.value) { onAdd(e.target.value); tkRenderPeople(); tkUpdateDirty(); } };
+    };
+    fillAdd('detail-assignee-add', d.assignees, email => {
+      d.assignees.push(email);
+      d.cc = d.cc.filter(e => e !== email);
+    });
+    fillAdd('detail-cc-add', d.cc.concat(d.assignees), email => { d.cc.push(email); });
+  }
+
+  /** Field edits not yet saved: { updates, base } (empty updates when nothing changed). */
+  function tkCollectEdits() {
+    const d = Tk.detail;
+    const out = { updates: {}, base: {} };
+    if (!d) return out;
+    const ticket = tkFindTicket(d.key);
+    const perms = tkPerms(ticket || {});
+    const add = (field, value) => { out.updates[field] = value; out.base[field] = d.base[field]; };
+
+    if (perms.edit) {
+      const desc = document.getElementById('detail-description').value.trim();
+      if (desc !== String(d.base.description || '').trim()) add('description', desc);
+      const pri = document.getElementById('detail-priority').value;
+      if (pri !== d.base.priority) add('priority', pri);
+      const due = document.getElementById('detail-due').value || '';
+      if (due !== d.base.dueDate) add('dueDate', due);
+      const tp = document.getElementById('detail-type').value;
+      if (tp !== d.base.ticketType) add('ticketType', tp);
+    }
+    if (perms.assign) {
+      const same = (a, b) => a.length === b.length && a.slice().sort().join(',') === b.slice().sort().join(',');
+      const baseAssignees = d.allUsers ? [] : parseEmailList(d.base.assignedTo);
+      if (!same(d.assignees, baseAssignees)) add('assignedTo', d.assignees.slice());
+      if (!same(d.cc, parseEmailList(d.base.cc))) add('cc', d.cc.slice());
+      const pub = document.getElementById('detail-toggle-public').checked;
+      if (pub !== d.base.isPublic) add('isPublic', pub);
+    }
+    return out;
+  }
+
+  function tkUpdateDirty() {
+    const edits = tkCollectEdits();
+    const dirty = Object.keys(edits.updates).length > 0;
+    const btn = document.getElementById('btn-save-ticket-detail');
+    if (btn) {
+      btn.disabled = !dirty;
+      btn.hidden = !Tk.detail || !(function () {
+        const p = tkPerms(tkFindTicket(Tk.detail.key) || {});
+        return p.edit || p.assign;
+      })();
+    }
+    const note = document.getElementById('detail-dirty-note');
+    if (note) note.hidden = !dirty;
+  }
+
+  /** Used by requestCloseDrawer('detail') in Index.html. */
+  function ticketDetailIsDirty() {
+    const text = ((document.getElementById('ticket-comment-text') || {}).value || '').trim();
+    return Object.keys(tkCollectEdits().updates).length > 0 || !!text;
+  }
+
+  function tkNotifyChecked() {
+    const box = document.getElementById('ticket-notify');
+    return !box || box.checked;
+  }
+
+  function saveTicketDetailUpdates() {
+    const d = Tk.detail;
+    if (!d) return;
+    const edits = tkCollectEdits();
+    if (!Object.keys(edits.updates).length) { showToast('No changes to save.'); return; }
+    if (edits.updates.description !== undefined && !edits.updates.description) {
+      showToast('The description cannot be empty.', 'error');
+      return;
+    }
+    if (edits.updates.assignedTo && !edits.updates.assignedTo.length) {
+      const pub = document.getElementById('detail-toggle-public').checked;
+      if (!pub) { showToast('A private ticket needs at least one assignee.', 'error'); return; }
+    }
+
+    const btn = document.getElementById('btn-save-ticket-detail');
+    btn.disabled = true;
+    btn.innerText = 'Saving...';
+    setSyncState(true, 'Saving ticket...');
+    const payload = Object.assign({}, edits.updates, { base: edits.base, notify: tkNotifyChecked() });
+
+    google.script.run
+      .withSuccessHandler(res => {
+        btn.innerText = 'Save changes';
+        setSyncState(false, 'Synced');
+        if (res && res.ticket) {
+          tkReplaceTicket(res.ticket);
+          if (Tk.detail && Tk.detail.key === d.key) tkFillDetail(res.ticket);
+        }
+        const note = tkEmailNote(res);
+        showToast((res && res.changes && res.changes.length ? 'Saved: ' + res.changes.join(', ') + '.' : 'No changes to save.') + note.text,
+          note.error ? 'error' : undefined);
+        if (Tk.detail && Tk.detail.key === d.key) tkLoadActivity(d.key);
+      })
+      .withFailureHandler(err => {
+        btn.innerText = 'Save changes';
+        tkUpdateDirty();
+        setSyncState(false, 'Error');
+        showToast(err.message, 'error');
+      })
+      .updateTicket(d.key, payload);
+  }
+
+  function tkSetStatus(status) {
+    const d = Tk.detail;
+    if (!d || Tk.savingStatus) return;
+    const ticket = tkFindTicket(d.key);
+    if (!ticket || !tkPerms(ticket).status || status === d.base.status) return;
+
+    const previous = d.base.status;
+    Tk.savingStatus = true;
+    tkMarkStatus(status);
+    setSyncState(true, 'Saving status...');
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Tk.savingStatus = false;
+        setSyncState(false, 'Synced');
+        if (res && res.ticket) {
+          // Keep any other unsaved edits in the drawer: only the status part of the base moves on.
+          const keepDesc = document.getElementById('detail-description').value;
+          AppState.tickets = AppState.tickets.map(t => tkKey(t) === d.key ? res.ticket : t);
+          if (Tk.detail && Tk.detail.key === d.key) {
+            Tk.detail.base.status = res.ticket.status;
+            document.getElementById('detail-description').value = keepDesc;
+            document.getElementById('detail-meta').lastChild.textContent =
+              'Last updated ' + formatRelativeTime(res.ticket.updatedAt) + ' by ' + (res.ticket.updatedBy || AppState.user.email);
+          }
+          updateTicketMetrics();
+          filterTicketsTable();
+        }
+        const note = tkEmailNote(res);
+        showToast('Status set to ' + status + '.' + note.text, note.error ? 'error' : undefined);
+        if (Tk.detail && Tk.detail.key === d.key) tkLoadActivity(d.key);
+      })
+      .withFailureHandler(err => {
+        Tk.savingStatus = false;
+        tkMarkStatus(previous);
+        setSyncState(false, 'Error');
+        showToast(err.message, 'error');
+      })
+      .updateTicket(d.key, { status: status, base: { status: previous }, notify: tkNotifyChecked() });
+  }
+
+  function tkMarkStatus(status) {
+    document.querySelectorAll('#detail-status-actions .segment-btn').forEach(b => {
+      const on = b.dataset.status === status;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function copyTicketLink() {
+    const d = Tk.detail;
+    if (!d) return;
+    if (!AppState.webAppUrl) { showToast('The app link is not set up yet (WFM_WEBAPP_URL). Ask an Admin.', 'error'); return; }
+    const ticket = tkFindTicket(d.key);
+    const url = AppState.webAppUrl + '?page=tickets&ticketKey=' + encodeURIComponent(d.key);
+    const label = ticket ? tkLabel(ticket) : 'Ticket';
+    const done = () => showToast('Link to ' + label + ' copied.');
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) { done(); return; }
+      } catch (e) {}
+      showToast('Copy this link: ' + url);
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fallback);
+      else fallback();
+    } catch (e) { fallback(); }
+  }
+
+  // ---------- activity & comments ----------
+
+  function tkLoadActivity(key) {
+    const box = document.getElementById('detail-activity');
+    if (!box) return;
+    const token = ++Tk.activityToken;
+    if (!Tk.detail || !Tk.detail.activity) {
+      box.innerHTML = [80, 60, 70].map(w => `<div class="skeleton-cell" style="width:${w}%"></div>`).join('');
+    }
+    google.script.run
+      .withSuccessHandler(res => {
+        if (token !== Tk.activityToken || !Tk.detail || Tk.detail.key !== key) return;
+        Tk.detail.activity = (res && res.entries) || [];
+        tkRenderActivity();
+      })
+      .withFailureHandler(err => {
+        if (token !== Tk.activityToken) return;
+        box.innerHTML = `<div class="tk-hint">The history could not be loaded: ${escapeHtml(err.message || '')} ` +
+          `<button type="button" class="btn-pill-quick" onclick="tkLoadActivity('${escapeHtml(key)}')">Try again</button></div>`;
+      })
+      .getTicketActivity(key);
+  }
+
+  function tkRenderActivity() {
+    const box = document.getElementById('detail-activity');
+    const entries = (Tk.detail && Tk.detail.activity) || [];
+    if (!entries.length) { box.innerHTML = '<div class="tk-hint">No activity yet.</div>'; return; }
+
+    box.innerHTML = entries.map(e => {
+      const who = escapeHtml(tkWho(e.actor));
+      const when = `<time title="${escapeHtml(tkFmtDateTime(e.at))}">${escapeHtml(formatRelativeTime(e.at))}</time>`;
+      const files = (e.meta && Array.isArray(e.meta.attachments) && e.meta.attachments.length)
+        ? '<div>' + e.meta.attachments.map(tkAttachmentPill).join('') + '</div>' : '';
+
+      if (e.action === 'comment') {
+        return `<div class="tk-entry"><span class="assignee-avatar" aria-hidden="true">${escapeHtml(initialsOf(e.actor || '?'))}</span>` +
+          `<div class="tk-bubble"><div class="tk-entry-head"><strong>${who}</strong>${when}</div>` +
+          (e.details ? `<div class="tk-entry-body">${escapeHtml(e.details)}</div>` : '') + files + '</div></div>';
+      }
+
+      let text;
+      switch (e.action) {
+        case 'created': text = 'created this ticket'; break;
+        case 'status': text = 'changed the status: ' + escapeHtml(e.details); break;
+        case 'priority': text = 'changed the priority: ' + escapeHtml(e.details); break;
+        case 'due': text = 'changed the due date: ' + escapeHtml(e.details); break;
+        case 'type': text = 'changed the type: ' + escapeHtml(e.details); break;
+        case 'assigned': text = 'changed the assignees: ' + escapeHtml(e.details); break;
+        case 'cc': text = 'changed the CC list: ' + escapeHtml(e.details); break;
+        case 'visibility': text = escapeHtml(String(e.details || '').toLowerCase()); break;
+        case 'attachment': text = escapeHtml(String(e.details || '').replace(/^Attached/, 'attached')); break;
+        case 'description':
+          text = 'edited the description' + (e.meta && e.meta.previous
+            ? `<details><summary>Show the previous text</summary><pre>${escapeHtml(e.meta.previous)}</pre></details>` : '');
+          break;
+        default: text = escapeHtml(e.details || e.action);
+      }
+      return `<div class="tk-entry tk-event"><span class="tk-dot" aria-hidden="true"></span>` +
+        `<div class="tk-event-text"><strong>${who}</strong> ${text} · ${when}${files}</div></div>`;
+    }).join('');
+  }
+
+  function postTicketComment() {
+    const d = Tk.detail;
+    if (!d || Tk.posting) return;
+    const box = document.getElementById('ticket-comment-text');
+    const text = box.value.trim();
+    const files = AppState.stagedFiles.detail || [];
+    if (!text && !files.length) { showToast('Write a comment or attach a file.', 'error'); box.focus(); return; }
+    if (AppState.pendingReads > 0) { showToast('Still reading the attachments. Try again in a moment.'); return; }
+
+    const btn = document.getElementById('btn-post-comment');
+    Tk.posting = true;
+    btn.disabled = true;
+    btn.innerText = 'Posting...';
+    setSyncState(true, files.length ? 'Uploading attachments...' : 'Posting comment...');
+
+    google.script.run
+      .withSuccessHandler(res => {
+        Tk.posting = false;
+        btn.disabled = false;
+        btn.innerText = 'Post comment';
+        setSyncState(false, 'Synced');
+        if (!Tk.detail || Tk.detail.key !== d.key) return;
+        box.value = '';
+        AppState.stagedFiles.detail = [];
+        renderStagedShelf('detail');
+        if (res && res.ticket) {
+          AppState.tickets = AppState.tickets.map(t => tkKey(t) === d.key ? res.ticket : t);
+          const existBox = document.getElementById('detail-existing-attachments');
+          const pillsBox = document.getElementById('detail-existing-pills');
+          if (res.ticket.attachments && res.ticket.attachments.length) {
+            existBox.hidden = false;
+            pillsBox.innerHTML = res.ticket.attachments.map(tkAttachmentPill).join('');
+          }
+          updateTicketMetrics();
+          filterTicketsTable();
+        }
+        if (res && res.entry) {
+          Tk.detail.activity = (Tk.detail.activity || []).concat([res.entry]);
+          tkRenderActivity();
+        }
+        const note = tkEmailNote(res);
+        showToast('Comment posted.' + note.text, note.error ? 'error' : undefined);
+        const composer = document.getElementById('ticket-comment-composer');
+        if (composer && composer.scrollIntoView) composer.scrollIntoView({ block: 'nearest' });
+      })
+      .withFailureHandler(err => {
+        Tk.posting = false;
+        btn.disabled = false;
+        btn.innerText = 'Post comment';
+        setSyncState(false, 'Error');
+        showToast('Comment not posted: ' + err.message, 'error');
+      })
+      .addTicketComment(d.key, text, files, { notify: tkNotifyChecked() });
+  }
+
+  // ---------- one-time wiring ----------
+
+  (function bindTicketUi() {
+    const onReady = () => {
+      ['detail-priority', 'detail-due', 'detail-type', 'detail-toggle-public'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('change', tkUpdateDirty);
+      });
+      const desc = document.getElementById('detail-description');
+      if (desc) desc.addEventListener('input', tkUpdateDirty);
+
+      const comment = document.getElementById('ticket-comment-text');
+      if (comment) {
+        comment.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); postTicketComment(); }
+        });
+      }
+
+      document.querySelectorAll('#view-tickets [data-quick]').forEach(tile => {
+        tile.addEventListener('click', () => tkQuickFilter(tile.dataset.quick));
+      });
+
+      // Unsaved-changes guard for the detail drawer (see requestCloseDrawer in Index.html).
+      if (typeof DRAWER_FIELDS !== 'undefined' && DRAWER_FIELDS.detail) DRAWER_FIELDS.detail.isDirty = ticketDetailIsDirty;
+
+      // Shortcuts on the Tickets page: "/" focuses search, "n" opens a new ticket.
+      document.addEventListener('keydown', (e) => {
+        if (AppState.activeModule !== 'tickets' || e.ctrlKey || e.metaKey || e.altKey) return;
+        const tag = e.target && e.target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) return;
+        if (document.querySelector('.drawer.open')) return;
+        if (e.key === '/') {
+          e.preventDefault();
+          const s = document.getElementById('ticket-search');
+          if (s) s.focus();
+        } else if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          openCreateTicketDrawer();
+        }
+      });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onReady);
+    else onReady();
+  })();
+</script>

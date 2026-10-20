@@ -1,0 +1,697 @@
+<!--
+  Assistant_HTML.html : the AI Assistant panel of the Personal Assistant page (client side).
+  Server side: Assistant.gs (askAssistant, getAssistantStatus, and for Admins getAiSettings,
+  saveAiSettings, testAiProvider). Included by Index.html with <?!= include_('Assistant_HTML') ?> inside
+  #view-assistant, next to ToDo.html. Self-contained: its own markup, styles and scripts.
+
+  Conversation: kept in this browser only (memory + localStorage per signed-in person, last 40
+  messages). The recent part is sent with each question; the server stores no chat history.
+  API keys never reach this page.
+-->
+<section id="pa-chat" class="pa-panel pa-chat" aria-labelledby="ai-heading">
+  <div class="ai-head">
+    <div>
+      <h2 class="ai-title" id="ai-heading">AI Assistant</h2>
+      <p class="ai-sub" id="ai-status-line"><span class="ai-dot" id="ai-dot" aria-hidden="true"></span><span id="ai-status-text">Checking...</span></p>
+    </div>
+    <div class="ai-head-actions">
+      <button type="button" class="btn-secondary ai-small" id="ai-new">New chat</button>
+      <button type="button" class="btn-secondary ai-icon-btn" id="ai-settings-btn" aria-label="AI settings (Admins)" title="AI settings" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="ai-log" id="ai-log" role="log" aria-live="polite" aria-label="Conversation"></div>
+
+  <form class="ai-composer" id="ai-form" autocomplete="off">
+    <textarea id="ai-input" class="ai-input" rows="1" maxlength="8000" placeholder="Ask anything... (Enter to send, Shift+Enter for a new line)" aria-label="Message to the AI Assistant"></textarea>
+    <button type="submit" class="btn-primary ai-send" id="ai-send" aria-label="Send">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+      <span>Send</span>
+    </button>
+  </form>
+  <div class="ai-foot">
+    <label class="ai-share"><input type="checkbox" id="ai-share-todos"> Let the assistant see my to-do list</label>
+    <span>Saved only in this browser. AI can make mistakes; check important answers.</span>
+  </div>
+</section>
+
+<!-- AI SETTINGS (Admins): moved to <body> on load so it overlays the whole app like the other drawers -->
+<div class="drawer-overlay" id="ai-settings-overlay"></div>
+<div class="drawer ai-settings" id="ai-settings-drawer" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+  <div class="drawer-header">
+    <h3 id="ai-settings-title">AI providers</h3>
+    <button type="button" class="drawer-close" id="ai-settings-close" aria-label="Close">&times;</button>
+  </div>
+  <div class="drawer-body">
+    <div class="notice rpt-like-info" style="line-height:1.55;">
+      Providers are tried <strong>in this order</strong>. A busy service is retried briefly; if it still cannot answer
+      (busy, rate limit, used-up quota, bad key), the next one is used and the failing one is skipped for a while,
+      longer each time it fails again, then tried first again. For a real backup, give each provider a <strong>different model</strong>.
+      Keys stay on the server and are never shown again after saving.
+      <br><strong>Note:</strong> anyone who can edit the spreadsheet can open the Apps Script editor and see saved keys. Use keys with a spending limit.
+    </div>
+    <div id="ai-providers"></div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="btn-secondary" id="ai-add-provider">+ Add provider</button>
+      <button type="button" class="btn-secondary" id="ai-test-all" title="Tests every saved, switched-on provider, one after another">Test all</button>
+    </div>
+    <div id="ai-settings-error" class="notice" role="alert" hidden style="background:var(--status-cancelled-bg); border-color:var(--status-cancelled-border); color:var(--status-cancelled-text); font-weight:600;"></div>
+  </div>
+  <div class="drawer-footer">
+    <button type="button" class="btn-secondary" id="ai-settings-cancel">Close</button>
+    <button type="button" class="btn-primary" id="ai-settings-save">Save</button>
+  </div>
+</div>
+
+<style>
+  /* Personal Assistant page layout (#view-assistant is in Index.html): To-Do and chat side by side on
+     wide screens, one at a time with a switch on narrower ones. */
+  #view-assistant .pa-top { display: none; }   /* wide screens: breadcrumb + panel titles say it all */
+  #view-assistant .pa-switch { display: none; }
+  #view-assistant .pa-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  #view-assistant .pa-panel { min-width: 0; }
+  #view-assistant #pa-chat { background: var(--surface-strong); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 16px;
+    position: sticky; top: 0; height: calc(100vh - var(--header-height) - 52px); min-height: 460px; }
+  @media (max-width: 1100px) {
+    #view-assistant .pa-top { display: flex; }
+    #view-assistant .pa-switch { display: inline-flex; }
+    #view-assistant .pa-grid { grid-template-columns: 1fr; }
+    #view-assistant .pa-grid[data-show="todo"] #pa-chat, #view-assistant .pa-grid[data-show="chat"] #view-mytodo { display: none; }
+    #view-assistant #pa-chat { position: static; height: calc(100vh - var(--header-height) - 190px); }
+  }
+
+  #pa-chat { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  #pa-chat .ai-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  #pa-chat .ai-title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+  #pa-chat .ai-sub { display: inline-flex; align-items: center; gap: 7px; margin-top: 4px; color: var(--text-muted); font-size: 12px; font-weight: 600; }
+  #pa-chat .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-medium); }
+  #pa-chat .ai-dot.ok { background: #10B981; }
+  #pa-chat .ai-dot.busy { background: var(--primary-blue); animation: aiPulse 1s ease-in-out infinite; }
+  #pa-chat .ai-dot.off { background: var(--status-pending-text); }
+  @keyframes aiPulse { 50% { opacity: 0.35; } }
+  #pa-chat .ai-head-actions { display: flex; gap: 6px; }
+  #pa-chat .ai-small { height: 32px; padding: 0 12px; font-size: 12px; }
+  #pa-chat .ai-icon-btn { width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+  #pa-chat .ai-icon-btn[hidden] { display: none; }
+
+  #pa-chat .ai-log { flex: 1; min-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border-subtle); }
+  #pa-chat .ai-msg { max-width: 88%; display: flex; flex-direction: column; gap: 4px; }
+  #pa-chat .ai-msg.ai-in { animation: riseIn 0.25s ease both; }   /* only messages that just arrived */
+  #pa-chat .ai-msg.user { align-self: flex-end; align-items: flex-end; }
+  #pa-chat .ai-msg.assistant, #pa-chat .ai-msg.error, #pa-chat .ai-msg.thinking { align-self: flex-start; }
+  #pa-chat .ai-who { font-size: 11px; font-weight: 700; color: var(--text-muted); padding: 0 4px; }
+  #pa-chat .ai-bubble { padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 1.55; word-break: break-word; }
+  #pa-chat .user .ai-bubble { background: #5B3FE0; color: #FFFFFF; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+  #pa-chat .assistant .ai-bubble { background: var(--surface-strong); color: var(--text-primary); border: 1px solid var(--border-subtle); border-bottom-left-radius: 4px; box-shadow: var(--shadow-sm); }
+  #pa-chat .error .ai-bubble { background: var(--status-cancelled-bg); color: var(--status-cancelled-text); border: 1px solid var(--status-cancelled-border); font-weight: 600; }
+  #pa-chat .thinking .ai-bubble { background: var(--surface-strong); border: 1px solid var(--border-subtle); color: var(--text-muted); font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  #pa-chat .ai-typing { display: inline-flex; gap: 3px; }
+  #pa-chat .ai-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--primary-blue); animation: aiBounce 1.1s infinite ease-in-out; }
+  #pa-chat .ai-typing i:nth-child(2) { animation-delay: 0.15s; }
+  #pa-chat .ai-typing i:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes aiBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }
+  #pa-chat .ai-bubble p { margin: 0 0 8px; } #pa-chat .ai-bubble p:last-child { margin-bottom: 0; }
+  #pa-chat .ai-bubble ul, #pa-chat .ai-bubble ol { margin: 4px 0 8px 20px; }
+  #pa-chat .ai-bubble li { margin: 2px 0; }
+  #pa-chat .ai-bubble h4 { font-size: 13px; font-weight: 800; margin: 8px 0 4px; }
+  #pa-chat .ai-bubble code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: var(--surface-hover); border: 1px solid var(--border-subtle); padding: 0 4px; border-radius: 4px; }
+  #pa-chat .ai-bubble pre { background: var(--surface-hover); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 10px; overflow-x: auto; margin: 6px 0; }
+  #pa-chat .ai-bubble pre code { border: none; background: none; padding: 0; white-space: pre; }
+  #pa-chat .ai-bubble a { color: var(--primary-blue); }
+  #pa-chat .ai-bubble ul ul, #pa-chat .ai-bubble ol ol, #pa-chat .ai-bubble ul ol, #pa-chat .ai-bubble ol ul { margin: 2px 0 2px 18px; }
+  #pa-chat .ai-bubble hr { border: none; border-top: 1px solid var(--border-subtle); margin: 10px 0; }
+  #pa-chat .ai-bubble blockquote { margin: 6px 0; padding: 4px 10px; border-left: 3px solid var(--primary-blue-border); color: var(--text-secondary); }
+  #pa-chat .ai-table { overflow-x: auto; margin: 6px 0 8px; }
+  #pa-chat .ai-table table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+  #pa-chat .ai-table th, #pa-chat .ai-table td { border: 1px solid var(--border-subtle); padding: 5px 8px; text-align: left; vertical-align: top; }
+  #pa-chat .ai-table th { background: var(--surface-hover); font-weight: 800; white-space: nowrap; }
+  .ai-prov-note { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--status-pending-text); }
+  #pa-chat .ai-think-time { color: var(--text-muted); margin-left: 4px; font-variant-numeric: tabular-nums; }
+  #pa-chat .ai-tools { display: flex; gap: 6px; padding: 0 2px; }
+  #pa-chat .ai-tool { font: inherit; font-size: 11px; font-weight: 700; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+  #pa-chat .ai-tool:hover { color: var(--primary-blue); background: var(--surface-hover); }
+  #pa-chat .ai-empty { margin: auto; text-align: center; color: var(--text-muted); font-size: 12.5px; font-weight: 600; display: flex; flex-direction: column; gap: 10px; align-items: center; max-width: 360px; }
+  #pa-chat .ai-suggest { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  #pa-chat .ai-suggest button { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border-medium); background: var(--surface-strong); color: var(--text-secondary); cursor: pointer; }
+  #pa-chat .ai-suggest button:hover { border-color: var(--primary-blue-border); color: var(--primary-blue); }
+
+  #pa-chat .ai-composer { display: flex; gap: 8px; align-items: flex-end; }
+  #pa-chat .ai-input { flex: 1; resize: none; min-height: 42px; max-height: 160px; border-radius: var(--radius-sm); border: 1px solid var(--border-medium); background: var(--surface-strong); color: var(--text-primary); padding: 10px 12px; font: inherit; font-size: 13px; line-height: 1.45; outline: none; }
+  #pa-chat .ai-send { height: 42px; display: inline-flex; align-items: center; gap: 6px; }
+  #pa-chat .ai-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  #pa-chat .ai-share { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text-secondary); }
+
+  .ai-settings { width: 560px; max-width: 100%; }
+  .ai-settings .rpt-like-info { background: var(--primary-blue-light); border-color: var(--primary-blue-border); color: var(--text-primary); }
+  .ai-prov { border: 1px solid var(--border-medium); border-radius: var(--radius-md); padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); margin-bottom: 10px; }
+  .ai-prov-head { display: flex; align-items: center; gap: 8px; }
+  .ai-prov-num { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-blue); color: #FFFFFF; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ai-prov-head .text-input { flex: 1; height: 34px; font-weight: 700; }
+  .ai-prov-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ai-prov-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+  .ai-prov-grid .wide { grid-column: 1 / -1; }
+  .ai-prov-grid .text-input, .ai-prov-grid .select-input { height: 34px; font-size: 12px; width: 100%; min-width: 0; box-sizing: border-box; }
+  .ai-prov-grid > label { min-width: 0; }
+  .ai-prov-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+  .ai-prov-foot .btns { display: flex; gap: 6px; }
+  .ai-prov-foot .btn-secondary { height: 30px; padding: 0 10px; font-size: 12px; }
+  .ai-prov-state.ok { color: var(--status-completed-text); } .ai-prov-state.bad { color: var(--status-cancelled-text); }
+  .ai-test-result { font-size: 12px; font-weight: 700; line-height: 1.4; }
+  .ai-test-result:empty { display: none; }
+  @media (max-width: 600px) { .ai-prov-grid { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+/* ---------------------------------------------------------------------------------------------
+ * window.AiMarkdown: turns an AI reply into safe HTML. Everything is escaped first; only a small set
+ * of Markdown (paragraphs, **bold**, *italic*, `code`, ``` blocks, lists, # headings, https links)
+ * is then turned back into tags. No DOM access (unit-tested in Node).
+ * ------------------------------------------------------------------------------------------- */
+window.AiMarkdown = (function () {
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
+  function inline(s) {
+    var codes = [];
+    s = s.replace(/`([^`\n]+)`/g, function (m, c) { codes.push(c); return '\u0000' + (codes.length - 1) + '\u0000'; });
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+         .replace(/(^|[^*\w])\*(?=[^\s*])([^*\n]*?[^\s*])\*(?!\*)/g, '$1<em>$2</em>')   // not "Calls * AHT / 3600" 
+         .replace(/\[([^\]\n]+)\]\((https:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    return s.replace(/\u0000(\d+)\u0000/g, function (m, i) { return '<code>' + codes[+i] + '</code>'; });
+  }
+  // Lines are escaped first (above), so everything below only ever builds known tags around
+  // already-escaped text. Supported: paragraphs, headings, bullet and numbered lists (nested by
+  // indentation), tables, horizontal rules, quotes, code blocks, **bold**, *italic*, `code`, https links.
+  function render(text) {
+    var src = esc(String(text || '').replace(/\r\n?/g, '\n').replace(/[\u0000\u0001]/g, ''));
+    var blocks = [];
+    src = src.replace(/```(?:[a-zA-Z0-9_+-]*\n)?([\s\S]*?)```/g, function (m, code) { blocks.push(code.replace(/\n$/, '')); return '\n\u0001' + (blocks.length - 1) + '\u0001\n'; });
+    var lines = src.split('\n');
+    var out = [], para = [], stack = [], quote = [];
+    function indentOf(line) { var m = /^[ \t]*/.exec(line)[0]; return m.replace(/\t/g, '    ').length; }
+    function flushPara() { if (para.length) { out.push('<p>' + inline(para.join('<br>')) + '</p>'); para = []; } }
+    function flushQuote() { if (quote.length) { out.push('<blockquote>' + inline(quote.join('<br>')) + '</blockquote>'); quote = []; } }
+    function flushList() { while (stack.length) { out.push('</li></' + stack.pop().tag + '>'); } }
+    function flushAll() { flushPara(); flushQuote(); flushList(); }
+    // num: the number written in front of a numbered item, so "3." after a paragraph still shows 3.
+    function open(tag, num) { return '<' + tag + (tag === 'ol' && num > 1 ? ' start="' + num + '"' : '') + '><li>'; }
+    function listItem(tag, indent, content, num) {
+      flushPara(); flushQuote();
+      var top = stack[stack.length - 1];
+      if (top && indent >= top.indent + 2) {                 // deeper: a list inside the open item
+        out.push(open(tag, num) + inline(content)); stack.push({ tag: tag, indent: indent }); return;
+      }
+      while (stack.length > 1 && indent <= stack[stack.length - 1].indent - 2) { out.push('</li></' + stack.pop().tag + '>'); }
+      top = stack[stack.length - 1];
+      if (!top) { out.push(open(tag, num) + inline(content)); stack.push({ tag: tag, indent: indent }); return; }
+      if (top.tag !== tag) { out.push('</li></' + top.tag + '>' + open(tag, num) + inline(content)); top.tag = tag; return; }
+      out.push('</li><li>' + inline(content));
+    }
+    function cells(line) {
+      var t = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+      return t.split('|').map(function (c) { return c.trim(); });
+    }
+    var sepRe = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$|^\s*\|\s*:?-{3,}:?\s*\|\s*$/;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i], m;
+      if ((m = /^\u0001(\d+)\u0001$/.exec(line.trim()))) { flushAll(); out.push('<pre><code>' + blocks[+m[1]] + '</code></pre>'); continue; }
+      if (!line.trim()) {
+        flushPara(); flushQuote();
+        var nxt = lines[i + 1] || '';
+        var keep = stack.length && (/^\s*([-*\u2022]|\d+[.)])\s+/.test(nxt) || (nxt.trim() && indentOf(nxt) >= 2));
+        if (!keep) flushList();
+        continue;
+      }
+      if (line.indexOf('|') !== -1 && i + 1 < lines.length && sepRe.test(lines[i + 1])) {        // table
+        flushAll();
+        var head = cells(line), rows = [];
+        i += 2;
+        while (i < lines.length && lines[i].trim() && lines[i].indexOf('|') !== -1) { rows.push(cells(lines[i])); i++; }
+        i--;
+        out.push('<div class="ai-table"><table><thead><tr>' + head.map(function (c) { return '<th>' + inline(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+          rows.map(function (r) { return '<tr>' + head.map(function (h, k) { return '<td>' + inline(r[k] || '') + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>');
+        continue;
+      }
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); out.push('<hr>'); continue; }
+      if ((m = /^\s*#{1,6}\s+(.*)$/.exec(line))) { flushAll(); out.push('<h4>' + inline(m[1]) + '</h4>'); continue; }
+      if ((m = /^\s*&gt;\s?(.*)$/.exec(line))) { flushPara(); flushList(); quote.push(m[1]); continue; }
+      if ((m = /^(\s*)[-*\u2022]\s+(.*)$/.exec(line))) { listItem('ul', indentOf(line), m[2]); continue; }
+      if ((m = /^(\s*)(\d+)[.)]\s+(.*)$/.exec(line))) { listItem('ol', indentOf(line), m[3], Number(m[2])); continue; }
+      if (stack.length && indentOf(line) >= 2) { out.push('<br>' + inline(line.trim())); continue; }   // text continuing a list item
+      flushQuote(); flushList(); para.push(line);
+    }
+    flushAll();
+    return out.join('');
+  }
+  return { render: render };
+})();
+</script>
+
+<script>
+/* ---------------------------------------------------------------------------------------------
+ * window.AiAssistant: the chat panel and the Admin settings drawer.
+ * ------------------------------------------------------------------------------------------- */
+(function () {
+  var MAX_SAVED = 40;
+  var SLOW_TEXT = 'Still working. The AI service is slower than usual right now.';
+  var SLOW_AFTER_SEC = 25;     // normal answers can take 10-20 s; only say something when it is really slow
+  var SUGGESTIONS = ['Help me plan my shift', 'What should I focus on first today?', 'Draft a shift handover note', 'Explain service level vs occupancy'];
+  var state = { messages: [], busy: false, status: null, loadedFor: '', settings: null, draft: null };
+  var shown = typeof WeakSet === 'function' ? new WeakSet() : null;   // messages already on screen (not animated again)
+  function isNew(m) { if (!shown || shown.has(m)) return false; shown.add(m); return true; }
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m]; }); }
+  function toast(msg, type) { if (typeof showToast === 'function') showToast(msg, type); }
+  // AppState is a top-level const in Index.html's script (not a window property), so read it by name.
+  function me() { try { return (typeof AppState !== 'undefined' && AppState.user && AppState.user.email) || ''; } catch (e) { return ''; } }
+  function storeKey() { return 'wfm-ops-ai-chat:' + me(); }
+  function saveLocal() {
+    if (!me()) return;
+    try { localStorage.setItem(storeKey(), JSON.stringify(state.messages.filter(function (m) { return m.role === 'user' || m.role === 'assistant'; }).slice(-MAX_SAVED))); } catch (e) {}
+  }
+  function loadLocal() {
+    try { var raw = localStorage.getItem(storeKey()); var list = raw ? JSON.parse(raw) : []; return Array.isArray(list) ? list : []; } catch (e) { return []; }
+  }
+
+  // ------------------------------------------------------------ status
+  function setStatus(kind, text) {
+    $('ai-dot').className = 'ai-dot ' + kind;
+    $('ai-status-text').textContent = text;
+  }
+  function refreshStatus() {
+    google.script.run
+      .withSuccessHandler(function (s) {
+        state.status = s;
+        $('ai-settings-btn').hidden = !s.isAdmin;
+        if (!state.busy) idleStatus();
+        render();
+      })
+      .withFailureHandler(function () { if (!state.busy) setStatus('off', 'Status unknown'); })
+      .getAssistantStatus();
+  }
+  // The status line when nothing is being asked. With no status yet (the check failed or is still
+  // running) it says nothing misleading: after a good answer the assistant is evidently ready.
+  function idleStatus(answered) {
+    var s = state.status;
+    if (s && s.configured) setStatus('ok', 'Ready');
+    else if (s) setStatus('off', s.isAdmin ? 'Not set up yet: add a provider with the gear icon' : 'Not set up yet (ask an Admin)');
+    else if (answered) setStatus('ok', 'Ready');
+    else setStatus('off', 'Status unknown');
+  }
+
+  // ------------------------------------------------------------ conversation
+  function render() {
+    var log = $('ai-log');
+    if (!state.messages.length) {
+      var ready = !state.status || state.status.configured;
+      log.innerHTML = '<div class="ai-empty"><div>' + (ready
+        ? 'Ask for help with planning, handover notes, messages, formulas or WFM questions.'
+        : 'The AI Assistant is not set up yet.') + '</div>' +
+        (ready ? '<div class="ai-suggest">' + SUGGESTIONS.map(function (s) { return '<button type="button" data-suggest="' + esc(s) + '">' + esc(s) + '</button>'; }).join('') + '</div>' : '') + '</div>';
+      return;
+    }
+    log.innerHTML = state.messages.map(function (m, i) {
+      var cls = isNew(m) ? ' ai-in' : '';
+      if (m.role === 'user') return '<div class="ai-msg user' + cls + '"><div class="ai-bubble">' + esc(m.content) + '</div></div>';
+      if (m.role === 'assistant') {
+        return '<div class="ai-msg assistant' + cls + '"><span class="ai-who">Assistant' + (m.via ? ' \u00B7 ' + esc(m.via) : '') + '</span>' +
+          '<div class="ai-bubble">' + window.AiMarkdown.render(m.content) + '</div>' +
+          '<div class="ai-tools"><button type="button" class="ai-tool" data-copy="' + i + '">Copy</button></div></div>';
+      }
+      if (m.role === 'thinking') return '<div class="ai-msg thinking' + cls + '"><div class="ai-bubble"><span class="ai-typing" aria-hidden="true"><i></i><i></i><i></i></span>' +
+        '<span class="ai-think-text">' + (m.slow ? SLOW_TEXT : 'Thinking...') + '</span><span class="ai-think-time" aria-hidden="true"></span></div></div>';
+      return '<div class="ai-msg error' + cls + '"><div class="ai-bubble">' + esc(m.content) + '</div>' +
+        '<div class="ai-tools"><button type="button" class="ai-tool" data-retry="1">Try again</button></div></div>';
+    }).join('');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function conversation() {
+    return state.messages.filter(function (m) { return m.role === 'user' || m.role === 'assistant'; })
+      .map(function (m) { return { role: m.role, content: m.content }; });
+  }
+
+  function send(text) {
+    text = String(text || '').trim();
+    if (!text || state.busy) return;
+    state.messages = state.messages.filter(function (m) { return m.role !== 'error'; });
+    state.messages.push({ role: 'user', content: text });
+    ask();
+  }
+
+  function ask() {
+    state.busy = true;
+    var thinking = { role: 'thinking' };
+    state.messages.push(thinking);
+    startTimer(thinking);
+    $('ai-input').value = '';
+    autosize();
+    setBusy(true);
+    render();
+    saveLocal();
+    google.script.run
+      .withSuccessHandler(function (res) {
+        stopTimer();
+        state.busy = false;
+        state.messages = state.messages.filter(function (m) { return m.role !== 'thinking'; });
+        state.messages.push({ role: 'assistant', content: String((res && res.reply) || ''), via: res && res.via });
+        setBusy(false, true);
+        if (!state.status || !state.status.configured) refreshStatus();
+        render();
+        saveLocal();
+      })
+      .withFailureHandler(function (err) {
+        stopTimer();
+        state.busy = false;
+        state.messages = state.messages.filter(function (m) { return m.role !== 'thinking'; });
+        var msg = (err && err.message) || String(err);
+        if (/NetworkError|Connection failure|HTTP 0\b|Failed to fetch/i.test(msg)) msg = 'The connection to the app was interrupted. Check your internet connection, then click Try again.';
+        else if (/ScriptError|Exception:|TypeError|ReferenceError/.test(msg) && !/AI Assistant/.test(msg)) msg = 'Something went wrong while contacting the AI Assistant. Please try again.';
+        state.messages.push({ role: 'error', content: msg });
+        setBusy(false);
+        render();
+      })
+      .askAssistant(conversation(), { includeTodos: $('ai-share-todos').checked });
+  }
+
+  // A live "Thinking... 8 s" counter, so a slow answer never looks frozen. After 25 s a one-time note
+  // explains that the service is busy (the server is retrying or waiting on the provider).
+  function startTimer(thinking) {
+    stopTimer();
+    var started = Date.now();
+    state.timer = setInterval(function () {
+      var sec = Math.round((Date.now() - started) / 1000);
+      var bubble = document.querySelector('#ai-log .ai-msg.thinking');
+      if (!bubble || !state.busy) return;
+      bubble.querySelector('.ai-think-time').textContent = sec >= 3 ? sec + ' s' : '';
+      if (sec >= SLOW_AFTER_SEC && !thinking.slow) { thinking.slow = true; bubble.querySelector('.ai-think-text').textContent = SLOW_TEXT; }
+    }, 1000);
+  }
+  function stopTimer() { if (state.timer) { clearInterval(state.timer); state.timer = null; } }
+
+  function retry() {
+    if (state.busy) return;
+    state.messages = state.messages.filter(function (m) { return m.role !== 'error'; });
+    var last = state.messages[state.messages.length - 1];
+    if (last && last.role === 'user') ask();
+  }
+
+  function setBusy(b, answered) {
+    $('ai-send').disabled = b;
+    $('ai-input').setAttribute('aria-busy', b ? 'true' : 'false');
+    if (b) setStatus('busy', 'Thinking...');
+    else idleStatus(answered);
+  }
+
+  function autosize() {
+    var t = $('ai-input');
+    t.style.height = 'auto';
+    t.style.height = Math.min(160, t.scrollHeight) + 'px';
+  }
+
+  function newChat() {
+    if (state.busy) return;
+    state.messages = [];
+    saveLocal();
+    render();
+    $('ai-input').focus();
+  }
+
+  // ------------------------------------------------------------ settings (Admins)
+  function openSettings() {
+    $('ai-settings-error').hidden = true;
+    $('ai-providers').innerHTML = '<div style="color:var(--text-muted); font-size:12px; font-weight:600;">Loading...</div>';
+    $('ai-settings-overlay').style.display = 'block';
+    $('ai-settings-drawer').classList.add('open');
+    google.script.run
+      .withSuccessHandler(function (s) { state.settings = s; state.draft = s.providers.map(function (p) { return Object.assign({ apiKey: '' }, p); }); renderProviders(); })
+      .withFailureHandler(function (err) { settingsError((err && err.message) || String(err)); })
+      .getAiSettings();
+  }
+  function closeSettings() {
+    $('ai-settings-overlay').style.display = 'none';
+    $('ai-settings-drawer').classList.remove('open');
+    $('ai-settings-btn').focus();
+  }
+  function settingsError(msg) { var e = $('ai-settings-error'); e.textContent = msg; e.hidden = !msg; }
+
+  function lastText(p) {
+    if (p.pausedUntil) return '<span class="ai-prov-state bad"' + (p.last && p.last.message ? ' title="' + esc(p.last.message) + '"' : '') + '>Paused until ' +
+      esc(new Date(p.pausedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + ' (' + esc(p.pausedKind.replace('_', ' ')) +
+      (p.strikes > 1 ? ', ' + esc(p.strikes) + ' failures in a row' : '') + ')</span>';
+    if (!p.last) return p.id ? 'Not used yet' : 'New';
+    var at = new Date(p.last.at).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+    var tries = p.last.tries > 1 ? ', ' + p.last.tries + ' tries' : '';
+    if (p.last.ok) return '<span class="ai-prov-state ok">Worked ' + esc(at) + (p.last.tries > 1 ? ' (after ' + p.last.tries + ' tries)' : '') + '</span>';
+    return '<span class="ai-prov-state bad"' + (p.last.message ? ' title="' + esc(p.last.message) + '"' : '') + '>Failed ' + esc(at) + ' (' +
+      (p.last.code ? 'HTTP ' + esc(p.last.code) + ', ' : '') + esc(String(p.last.kind).replace('_', ' ')) + esc(tries) + ')</span>';
+  }
+
+  function renderProviders() {
+    var types = state.settings.types, box = $('ai-providers');
+    if (!state.draft.length) {
+      box.innerHTML = '<div class="notice notice-warn">No provider yet. Click "Add provider" and paste your API key.</div>';
+      return;
+    }
+    state.results = state.results || {};
+    box.innerHTML = state.draft.map(function (p, i) {
+      var t = types.filter(function (x) { return x.id === p.type; })[0] || types[0];
+      var res = p.id && state.results[p.id];
+      return '<div class="ai-prov" data-i="' + i + '"' + (p.id ? ' data-id="' + esc(p.id) + '"' : '') + '>' +
+        '<div class="ai-prov-head"><span class="ai-prov-num" aria-hidden="true">' + (i + 1) + '</span>' +
+          '<input class="text-input" data-f="name" value="' + esc(p.name) + '" maxlength="40" aria-label="Provider ' + (i + 1) + ' name" placeholder="API #' + (i + 1) + '">' +
+          '<label class="switch" title="On/off"><input type="checkbox" data-f="enabled"' + (p.enabled ? ' checked' : '') + ' aria-label="Provider ' + (i + 1) + ' on"><span class="slider"></span></label></div>' +
+        '<div class="ai-prov-grid">' +
+          '<label>Type<select class="select-input" data-f="type">' + types.map(function (x) { return '<option value="' + x.id + '"' + (x.id === p.type ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select></label>' +
+          '<label>Model<input class="text-input" data-f="model" value="' + esc(p.model) + '" placeholder="' + esc(t.modelHint) + '"></label>' +
+          '<label class="wide">API key<input class="text-input" type="password" data-f="apiKey" value="' + esc(p.apiKey || '') + '" autocomplete="new-password" placeholder="' +
+            esc(p.hasKey ? 'Saved (' + p.keyHint + '). Leave empty to keep it.' : 'Paste the API key') + '"></label>' +
+          '<label class="wide">Endpoint ' + (p.type === 'openai_compatible' ? '(required)' : '(optional)') + '<input class="text-input" data-f="endpoint" value="' + esc(p.endpoint) + '" placeholder="' + esc(t.endpoint || 'https://.../v1/chat/completions') + '"></label>' +
+          (p.type === 'gemini' ? '<label class="wide">Thinking<select class="select-input" data-f="thinking">' +
+            '<option value="low"' + (p.thinking !== 'default' ? ' selected' : '') + '>Low: faster answers (recommended for chat)</option>' +
+            '<option value="default"' + (p.thinking === 'default' ? ' selected' : '') + '>Model default: slower, more thorough</option></select>' +
+            (p.thinkingSkipped ? '<span class="ai-prov-note">This model did not accept "Low", so it gets Google\'s default for now. Saving again retries "Low".</span>' : '') + '</label>' : '') +
+        '</div>' +
+        '<div class="ai-prov-foot"><span class="ai-prov-last">' + lastText(p) + '</span><span class="btns">' +
+          '<button type="button" class="btn-secondary" data-act="up"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&uarr;</button>' +
+          '<button type="button" class="btn-secondary" data-act="down"' + (i === state.draft.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&darr;</button>' +
+          '<button type="button" class="btn-secondary" data-act="test"' + (p.id ? '' : ' disabled title="Save first"') + '>Test</button>' +
+          '<button type="button" class="btn-secondary" data-act="remove" style="color:var(--status-cancelled-text);">Remove</button>' +
+        '</span></div><div class="ai-test-result" data-result="' + i + '" role="status"' + (res ? ' style="color:' + res.color + '"' : '') + '>' + (res ? esc(res.text) : '') + '</div></div>';
+    }).join('');
+    if (state.testing) setTesting(true);     // a redraw during a test keeps everything locked
+  }
+
+  function collectDraft() {
+    Array.prototype.forEach.call(document.querySelectorAll('#ai-providers .ai-prov'), function (el) {
+      var p = state.draft[+el.getAttribute('data-i')];
+      Array.prototype.forEach.call(el.querySelectorAll('[data-f]'), function (inp) {
+        var f = inp.getAttribute('data-f');
+        p[f] = inp.type === 'checkbox' ? inp.checked : inp.value.trim();
+      });
+    });
+  }
+
+  function onProvidersClick(e) {
+    var b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+    if (state.testing && b.getAttribute('data-act') !== 'test') return;
+    var box = b.closest('.ai-prov'); var i = +box.getAttribute('data-i');
+    collectDraft();
+    var act = b.getAttribute('data-act');
+    if (act === 'up' && i > 0) { var a = state.draft[i - 1]; state.draft[i - 1] = state.draft[i]; state.draft[i] = a; renderProviders(); }
+    else if (act === 'down' && i < state.draft.length - 1) { var c = state.draft[i + 1]; state.draft[i + 1] = state.draft[i]; state.draft[i] = c; renderProviders(); }
+    else if (act === 'remove') { state.draft.splice(i, 1); renderProviders(); }
+    else if (act === 'test') {
+      // One test at a time: parallel tests would hit the same (possibly busy) service together.
+      if (state.testing) return;
+      setTesting(true);
+      runTest(i, function () { setTesting(false); });
+    }
+  }
+
+  // Tests provider i and shows the result under its card; also refreshes its status line (so a
+  // provider that works again no longer shows an old "Failed" line). Follows the provider by its id,
+  // so moving or removing cards while a test runs cannot put a result under the wrong provider.
+  function runTest(i, done) {
+    var p = state.draft[i];
+    if (!p || !p.id) { done(); return; }
+    var id = p.id;
+    state.results = state.results || {};
+    function show(text, color) {
+      state.results[id] = { text: text, color: color };
+      var card = document.querySelector('#ai-providers .ai-prov[data-id="' + id + '"]');
+      var out = card && card.querySelector('[data-result]');
+      if (out) { out.textContent = text; out.style.color = color; }
+      return card;
+    }
+    show('Testing (retries automatically if the service is busy)...', 'var(--text-muted)');
+    google.script.run
+      .withSuccessHandler(function (r) {
+        try {
+          var card = show(r.message, r.ok ? 'var(--status-completed-text)' : 'var(--status-cancelled-text)');
+          var cur = null;
+          for (var k = 0; k < state.draft.length; k++) { if (state.draft[k].id === id) cur = state.draft[k]; }
+          if (r.state && cur) {
+            Object.assign(cur, r.state);
+            var line = card && card.querySelector('.ai-prov-last');
+            if (line) line.innerHTML = lastText(cur);
+          }
+        } finally { done(); }
+      })
+      .withFailureHandler(function (err) {
+        try { show((err && err.message) || String(err), 'var(--status-cancelled-text)'); } finally { done(); }
+      })
+      .testAiProvider(id);
+  }
+
+  // "Test all": one provider after another (never at the same time), for a quick check before use.
+  function testAll() {
+    if (state.testing || !state.draft) return;
+    collectDraft();
+    var ids = state.draft.filter(function (p) { return p.id && p.enabled; }).map(function (p) { return p.id; });
+    if (!ids.length) { settingsError('Save the providers first, then test them.'); return; }
+    setTesting(true);
+    (function next() {
+      if (!ids.length) { setTesting(false); return; }
+      var id = ids.shift(), i = -1;
+      for (var k = 0; k < state.draft.length; k++) { if (state.draft[k].id === id) i = k; }
+      if (i < 0) { next(); return; }        // removed meanwhile
+      runTest(i, next);
+    })();
+  }
+
+  // While a test runs: no second test, and no moving, removing, adding or saving providers
+  // (the result must land under the provider that was tested).
+  function setTesting(on) {
+    state.testing = on;
+    var n = state.draft ? state.draft.length : 0;
+    Array.prototype.forEach.call(document.querySelectorAll('#ai-providers .ai-prov'), function (card) {
+      var i = +card.getAttribute('data-i'), saved = state.draft[i];
+      card.querySelectorAll('[data-act]').forEach(function (x) {
+        var act = x.getAttribute('data-act');
+        if (act === 'test') x.disabled = on || !(saved && saved.id);
+        else if (act === 'up') x.disabled = on || i === 0;
+        else if (act === 'down') x.disabled = on || i === n - 1;
+        else x.disabled = on;
+      });
+    });
+    ['ai-add-provider', 'ai-settings-save'].forEach(function (id) { var el = $(id); if (el) el.disabled = on; });
+    var all = $('ai-test-all'); if (all) { all.disabled = on; all.textContent = on ? 'Testing...' : 'Test all'; }
+  }
+
+  function onProvidersChange(e) {
+    if (e.target.getAttribute('data-f') === 'type') { collectDraft(); renderProviders(); }
+  }
+
+  function saveSettings() {
+    collectDraft();
+    settingsError('');
+    var btn = $('ai-settings-save');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    google.script.run
+      .withSuccessHandler(function (s) {
+        btn.disabled = false; btn.textContent = 'Save';
+        state.settings = s;
+        state.draft = s.providers.map(function (p) { return Object.assign({ apiKey: '' }, p); });
+        renderProviders();
+        toast('AI providers saved. Use Test to check each one.');
+        refreshStatus();
+      })
+      .withFailureHandler(function (err) { btn.disabled = false; btn.textContent = 'Save'; settingsError((err && err.message) || String(err)); })
+      .saveAiSettings(state.draft.map(function (p) { return { id: p.id, name: p.name, type: p.type, model: p.model, endpoint: p.endpoint, enabled: p.enabled, thinking: p.thinking, apiKey: p.apiKey }; }));
+  }
+
+  // ------------------------------------------------------------ wiring
+  function bind() {
+    // Narrow screens: switch between My To-Do and AI Assistant.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-pa-show]'), function (b) {
+      b.addEventListener('click', function () {
+        var which = b.getAttribute('data-pa-show');
+        $('pa-grid').setAttribute('data-show', which);
+        Array.prototype.forEach.call(document.querySelectorAll('[data-pa-show]'), function (x) {
+          var on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (which === 'chat') setTimeout(function () { $('ai-input').focus(); }, 0);
+      });
+    });
+
+    // The drawer must sit directly in <body> to overlay the whole app, like the other drawers.
+    document.body.appendChild($('ai-settings-overlay'));
+    document.body.appendChild($('ai-settings-drawer'));
+
+    $('ai-form').addEventListener('submit', function (e) { e.preventDefault(); send($('ai-input').value); });
+    $('ai-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send($('ai-input').value); }
+    });
+    $('ai-input').addEventListener('input', autosize);
+    $('ai-new').addEventListener('click', newChat);
+    $('ai-log').addEventListener('click', function (e) {
+      var s = e.target.closest('[data-suggest]'); if (s) { send(s.getAttribute('data-suggest')); return; }
+      if (e.target.closest('[data-retry]')) { retry(); return; }
+      var c = e.target.closest('[data-copy]');
+      if (c) {
+        var m = state.messages[+c.getAttribute('data-copy')];
+        var done = function () { c.textContent = 'Copied'; setTimeout(function () { c.textContent = 'Copy'; }, 1500); };
+        try { navigator.clipboard.writeText(m.content).then(done, function () { toast('Copy is blocked by the browser.', 'error'); }); } catch (x) { toast('Copy is blocked by the browser.', 'error'); }
+      }
+    });
+    $('ai-share-todos').addEventListener('change', function (e) { try { localStorage.setItem('wfm-ops-ai-share-todos', e.target.checked ? '1' : '0'); } catch (x) {} });
+    try { $('ai-share-todos').checked = localStorage.getItem('wfm-ops-ai-share-todos') === '1'; } catch (x) {}
+
+    $('ai-settings-btn').addEventListener('click', openSettings);
+    $('ai-settings-close').addEventListener('click', closeSettings);
+    $('ai-settings-cancel').addEventListener('click', closeSettings);
+    $('ai-settings-overlay').addEventListener('click', closeSettings);
+    $('ai-settings-save').addEventListener('click', saveSettings);
+    $('ai-test-all').addEventListener('click', testAll);
+    $('ai-add-provider').addEventListener('click', function () {
+      collectDraft();
+      if (state.draft.length >= ((state.settings && state.settings.maxProviders) || 10)) { settingsError('At most 10 providers.'); return; }
+      state.draft.push({ id: '', name: 'API #' + (state.draft.length + 1), type: 'openai', model: '', endpoint: '', enabled: true, thinking: 'low', apiKey: '', hasKey: false });
+      renderProviders();
+      var inputs = document.querySelectorAll('#ai-providers .ai-prov:last-child [data-f="model"]');
+      if (inputs.length) inputs[0].focus();
+    });
+    $('ai-providers').addEventListener('click', onProvidersClick);
+    $('ai-providers').addEventListener('change', onProvidersChange);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && $('ai-settings-drawer').classList.contains('open')) closeSettings();
+    });
+  }
+
+  bind();
+  render();
+
+  window.AiAssistant = {
+    show: function () {
+      var who = me();
+      if (!who) {
+        // Opened before the app finished loading who is signed in: check again shortly, while this
+        // page is still the one on screen.
+        clearTimeout(state.waitUser);
+        state.waitUser = setTimeout(function () {
+          var v = document.getElementById('view-assistant');
+          if (v && v.style.display !== 'none') window.AiAssistant.show();
+        }, 250);
+        if (!state.status) refreshStatus();
+        return;
+      }
+      if (state.loadedFor !== who) {
+        var unsaved = !state.loadedFor && state.messages.length > 0;   // typed before sign-in details arrived
+        state.loadedFor = who;
+        if (unsaved) {
+          // Keep the saved history and add what was typed meanwhile after it.
+          state.messages = loadLocal().concat(state.messages);
+          saveLocal(); render(); refreshStatus(); return;
+        }
+        state.messages = loadLocal();
+        // The page was closed or reloaded while a question was waiting: offer to send it again.
+        var last = state.messages[state.messages.length - 1];
+        if (last && last.role === 'user' && !state.busy) state.messages.push({ role: 'error', content: 'This question was not answered (the page was closed or reloaded). Click Try again to send it.' });
+        render();
+      }
+      refreshStatus();
+    }
+  };
+})();
+</script>

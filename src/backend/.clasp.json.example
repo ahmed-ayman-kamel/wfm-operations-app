@@ -1,0 +1,7 @@
+{
+  "scriptId": "YOUR_BACKEND_SCRIPT_ID",
+  "rootDir": "",
+  "scriptExtensions": [".js", ".gs"],
+  "htmlExtensions": [".html"],
+  "jsonExtensions": [".json"]
+}

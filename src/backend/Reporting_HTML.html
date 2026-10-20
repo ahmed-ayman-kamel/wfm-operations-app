@@ -1,0 +1,1539 @@
+<!--
+  Reporting_HTML.html : the "Reporting" section (client side). Server side: Reporting.gs.
+  In the Apps Script editor this file must be an HTML file named exactly  Reporting_HTML
+  (Apps Script does not allow it to be called "Reporting", because Reporting.gs already uses that name).
+  It must contain THIS code (it starts with "<!--"), not the Reporting.gs code.
+
+  Included by Index.html with <?!= include_('Reporting_HTML') ?>. Self-contained like ToDo.html:
+  its own markup, styles and scripts, built only from the app's design tokens and classes.
+
+  Two scripts:
+    1. window.ReportingExport - builds .xlsx and .csv files in the browser from a report result.
+       Pure functions, no DOM, so they are unit-tested in Node (tests/reporting_test.js).
+    2. window.Reporting       - the screens: tool picker, upload, results, export.
+
+  ADDING A REPORT TOOL: add it to REPORTING_REGISTRY in Reporting.gs, add its run function there
+  (returning the same { columns, rows, serials, sheetName, diagnostics } shape), then add a screen
+  block like #rpt-tool-voyce_clean below and an entry in TOOLS in the second script. The picker,
+  results table, search, paging and both exports are shared.
+-->
+<div id="view-reporting" class="page-view" style="display: none;">
+
+  <!-- TOOL PICKER -->
+  <div id="rpt-catalog-screen" class="rpt-screen">
+    <div class="filter-card">
+      <div>
+        <div class="rpt-heading">Reporting</div>
+        <div class="rpt-subheading">Pick a report, upload its source files, review the result, and download it.</div>
+      </div>
+    </div>
+    <div id="rpt-catalog-grid" class="rpt-catalog-grid" aria-live="polite"></div>
+  </div>
+
+  <!-- TOOL: Voyce Performance Report -->
+  <div id="rpt-tool-voyce_clean" class="rpt-screen" style="display: none;">
+    <div class="filter-card">
+      <div class="rpt-title-row">
+        <button type="button" class="btn-secondary rpt-back" onclick="Reporting.backToCatalog()" aria-label="Back to all reports">&larr; Reports</button>
+        <div>
+          <div class="rpt-heading">Voyce Performance Report</div>
+          <ol class="rpt-steps" aria-label="Steps">
+            <li id="rpt-step-1" class="is-current">Fetch or add both reports</li>
+            <li id="rpt-step-2">Process</li>
+            <li id="rpt-step-3">Review</li>
+            <li id="rpt-step-4">Export</li>
+          </ol>
+        </div>
+      </div>
+      <button type="button" class="btn-secondary" id="rpt-vc-reset" onclick="Reporting.resetVoyceClean()" style="display:none;">Start over</button>
+    </div>
+
+    <!-- 1-2: fetch both reports automatically, or add them (drop, choose, or paste), then process -->
+    <div id="rpt-vc-upload-panel" class="rpt-panel">
+      <div class="rpt-auto">
+        <div class="rpt-auto-text">
+          <span class="rpt-auto-title">Fetch both reports</span>
+          <span class="rpt-auto-sub">For the same dates: the Voyce Performance Report (Voyce Time To Answer + Sisense Short Calls, cleaned exactly like an upload) and the Provider Online Time Detail Report (from Voyce, as is).</span>
+        </div>
+        <div class="rpt-auto-form">
+          <label class="rpt-date"><span>From</span><input type="date" id="rpt-vc-from" class="text-input"></label>
+          <label class="rpt-date"><span>To</span><input type="date" id="rpt-vc-to" class="text-input"></label>
+          <button type="button" class="btn-primary" id="rpt-vc-fetch-btn">Fetch both reports</button>
+        </div>
+        <span class="rpt-status" id="rpt-vc-auto-status" aria-live="polite">Dates are New York time. Signs out anyone using the same Voyce login elsewhere.</span>
+      </div>
+
+      <div class="rpt-or"><span>or add the exports yourself (Voyce Performance Report only)</span></div>
+
+      <div class="rpt-dropzone" id="rpt-dropzone">
+        <button type="button" class="rpt-drop-body" id="rpt-drop-body" aria-describedby="rpt-drop-help">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span class="rpt-drop-title">Drop both reports here, or click to choose</span>
+          <span class="rpt-drop-sub" id="rpt-drop-help">Or press <kbd>Ctrl</kbd> + <kbd>V</kbd> to paste files, or cells copied from Excel or Google Sheets (with the header row). CSV, Excel, or one workbook with both tabs.</span>
+        </button>
+        <input type="file" id="rpt-file-input" accept=".csv,.tsv,.txt,.xlsx,.xls" multiple hidden>
+      </div>
+
+      <ul class="rpt-found" id="rpt-found" aria-label="Reports found" aria-live="polite"></ul>
+
+      <details class="rpt-help">
+        <summary>How are the reports recognized?</summary>
+        <p>By their column headers, so file names, order and tab names do not matter.</p>
+        <ul>
+          <li><strong>Voyce Performance export:</strong> Interpreter Id, Interpreter Name, Transaction Id, RequestTime, AssignedToInterpreterTime, AcceptedByInterpreterTime, SecondsToAnswer.</li>
+          <li><strong>Short Calls export:</strong> a Transaction Id (TransactionId) column.</li>
+          <li>A tab with Accepted Codes and Short Calls columns is a previous Cleaned result and is skipped.</li>
+        </ul>
+      </details>
+
+      <div id="rpt-vc-error" class="notice rpt-notice-error" role="alert" hidden></div>
+
+      <div class="rpt-actions">
+        <span class="rpt-status" id="rpt-vc-status" aria-live="polite"></span>
+        <button type="button" class="btn-primary" id="rpt-vc-process-btn" disabled>Process</button>
+      </div>
+    </div>
+
+    <!-- 3-4: review and export. Fetched: two tabs (cleaned report + online time). Uploaded: cleaned report only. -->
+    <div id="rpt-vc-result-panel" class="rpt-screen" hidden>
+      <div class="filter-card">
+        <div class="filter-group">
+          <span class="rpt-files" id="rpt-vc-files"></span>
+        </div>
+        <div class="filter-group">
+          <label class="rpt-check" title="Uncheck to get only the data rows, for pasting under existing headers"><input type="checkbox" id="rpt-with-header" checked> Include header row</label>
+          <button type="button" class="btn-primary" id="rpt-both-xlsx" hidden>Download both (Excel)</button>
+        </div>
+      </div>
+
+      <div class="rpt-tabs" role="tablist" aria-label="Reports">
+        <button type="button" class="rpt-tab is-active" role="tab" id="rpt-tab-perf" aria-selected="true" aria-controls="rpt-pane-perf">Voyce Performance Report <span class="rpt-tab-count" id="rpt-tab-perf-count"></span></button>
+        <button type="button" class="rpt-tab" role="tab" id="rpt-tab-ot" aria-selected="false" aria-controls="rpt-pane-ot">Provider Online Time Detail <span class="rpt-tab-count" id="rpt-tab-ot-count"></span></button>
+      </div>
+
+      <!-- Tab 1: cleaned Voyce Performance Report -->
+      <div id="rpt-pane-perf" class="rpt-screen" role="tabpanel" aria-labelledby="rpt-tab-perf">
+        <div id="rpt-vc-notices" class="rpt-notices"></div>
+        <div class="metric-strip rpt-metrics" id="rpt-vc-metric-strip"></div>
+
+        <div class="filter-card">
+          <div class="filter-group">
+            <input type="search" id="rpt-vc-search" class="text-input rpt-search" placeholder="Search the result..." aria-label="Search the Voyce Performance Report">
+          </div>
+          <div class="filter-group">
+            <button type="button" class="btn-secondary" id="rpt-vc-copy">Copy rows</button>
+            <button type="button" class="btn-secondary" id="rpt-vc-export-csv">Download CSV</button>
+            <button type="button" class="btn-secondary" id="rpt-vc-export-xlsx">Download Excel</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="wfm-table rpt-table" aria-label="Cleaned result">
+            <thead><tr id="rpt-vc-thead-row"></tr></thead>
+            <tbody id="rpt-vc-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="rpt-pager">
+          <span id="rpt-vc-pager-info" aria-live="polite"></span>
+          <div class="rpt-pager-btns">
+            <button type="button" class="btn-secondary" id="rpt-vc-prev">&larr; Previous</button>
+            <button type="button" class="btn-secondary" id="rpt-vc-next">Next &rarr;</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Provider Online Time Detail Report (fetched from Voyce as is, no cleaning) -->
+      <div id="rpt-pane-ot" class="rpt-screen" role="tabpanel" aria-labelledby="rpt-tab-ot" hidden>
+        <div id="rpt-ot-empty" class="rpt-empty" hidden>The Provider Online Time Detail Report is only available when you use Fetch both reports. Uploaded files give the Voyce Performance Report only.</div>
+        <div id="rpt-ot-body" class="rpt-screen">
+          <div class="metric-strip rpt-metrics" id="rpt-ot-metric-strip"></div>
+
+          <div class="filter-card">
+            <div class="filter-group">
+              <input type="search" id="rpt-ot-search" class="text-input rpt-search" placeholder="Search the report..." aria-label="Search the Provider Online Time Detail Report">
+            </div>
+            <div class="filter-group">
+              <button type="button" class="btn-secondary" id="rpt-ot-copy">Copy rows</button>
+              <button type="button" class="btn-secondary" id="rpt-ot-export-csv">Download CSV</button>
+              <button type="button" class="btn-secondary" id="rpt-ot-export-xlsx">Download Excel</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="wfm-table rpt-table" aria-label="Provider Online Time Detail Report">
+              <thead><tr id="rpt-ot-thead-row"></tr></thead>
+              <tbody id="rpt-ot-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="rpt-pager">
+            <span id="rpt-ot-pager-info" aria-live="polite"></span>
+            <div class="rpt-pager-btns">
+              <button type="button" class="btn-secondary" id="rpt-ot-prev">&larr; Previous</button>
+              <button type="button" class="btn-secondary" id="rpt-ot-next">Next &rarr;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #view-reporting .rpt-screen { display: flex; flex-direction: column; gap: 16px; }
+  #view-reporting .rpt-screen[hidden], #view-reporting [hidden] { display: none !important; }
+  #view-reporting .rpt-heading { font-weight: 800; font-size: 15px; letter-spacing: -0.2px; }
+  #view-reporting .rpt-subheading { font-size: 12px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
+  #view-reporting .rpt-title-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  #view-reporting .rpt-back { height: 34px; padding: 0 12px; }
+  #view-reporting .rpt-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; padding: 0; counter-reset: rpt; }
+  #view-reporting .rpt-steps li { counter-increment: rpt; font-size: 11.5px; font-weight: 700; color: var(--text-muted); padding: 2px 10px 2px 4px; border-radius: 999px; border: 1px solid var(--border-subtle); display: inline-flex; align-items: center; gap: 6px; }
+  #view-reporting .rpt-steps li::before { content: counter(rpt); width: 16px; height: 16px; border-radius: 50%; background: var(--border-subtle); color: var(--text-secondary); font-size: 10px; display: inline-flex; align-items: center; justify-content: center; }
+  #view-reporting .rpt-steps li.is-current { color: var(--primary-blue); border-color: var(--primary-blue-border); background: var(--primary-blue-light); }
+  #view-reporting .rpt-steps li.is-current::before { background: var(--primary-blue); color: #FFFFFF; }
+  #view-reporting .rpt-steps li.is-done { color: var(--status-completed-text); border-color: var(--status-completed-border); }
+  #view-reporting .rpt-steps li.is-done::before { content: '\2713'; background: var(--status-completed-bg); color: var(--status-completed-text); }
+
+  #view-reporting .rpt-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  #view-reporting .rpt-catalog-card { font: inherit; color: inherit; width: 100%; background: var(--surface-strong); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-sm); cursor: pointer; display: flex; flex-direction: column; gap: 8px; text-align: left; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+  #view-reporting .rpt-catalog-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--primary-blue-border); }
+  #view-reporting .rpt-catalog-icon { width: 38px; height: 38px; border-radius: 11px; background: var(--primary-blue-light); color: var(--primary-blue); display: flex; align-items: center; justify-content: center; }
+  #view-reporting .rpt-catalog-title { font-weight: 800; font-size: 14px; }
+  #view-reporting .rpt-catalog-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; font-weight: 500; }
+  #view-reporting .rpt-catalog-cta { font-size: 12px; font-weight: 700; color: var(--primary-blue); margin-top: 4px; }
+  #view-reporting .rpt-empty { text-align: center; padding: 36px 16px; color: var(--text-muted); font-weight: 600; border: 1px dashed var(--border-medium); border-radius: var(--radius-md); }
+
+  #view-reporting .rpt-panel { background: var(--surface-strong); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  #view-reporting .rpt-dropzone { border: 1.5px dashed var(--border-medium); border-radius: var(--radius-md); padding: 10px; background: var(--surface); transition: border-color 0.15s ease, background-color 0.15s ease; }
+  #view-reporting .rpt-dropzone.is-dragover { border-color: var(--primary-blue); background: var(--surface-hover); }
+  #view-reporting .rpt-dropzone.is-ready { border-style: solid; border-color: var(--status-completed-border); }
+  #view-reporting .rpt-drop-body { font: inherit; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 30px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); cursor: pointer; color: var(--text-secondary); background: var(--surface-strong); transition: background-color 0.15s ease, color 0.15s ease; }
+  #view-reporting .rpt-drop-body:hover { background: var(--surface-hover); color: var(--primary-blue); }
+  #view-reporting .rpt-drop-title { font-size: 14px; font-weight: 800; color: var(--text-primary); }
+  #view-reporting .rpt-drop-sub { font-size: 12px; font-weight: 600; color: var(--text-muted); line-height: 1.5; max-width: 560px; }
+  #view-reporting kbd { font: inherit; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border-medium); background: var(--surface-solid); color: var(--text-secondary); }
+  #view-reporting .rpt-found { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  #view-reporting .rpt-found-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); background: var(--surface); }
+  #view-reporting .rpt-found-row.is-ok { background: var(--status-completed-bg); border-color: var(--status-completed-border); }
+  #view-reporting .rpt-found-row.is-pending { background: var(--primary-blue-light); border-color: var(--primary-blue-border); }
+  #view-reporting .rpt-found-icon { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; border: 1.5px dashed var(--border-medium); color: var(--text-muted); }
+  #view-reporting .is-ok .rpt-found-icon { border: none; background: var(--status-completed-text); color: #FFFFFF; }
+  #view-reporting .is-pending .rpt-found-icon { border: none; background: var(--primary-blue); color: #FFFFFF; }
+  #view-reporting .rpt-found-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+  #view-reporting .rpt-found-role { font-size: 13px; font-weight: 800; color: var(--text-primary); }
+  #view-reporting .rpt-found-src { font-size: 12px; font-weight: 600; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #view-reporting .rpt-found-row:not(.is-ok):not(.is-pending) .rpt-found-src { color: var(--text-muted); }
+  #view-reporting .rpt-help { font-size: 12px; color: var(--text-secondary); font-weight: 500; line-height: 1.5; }
+  #view-reporting .rpt-help summary { cursor: pointer; font-weight: 700; color: var(--primary-blue); width: fit-content; }
+  #view-reporting .rpt-help p { margin: 6px 0 2px; }
+  #view-reporting .rpt-help ul { margin: 4px 0 0 18px; }
+  #view-reporting .rpt-file-del { font: inherit; flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border-medium); background: var(--surface-solid); color: var(--text-secondary); cursor: pointer; font-size: 16px; line-height: 1; }
+  #view-reporting .rpt-file-del:hover { color: var(--status-cancelled-text); border-color: var(--status-cancelled-border); }
+  #view-reporting .rpt-actions { display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
+  #view-reporting .rpt-status { font-size: 12px; color: var(--text-muted); font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  #view-reporting .rpt-spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--primary-blue-border); border-top-color: var(--primary-blue); animation: rptSpin 0.8s linear infinite; }
+  @keyframes rptSpin { to { transform: rotate(360deg); } }
+
+  #view-reporting .rpt-notices { display: flex; flex-direction: column; gap: 8px; }
+  #view-reporting .rpt-notices:empty { display: none; }
+  #view-reporting .rpt-notice-info { background: var(--primary-blue-light); border-color: var(--primary-blue-border); color: var(--text-primary); }
+  #view-reporting .rpt-notice-error { background: var(--status-cancelled-bg); border-color: var(--status-cancelled-border); color: var(--status-cancelled-text); font-weight: 600; line-height: 1.5; }
+  #view-reporting .notice ul { margin: 4px 0 0 18px; }
+
+  #rpt-vc-metric-strip .metric-box { grid-column: span 2; }
+  #rpt-ot-metric-strip .metric-box { grid-column: span 3; }
+
+  #view-reporting .rpt-auto { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--primary-blue-border); background: var(--primary-blue-light); }
+  #view-reporting .rpt-auto-text { display: flex; flex-direction: column; gap: 2px; }
+  #view-reporting .rpt-auto-title { font-size: 14px; font-weight: 800; color: var(--text-primary); }
+  #view-reporting .rpt-auto-sub { font-size: 12px; font-weight: 600; color: var(--text-secondary); line-height: 1.5; }
+  #view-reporting .rpt-auto-form { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  #view-reporting .rpt-date { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); }
+  #view-reporting .rpt-date .text-input { width: 160px; }
+  #view-reporting .rpt-or { display: flex; align-items: center; gap: 12px; font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  #view-reporting .rpt-or::before, #view-reporting .rpt-or::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+  #view-reporting .rpt-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-subtle); flex-wrap: wrap; }
+  #view-reporting .rpt-tab { font: inherit; font-size: 13px; font-weight: 800; color: var(--text-muted); background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 14px; margin-bottom: -1px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  #view-reporting .rpt-tab:hover { color: var(--text-primary); }
+  #view-reporting .rpt-tab.is-active { color: var(--primary-blue); border-bottom-color: var(--primary-blue); }
+  #view-reporting .rpt-tab-count { font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--border-subtle); color: var(--text-secondary); }
+  #view-reporting .rpt-tab-count:empty { display: none; }
+  #view-reporting .rpt-tab.is-active .rpt-tab-count { background: var(--primary-blue-light); color: var(--primary-blue); }
+  #view-reporting .rpt-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+  #view-reporting .rpt-metric-sub { font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  #view-reporting .rpt-search { width: 240px; }
+  #view-reporting .rpt-files { font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
+  #view-reporting .rpt-table td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #view-reporting .rpt-table td.rpt-num { text-align: center; }
+  #view-reporting .rpt-table th.rpt-num { text-align: center; }
+  #view-reporting .rpt-blank { color: var(--text-muted); }
+  #view-reporting .rpt-flag { display: inline-flex; min-width: 22px; justify-content: center; padding: 1px 8px; border-radius: 999px; font-weight: 800; background: var(--status-pending-bg); color: var(--status-pending-text); border: 1px solid var(--status-pending-border); }
+  #view-reporting .rpt-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  #view-reporting .rpt-pager-btns { display: flex; gap: 8px; }
+  #view-reporting .rpt-pager-btns .btn-secondary { height: 32px; padding: 0 12px; }
+
+  @media (max-width: 1100px) { #rpt-vc-metric-strip .metric-box, #rpt-ot-metric-strip .metric-box { grid-column: span 4; } }
+  @media (max-width: 720px) {
+    #view-reporting .rpt-drop-body { padding: 22px 12px; }
+    #rpt-vc-metric-strip .metric-box, #rpt-ot-metric-strip .metric-box { grid-column: span 6; }
+    #view-reporting .rpt-search { width: 100%; }
+    #view-reporting .rpt-date .text-input { width: 100%; }
+    #view-reporting .rpt-auto-form { align-items: stretch; flex-direction: column; }
+  }
+</style>
+
+<script>
+/* ---------------------------------------------------------------------------------------------
+ * window.ReportingExport: builds downloadable files from a report result, in the browser.
+ * No DOM access and no dependencies (so it is unit-tested in Node).
+ *   buildCsv(result, options)  -> string  (UTF-8 BOM, CRLF, RFC 4180 quoting)
+ *   buildXlsx(result, options) -> Promise<Uint8Array>  (a standard .xlsx: zip of SpreadsheetML parts)
+ *   buildTsv(result, options)  -> string  (tab separated, for copying rows into a sheet)
+ *   buildWorkbook([results], options) -> Promise<Uint8Array>  (one .xlsx, one sheet per result)
+ *   options.header === false leaves out the header row (data rows only). Default: header included.
+ * XLSX cell types follow result.columns[i].type, matching the real sample's "Cleaned" sheet:
+ *   auto     -> number if the value is a plain number, otherwise text
+ *   text     -> always text (IDs keep every digit), '@' format
+ *   integer  -> number, '0' format
+ *   datetime -> real Excel date from result.serials[i] (computed on the server in New York time),
+ *               formatted yyyy-mm-dd hh:mm:ss
+ * ------------------------------------------------------------------------------------------- */
+window.ReportingExport = (function () {
+  var enc = new TextEncoder();
+
+  function csvCell(v) {
+    var s = (v === null || v === undefined) ? '' : String(v);
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function withHeader(options) { return !(options && options.header === false); }
+
+  function buildCsv(result, options) {
+    var lines = withHeader(options) ? [result.columns.map(function (c) { return csvCell(c.header); }).join(',')] : [];
+    for (var i = 0; i < result.rows.length; i++) lines.push(result.rows[i].map(csvCell).join(','));
+    return '\uFEFF' + lines.join('\r\n') + '\r\n';
+  }
+
+  // Tabs/newlines inside a value would break the pasted grid, so they become spaces.
+  function tsvCell(v) { return (v === null || v === undefined) ? '' : String(v).replace(/[\t\r\n]+/g, ' '); }
+
+  function buildTsv(result, options) {
+    var lines = withHeader(options) ? [result.columns.map(function (c) { return tsvCell(c.header); }).join('\t')] : [];
+    for (var i = 0; i < result.rows.length; i++) lines.push(result.rows[i].map(tsvCell).join('\t'));
+    return lines.join('\r\n');
+  }
+
+  // ---- zip (stored or deflated entries) ----
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+  function deflateRaw(bytes) {
+    try {
+      if (typeof CompressionStream === 'undefined' || typeof Response === 'undefined' || typeof Blob === 'undefined') return Promise.resolve(null);
+      var stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return new Response(stream).arrayBuffer().then(function (b) { return new Uint8Array(b); }, function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+  function concat(parts) {
+    var total = 0, i;
+    for (i = 0; i < parts.length; i++) total += parts[i].length;
+    var out = new Uint8Array(total), off = 0;
+    for (i = 0; i < parts.length; i++) { out.set(parts[i], off); off += parts[i].length; }
+    return out;
+  }
+  function zip(entries, compress) {
+    return Promise.all(entries.map(function (e) { return compress ? deflateRaw(e.data) : Promise.resolve(null); }))
+      .then(function (deflated) {
+        var parts = [], central = [], offset = 0;
+        entries.forEach(function (e, i) {
+          var useDeflate = !!(deflated[i] && deflated[i].length < e.data.length);
+          var body = useDeflate ? deflated[i] : e.data;
+          var name = enc.encode(e.name), crc = crc32(e.data);
+          var lh = new Uint8Array(30 + name.length), lv = new DataView(lh.buffer);
+          lv.setUint32(0, 0x04034b50, true); lv.setUint16(4, 20, true); lv.setUint16(6, 0x0800, true);
+          lv.setUint16(8, useDeflate ? 8 : 0, true); lv.setUint16(10, 0, true); lv.setUint16(12, 0x21, true);
+          lv.setUint32(14, crc, true); lv.setUint32(18, body.length, true); lv.setUint32(22, e.data.length, true);
+          lv.setUint16(26, name.length, true); lv.setUint16(28, 0, true);
+          lh.set(name, 30);
+          var ch = new Uint8Array(46 + name.length), cv = new DataView(ch.buffer);
+          cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true);
+          cv.setUint16(10, useDeflate ? 8 : 0, true); cv.setUint16(12, 0, true); cv.setUint16(14, 0x21, true);
+          cv.setUint32(16, crc, true); cv.setUint32(20, body.length, true); cv.setUint32(24, e.data.length, true);
+          cv.setUint16(28, name.length, true); cv.setUint32(42, offset, true);
+          ch.set(name, 46);
+          parts.push(lh, body); central.push(ch);
+          offset += lh.length + body.length;
+        });
+        var cd = concat(central);
+        var end = new Uint8Array(22), ev = new DataView(end.buffer);
+        ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, entries.length, true); ev.setUint16(10, entries.length, true);
+        ev.setUint32(12, cd.length, true); ev.setUint32(16, offset, true);
+        return concat(parts.concat([cd, end]));
+      });
+  }
+
+  // ---- SpreadsheetML ----
+  function xmlEsc(s) {
+    return String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function colName(i) { var s = ''; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+  var PLAIN_NUMBER = /^-?(0|[1-9]\d{0,14})(\.\d+)?$/;
+  var BUILTIN_FMT = { '': 0, 'General': 0, '0': 1, '@': 49 };
+
+  function buildXlsx(result, options) { return buildWorkbook([result], options); }
+
+  /** One .xlsx with one sheet per result (sheet name = result.sheetName). Styles are shared across sheets. */
+  function buildWorkbook(results, options) {
+    var compress = !(options && options.compress === false);
+    var header = withHeader(options), first = header ? 2 : 1;   // first data row number
+
+    // styles: 0 = General, 1 = header, then one per distinct column number format (all sheets)
+    var customFmts = [], fmtIds = {}, xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>',
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'];
+    var xfByFmt = { 0: 0 };
+    function styleFor(c) {
+      var code = c.numberFormat || '';
+      var id = BUILTIN_FMT.hasOwnProperty(code) ? BUILTIN_FMT[code] : fmtIds[code];
+      if (id === undefined) { id = 164 + customFmts.length; fmtIds[code] = id; customFmts.push('<numFmt numFmtId="' + id + '" formatCode="' + xmlEsc(code) + '"/>'); }
+      if (xfByFmt[id] === undefined) {
+        xfByFmt[id] = xfs.length;
+        xfs.push('<xf numFmtId="' + id + '" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>');
+      }
+      return xfByFmt[id];
+    }
+
+    function sheetXml(result) {
+      var cols = result.columns, colStyle = cols.map(styleFor), out = [];
+      out.push('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+      out.push(header ? '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+        : '<sheetViews><sheetView workbookViewId="0"/></sheetViews>');
+      out.push('<sheetFormatPr defaultRowHeight="15"/><cols>');
+      cols.forEach(function (c, i) {
+        var w = c.type === 'datetime' ? 20 : Math.max(12, Math.min(40, String(c.header).length + 2));
+        out.push('<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>');
+      });
+      out.push('</cols><sheetData>');
+      if (header) {
+        out.push('<row r="1">');
+        cols.forEach(function (c, i) {
+          out.push('<c r="' + colName(i) + '1" t="inlineStr" s="1"><is><t xml:space="preserve">' + xmlEsc(c.header) + '</t></is></c>');
+        });
+        out.push('</row>');
+      }
+      var letters = cols.map(function (c, i) { return colName(i); });
+      for (var r = 0; r < result.rows.length; r++) {
+        var row = result.rows[r], rn = r + first, cells = ['<row r="' + rn + '">'];
+        for (var i = 0; i < cols.length; i++) {
+          var ref = letters[i] + rn, s = colStyle[i], v = row[i], type = cols[i].type;
+          if (type === 'datetime') {
+            var serial = result.serials && result.serials[i] ? result.serials[i][r] : null;
+            cells.push(typeof serial === 'number' && isFinite(serial)
+              ? '<c r="' + ref + '" s="' + s + '"><v>' + serial + '</v></c>' : '<c r="' + ref + '" s="' + s + '"/>');
+            continue;
+          }
+          if (v === null || v === undefined || v === '') { cells.push('<c r="' + ref + '" s="' + s + '"/>'); continue; }
+          var asNumber = (type === 'integer' || type === 'auto') &&
+            ((typeof v === 'number' && isFinite(v)) || (typeof v === 'string' && PLAIN_NUMBER.test(v)));
+          if (asNumber) cells.push('<c r="' + ref + '" s="' + s + '"><v>' + Number(v) + '</v></c>');
+          else cells.push('<c r="' + ref + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xmlEsc(v) + '</t></is></c>');
+        }
+        cells.push('</row>');
+        out.push(cells.join(''));
+      }
+      out.push('</sheetData></worksheet>');
+      return out.join('');
+    }
+
+    var used = {};
+    var sheets = results.map(function (result, i) {
+      var base = String(result.sheetName || 'Report').replace(/[\\\/?*\[\]:]/g, ' ').substring(0, 31), name = base, n = 2;
+      while (used[name.toLowerCase()]) { name = base.substring(0, 28) + ' ' + n++; }
+      used[name.toLowerCase()] = true;
+      return { name: xmlEsc(name), xml: sheetXml(result), n: i + 1 };
+    });
+
+    var styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      (customFmts.length ? '<numFmts count="' + customFmts.length + '">' + customFmts.join('') + '</numFmts>' : '') +
+      '<fonts count="2"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts>' +
+      '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFF3F3F3"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+      '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="' + xfs.length + '">' + xfs.join('') + '</cellXfs>' +
+      '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+
+    var H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+    var stylesRid = sheets.length + 1;
+    var entries = [
+      { name: '[Content_Types].xml', text: H + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        sheets.map(function (sh) { return '<Override PartName="/xl/worksheets/sheet' + sh.n + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join('') +
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
+      { name: '_rels/.rels', text: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+      { name: 'xl/workbook.xml', text: H + '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets>' + sheets.map(function (sh) { return '<sheet name="' + sh.name + '" sheetId="' + sh.n + '" r:id="rId' + sh.n + '"/>'; }).join('') + '</sheets></workbook>' },
+      { name: 'xl/_rels/workbook.xml.rels', text: H + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        sheets.map(function (sh) { return '<Relationship Id="rId' + sh.n + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + sh.n + '.xml"/>'; }).join('') +
+        '<Relationship Id="rId' + stylesRid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+      { name: 'xl/styles.xml', text: styles }
+    ].concat(sheets.map(function (sh) { return { name: 'xl/worksheets/sheet' + sh.n + '.xml', text: sh.xml }; }));
+    return zip(entries.map(function (e) { return { name: e.name, data: enc.encode(e.text) }; }), compress);
+  }
+
+  return { buildCsv: buildCsv, buildTsv: buildTsv, buildXlsx: buildXlsx, buildWorkbook: buildWorkbook, crc32: crc32 };
+})();
+</script>
+
+<script>
+/* ---------------------------------------------------------------------------------------------
+ * window.ReportingIdentify: recognizes which report a file or pasted table is, in the browser,
+ * BEFORE Process, so the screen can show "Voyce Performance export: found". No DOM, no libraries
+ * (unit-tested in Node). It applies the same header rule as Reporting.gs (REPORTING_classifyHeaders_),
+ * using the header aliases the server sends in getReportingCatalog, and the server checks again on
+ * its own when Process is pressed. Anything this cannot read (an old .xls, an unusual Excel file)
+ * is simply marked "checked on Process"; it never blocks.
+ *   identifyText(text, report)          -> { delimiter, tables: [table] }
+ *   identifyXlsx(bytes, report)         -> Promise<{ tables: [table] }>   (one per sheet)
+ *   table: { sheet, headers, rowCount, role, missingVoyce }
+ *   role: 'voyce' | 'shortCalls' | 'result' | 'voyceIncomplete' | 'none' | 'empty'
+ * ------------------------------------------------------------------------------------------- */
+window.ReportingIdentify = (function () {
+  var PROBE_ROWS = 20;
+
+  function norm(h) { return String(h == null ? '' : h).replace(/\s+/g, ' ').trim().toLowerCase(); }
+  function inputFor(report, role) {
+    for (var i = 0; i < report.inputs.length; i++) if (report.inputs[i].role === role) return report.inputs[i];
+    return null;
+  }
+  function missingColumns(headers, input) {
+    var n = headers.map(norm), out = [];
+    Object.keys(input.headers).forEach(function (key) {
+      var ok = input.headers[key].some(function (a) { return n.indexOf(String(a).toLowerCase()) !== -1; });
+      if (!ok) out.push((input.labels && input.labels[key]) || key);
+    });
+    return out;
+  }
+  function classify(headers, report) {
+    var voyce = inputFor(report, 'voyce'), shortCalls = inputFor(report, 'shortCalls');
+    var total = Object.keys(voyce.headers).length;
+    var missV = missingColumns(headers, voyce);
+    if (!missV.length) return { role: 'voyce', missingVoyce: [] };
+    var n = headers.map(norm);
+    if ((report.resultHeaders || []).length && report.resultHeaders.every(function (h) { return n.indexOf(h) !== -1; })) return { role: 'result', missingVoyce: missV };
+    if (total - missV.length >= (report.nearVoyceMin || 4)) return { role: 'voyceIncomplete', missingVoyce: missV };
+    if (!missingColumns(headers, shortCalls).length) return { role: 'shortCalls', missingVoyce: missV };
+    return { role: 'none', missingVoyce: missV };
+  }
+
+  // ---- delimited text (CSV, TSV, cells copied from Excel / Google Sheets)
+  function sniffDelimiter(text) {
+    var nl = text.search(/\r?\n/), first = nl === -1 ? text : text.substring(0, nl);
+    return first.indexOf('\t') !== -1 ? '\t' : ',';
+  }
+  function parseDelimited(text, delim) {
+    var rows = [], row = [], field = '', inQ = false, s = text.replace(/\r\n?/g, '\n');
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (inQ) {
+        if (ch === '"') { if (s.charAt(i + 1) === '"') { field += '"'; i++; } else inQ = false; }
+        else field += ch;
+      } else if (ch === '"' && field === '') inQ = true;
+      else if (ch === delim) { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else field += ch;
+    }
+    row.push(field);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+    return rows;
+  }
+  function isBlankRow(r) { for (var i = 0; i < r.length; i++) if (String(r[i] == null ? '' : r[i]).trim() !== '') return false; return true; }
+  // Same header-row rule as the server: the first of the first 20 non-blank rows that is a known
+  // report header (a title line above the headers is skipped), otherwise the first non-blank row.
+  function tableFrom(rows, sheet, report, countRows) {
+    var nonBlank = [];
+    for (var i = 0; i < rows.length && nonBlank.length < PROBE_ROWS; i++) if (!isBlankRow(rows[i])) nonBlank.push(i);
+    if (!nonBlank.length) return { sheet: sheet, headers: [], rowCount: 0, role: 'empty', missingVoyce: [] };
+    var at = nonBlank[0], c = classify(rows[at], report);
+    for (var k = 1; c.role === 'none' && k < nonBlank.length; k++) {
+      var ck = classify(rows[nonBlank[k]], report);
+      if (ck.role !== 'none') { at = nonBlank[k]; c = ck; }
+    }
+    var count = null;
+    if (countRows) { count = 0; for (var j = at + 1; j < rows.length; j++) if (!isBlankRow(rows[j])) count++; }
+    return { sheet: sheet, headers: rows[at], rowCount: count, role: c.role, missingVoyce: c.missingVoyce };
+  }
+  function identifyText(text, report) {
+    var t = String(text || '');
+    if (t.charCodeAt(0) === 0xFEFF) t = t.substring(1);
+    var delim = sniffDelimiter(t);
+    return { delimiter: delim, tables: [tableFrom(parseDelimited(t, delim), '', report, true)] };
+  }
+
+  // ---- .xlsx: read only the zip directory, the sheet list, shared strings and each sheet's first rows
+  function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+  function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+  function zipEntries(b) {
+    var eocd = -1;
+    for (var i = b.length - 22; i >= Math.max(0, b.length - 65557); i--) {
+      if (b[i] === 0x50 && b[i + 1] === 0x4b && b[i + 2] === 0x05 && b[i + 3] === 0x06) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('not a zip file');
+    var count = u16(b, eocd + 10), off = u32(b, eocd + 16), map = {}, dec = new TextDecoder();
+    if (off === 0xFFFFFFFF || count === 0xFFFF) throw new Error('zip64 not supported');
+    for (var n = 0; n < count; n++) {
+      if (u32(b, off) !== 0x02014b50) throw new Error('bad zip directory');
+      var nameLen = u16(b, off + 28), extra = u16(b, off + 30), comment = u16(b, off + 32);
+      var name = dec.decode(b.subarray(off + 46, off + 46 + nameLen));
+      map[name] = { method: u16(b, off + 10), flags: u16(b, off + 8), size: u32(b, off + 20), local: u32(b, off + 42) };
+      off += 46 + nameLen + extra + comment;
+    }
+    return map;
+  }
+  function inflateEntry(b, e, maxOut) {
+    if (!e) return Promise.resolve(null);
+    if (e.flags & 1) return Promise.reject(new Error('encrypted'));
+    var start = e.local + 30 + u16(b, e.local + 26) + u16(b, e.local + 28);
+    var data = b.subarray(start, start + e.size);
+    if (e.method === 0) return Promise.resolve(maxOut ? data.subarray(0, maxOut) : data);
+    if (e.method !== 8 || typeof DecompressionStream === 'undefined') return Promise.reject(new Error('unsupported compression'));
+    var reader = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
+    var parts = [], total = 0;
+    function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) return;
+        parts.push(r.value); total += r.value.length;
+        if (maxOut && total >= maxOut) { try { reader.cancel(); } catch (x) {} return; }
+        return pump();
+      });
+    }
+    return pump().then(function () {
+      var out = new Uint8Array(total), o = 0;
+      parts.forEach(function (p) { out.set(p, o); o += p.length; });
+      return out;
+    });
+  }
+  function xmlText(s) {
+    return String(s).replace(/&(#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);/g, function (m, g) {
+      if (g.charAt(0) === '#') return String.fromCharCode(g.charAt(1) === 'x' ? parseInt(g.substring(2), 16) : parseInt(g.substring(1), 10));
+      return { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[g];
+    });
+  }
+  function attr(attrs, name) {
+    var m = new RegExp('(?:^|\\s)' + name + '="([^"]*)"').exec(attrs);
+    return m ? xmlText(m[1]) : null;
+  }
+  function runsText(inner) {
+    var out = '', re = /<(?:\w+:)?t\b[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g, m;
+    while ((m = re.exec(inner))) out += xmlText(m[1]);
+    return out;
+  }
+  function colIndex(ref) {
+    var m = /^([A-Z]+)/.exec(ref || ''), n = 0;
+    if (!m) return -1;
+    for (var i = 0; i < m[1].length; i++) n = n * 26 + (m[1].charCodeAt(i) - 64);
+    return n - 1;
+  }
+  function firstRows(xml, shared, maxRows) {
+    var rows = [], rowRe = /<(?:\w+:)?row\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:\w+:)?row>)/g, rm;
+    while ((rm = rowRe.exec(xml)) && rows.length < maxRows) {
+      var cells = [], cellRe = /<(?:\w+:)?c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/(?:\w+:)?c>)/g, cm, next = 0;
+      var inner = rm[1] || '';
+      while ((cm = cellRe.exec(inner))) {
+        var a = cm[1], body = cm[2] || '', type = attr(a, 't'), idx = colIndex(attr(a, 'r'));
+        if (idx < 0) idx = next;
+        next = idx + 1;
+        var v = /<(?:\w+:)?v\b[^>]*>([\s\S]*?)<\/(?:\w+:)?v>/.exec(body), val = '';
+        if (type === 's') val = v ? (shared[parseInt(v[1], 10)] || '') : '';
+        else if (type === 'inlineStr') val = runsText(body);
+        else val = v ? xmlText(v[1]) : '';
+        cells[idx] = val;
+      }
+      for (var k = 0; k < cells.length; k++) if (cells[k] === undefined) cells[k] = '';
+      rows.push(cells);
+    }
+    return rows;
+  }
+  function peekXlsx(bytes) {
+    var b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    var files, dec = new TextDecoder();
+    try { files = zipEntries(b); } catch (e) { return Promise.reject(e); }
+    var wbName = files['xl/workbook.xml'] ? 'xl/workbook.xml' : Object.keys(files).filter(function (k) { return /(^|\/)workbook\.xml$/.test(k); })[0];
+    if (!wbName) return Promise.reject(new Error('no workbook'));
+    var base = wbName.replace(/[^\/]*$/, '');
+    var relsName = base + '_rels/' + wbName.substring(base.length) + '.rels';
+    return Promise.all([inflateEntry(b, files[wbName]), inflateEntry(b, files[relsName]), inflateEntry(b, files[base + 'sharedStrings.xml'], 60 * 1024 * 1024)])
+      .then(function (parts) {
+        var wb = dec.decode(parts[0]), rels = parts[1] ? dec.decode(parts[1]) : '', ssXml = parts[2] ? dec.decode(parts[2]) : '';
+        var targets = {}, rm, relRe = /<(?:\w+:)?Relationship\b([^>]*)>/g;
+        while ((rm = relRe.exec(rels))) targets[attr(rm[1], 'Id')] = attr(rm[1], 'Target');
+        var shared = [], sm, siRe = /<(?:\w+:)?si\b[^>]*>([\s\S]*?)<\/(?:\w+:)?si>/g;
+        while ((sm = siRe.exec(ssXml))) shared.push(runsText(sm[1]));
+        var sheets = [], shm, shRe = /<(?:\w+:)?sheet\b([^>]*?)\/?>/g;
+        while ((shm = shRe.exec(wb))) {
+          var rid = /\s\w+:id="([^"]*)"/.exec(shm[1]);
+          var target = rid ? targets[rid[1]] : null;
+          if (!target) continue;
+          var path = target.charAt(0) === '/' ? target.substring(1) : base + target;
+          sheets.push({ sheet: attr(shm[1], 'name') || '', path: path.replace(/[^\/]+\/\.\.\//g, '') });
+        }
+        return Promise.all(sheets.map(function (s) {
+          return inflateEntry(b, files[s.path], 512 * 1024).then(function (x) {
+            return { sheet: s.sheet, rows: x ? firstRows(dec.decode(x), shared, PROBE_ROWS) : [] };
+          });
+        }));
+      });
+  }
+  function identifyXlsx(bytes, report) {
+    return peekXlsx(bytes).then(function (sheets) {
+      return { tables: sheets.map(function (s) { return tableFrom(s.rows, s.sheet, report, false); }) };
+    });
+  }
+
+  return { identifyText: identifyText, identifyXlsx: identifyXlsx, peekXlsx: peekXlsx, classify: classify,
+    parseDelimited: parseDelimited, sniffDelimiter: sniffDelimiter, missingColumns: missingColumns };
+})();
+</script>
+
+<script>
+/* ---------------------------------------------------------------------------------------------
+ * window.Reporting: the screens. Server calls: getReportingCatalog, runVoycePerformanceReport,
+ * and runAutomatedVoyceReports (ReportAutomationEntry.gs: both reports for the same dates in one call).
+ * ------------------------------------------------------------------------------------------- */
+(function () {
+  var MAX_FILE_BYTES = 20 * 1024 * 1024;          // same limit as the server
+  var PAGE_SIZE = 100;
+  var ICONS = {
+    phone: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    clock: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+  };
+  var TOOLS = { voyce_clean: { screen: 'rpt-tool-voyce_clean' } };
+  var MAX_FETCH_DAYS = 31;                          // same limit as the server
+
+  var state = {
+    catalog: null, catalogLoading: false,
+    items: [], reading: 0,
+    processing: false, fetching: false, result: null, range: null,
+    hay: null, filtered: null, query: '', page: 1, searchTimer: null, exporting: false
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+    });
+  }
+  function toast(msg, type) { if (typeof showToast === 'function') showToast(msg, type); }
+  function fmtBytes(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  function fmtInt(n) { return Number(n || 0).toLocaleString('en-US'); }
+  function isVisible() { var v = $('view-reporting'); return !!v && v.style.display !== 'none'; }
+
+  // ---------------------------------------------------------------- picker
+  function show() {
+    if (!state.catalog && !state.catalogLoading) loadCatalog();
+  }
+
+  function loadCatalog() {
+    state.catalogLoading = true;
+    $('rpt-catalog-grid').innerHTML = '<div class="rpt-empty">Loading reports...</div>';
+    google.script.run
+      .withSuccessHandler(function (data) {
+        state.catalogLoading = false;
+        state.catalog = (data && data.reports) || [];
+        renderCatalog();
+      })
+      .withFailureHandler(function (err) {
+        state.catalogLoading = false;
+        $('rpt-catalog-grid').innerHTML = '<div class="rpt-empty">Could not load reports: ' + esc((err && err.message) || err) +
+          '<br><button type="button" class="btn-secondary" id="rpt-catalog-retry" style="margin-top:12px;">Try again</button></div>';
+        $('rpt-catalog-retry').onclick = loadCatalog;
+      })
+      .getReportingCatalog();
+  }
+
+  function renderCatalog() {
+    var grid = $('rpt-catalog-grid');
+    if (!state.catalog.length) { grid.innerHTML = '<div class="rpt-empty">No reports are set up yet.</div>'; return; }
+    grid.innerHTML = '';
+    state.catalog.forEach(function (report) {
+      var card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'rpt-catalog-card';
+      card.innerHTML = '<span class="rpt-catalog-icon">' + (ICONS[report.icon] || ICONS.phone) + '</span>' +
+        '<span class="rpt-catalog-title">' + esc(report.title) + '</span>' +
+        '<span class="rpt-catalog-desc">' + esc(report.description) + '</span>' +
+        '<span class="rpt-catalog-cta">Open &rarr;</span>';
+      card.onclick = function () { openTool(report.id); };
+      grid.appendChild(card);
+    });
+  }
+
+  function showScreen(id) {
+    ['rpt-catalog-screen'].concat(Object.keys(TOOLS).map(function (k) { return TOOLS[k].screen; }))
+      .forEach(function (s) { $(s).style.display = (s === id) ? 'flex' : 'none'; });
+  }
+
+  function openTool(id) {
+    if (!TOOLS[id]) { toast('This report is not available in this version of the app.', 'error'); return; }
+    showScreen(TOOLS[id].screen);
+    defaultDates('rpt-vc-from', 'rpt-vc-to');
+    renderFound();
+    updateProcessState();
+    if (!state.result) $('rpt-vc-fetch-btn').focus();
+  }
+
+  // ---------------------------------------------------------------- dates (automatic fetch)
+  /** Today in New York as yyyy-mm-dd (the reports' time zone). */
+  function todayNY() {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    } catch (e) {
+      var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+  }
+  function defaultDates(fromId, toId) {
+    var t = todayNY();
+    if (!$(fromId).value) $(fromId).value = t;
+    if (!$(toId).value) $(toId).value = t;
+    $(fromId).max = t; $(toId).max = t;
+  }
+  /** Reads a From/To pair. Returns { from, to, label } or { error }. */
+  function readRange(fromId, toId) {
+    var from = $(fromId).value, to = $(toId).value;
+    if (!from || !to) return { error: 'Pick both a From and a To date.' };
+    if (from > to) return { error: 'The From date is after the To date.' };
+    var days = Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000) + 1;
+    if (days > MAX_FETCH_DAYS) return { error: 'Pick at most ' + MAX_FETCH_DAYS + ' days at a time (you picked ' + days + ').' };
+    return { from: from, to: to, label: from === to ? from : from + ' to ' + to };
+  }
+
+  // ---------------------------------------------------------------- copy rows (shared)
+  function copyText(text) {
+    function fallback() {
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        if (ok) resolve(); else reject(new Error('copy blocked'));
+      });
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(fallback);
+    return fallback();
+  }
+  function copyRows(result, withHeader) {
+    if (!result) return;
+    copyText(window.ReportingExport.buildTsv(result, { header: withHeader })).then(function () {
+      toast('Copied ' + fmtInt(result.rows.length) + ' rows' + (withHeader ? ' with the header row' : ' (no header row)') + '. Paste them into your sheet.');
+    }, function () {
+      toast('Your browser blocked copying. Use Download CSV instead.', 'error');
+    });
+  }
+
+  function backToCatalog() { showScreen('rpt-catalog-screen'); }
+
+  // ---------------------------------------------------------------- steps indicator
+  function setStep(n) {
+    for (var i = 1; i <= 4; i++) {
+      var li = $('rpt-step-' + i);
+      li.classList.toggle('is-current', i === n);
+      li.classList.toggle('is-done', i < n);
+      if (i === n) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+    }
+  }
+
+  // ---------------------------------------------------------------- add reports (drop, choose, paste)
+  // Items are what the person added: files, or cells pasted from Excel / Google Sheets. Each is
+  // recognized from its columns (ReportingIdentify) and fills one or both roles; nobody labels
+  // anything by hand. The server makes the final decision again from the full data on Process.
+  var ROLES = ['voyce', 'shortCalls'];
+  var ROLE_NAME = { voyce: 'Voyce Performance export', shortCalls: 'Short Calls export' };
+  var ROLE_SHORT = { voyce: 'Voyce', shortCalls: 'Short Calls' };
+  var MAX_ITEMS = 3, pasteCount = 0, nextId = 1;
+
+  function report() {
+    var list = state.catalog || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === 'voyce_clean') return list[i];
+    return null;
+  }
+  function uploadVisible() {
+    return isVisible() && $('rpt-tool-voyce_clean').style.display !== 'none' && !$('rpt-vc-upload-panel').hidden;
+  }
+  function itemFor(role) {
+    for (var i = 0; i < state.items.length; i++) if (state.items[i].found[role]) return state.items[i];
+    return null;
+  }
+  function pendingItems() { return state.items.filter(function (it) { return it.pending; }); }
+
+  function bindUpload() {
+    var zone = $('rpt-dropzone'), body = $('rpt-drop-body'), input = $('rpt-file-input'), depth = 0;
+    body.addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function () { addFiles(Array.prototype.slice.call(input.files || [])); input.value = ''; });
+    zone.addEventListener('dragenter', function (e) { e.preventDefault(); depth++; zone.classList.add('is-dragover'); });
+    zone.addEventListener('dragover', function (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'; });
+    zone.addEventListener('dragleave', function () { depth = Math.max(0, depth - 1); if (!depth) zone.classList.remove('is-dragover'); });
+    zone.addEventListener('drop', function (e) {
+      e.preventDefault(); depth = 0; zone.classList.remove('is-dragover');
+      var dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length) addFiles(Array.prototype.slice.call(dt.files));
+      else if (dt && dt.getData && dt.getData('text/plain')) addPastedText(dt.getData('text/plain'));
+    });
+    // A file dropped next to the drop area must not make the browser leave the app to open it.
+    ['dragover', 'drop'].forEach(function (type) {
+      window.addEventListener(type, function (e) {
+        if (!isVisible()) return;
+        if (e.target && e.target.closest && e.target.closest('.rpt-dropzone')) return;
+        e.preventDefault();
+      });
+    });
+    // Ctrl+V anywhere on the upload screen (except in a text field) adds files or copied cells.
+    document.addEventListener('paste', onPaste);
+
+    $('rpt-vc-process-btn').addEventListener('click', runVoyceClean);
+    $('rpt-vc-search').addEventListener('input', onSearchInput);
+    $('rpt-vc-prev').addEventListener('click', function () { changePage(-1); });
+    $('rpt-vc-next').addEventListener('click', function () { changePage(1); });
+    $('rpt-vc-export-csv').addEventListener('click', function () { exportResult('csv'); });
+    $('rpt-vc-export-xlsx').addEventListener('click', function () { exportResult('xlsx'); });
+    $('rpt-vc-copy').addEventListener('click', function () { copyRows(state.result, headerWanted()); });
+    $('rpt-vc-fetch-btn').addEventListener('click', fetchVoyceClean);
+    $('rpt-both-xlsx').addEventListener('click', exportBoth);
+    $('rpt-tab-perf').addEventListener('click', function () { selectTab('perf'); });
+    $('rpt-tab-ot').addEventListener('click', function () { selectTab('ot'); });
+  }
+
+  function onPaste(e) {
+    if (!uploadVisible() || state.processing) return;
+    var t = e.target;
+    var inZone = t && t.closest && t.closest('#rpt-dropzone');
+    if (!inZone && t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName || ''))) return;
+    var cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    var files = Array.prototype.slice.call(cd.files || []);
+    var text = cd.getData ? cd.getData('text/plain') : '';
+    // Excel also puts a picture of the copied cells on the clipboard; the cells themselves are the text.
+    var onlyImages = files.length && files.every(function (f) { return /^image\//.test(f.type); });
+    e.preventDefault();
+    if (files.length && !(onlyImages && text && text.trim())) { addFiles(files); return; }
+    if (text && text.trim()) { addPastedText(text); return; }
+    showError('Nothing to paste. Copy the report files, or copy the report cells (including the header row) in Excel or Google Sheets, then press Ctrl+V here.');
+  }
+
+  function addPastedText(text) {
+    pasteCount++;
+    var delim = window.ReportingIdentify.sniffDelimiter(text);
+    var blob = new Blob([text], { type: 'text/plain' });
+    addFiles([{ name: 'Pasted cells ' + pasteCount + (delim === '\t' ? '.tsv' : '.csv'), size: blob.size, type: 'text/plain', blob: blob, pasted: true }]);
+  }
+
+  function readBytes(src) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onload = function () { resolve(new Uint8Array(r.result)); };
+      r.onerror = function () { reject(new Error('could not be read')); };
+      r.readAsArrayBuffer(src.blob || src);
+    });
+  }
+  function toBase64(bytes) {
+    var parts = [], CH = 0x8000;
+    for (var i = 0; i < bytes.length; i += CH) parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CH)));
+    return btoa(parts.join(''));
+  }
+
+  function addFiles(list) {
+    if (!list.length || state.processing) return;
+    hideError();
+    if (!report()) { showError('Reporting is still loading. Try again in a moment.'); return; }
+    state.reading++;
+    updateProcessState();
+    var errors = [];
+    // One at a time, in order, so replacements are predictable.
+    list.reduce(function (p, src) {
+      return p.then(function () {
+        return addOne(src).then(function (msg) { if (msg) errors.push(msg); }, function (err) {
+          errors.push('"' + src.name + '" ' + ((err && err.message) || 'could not be read') + '.');
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      state.reading--;
+      if (errors.length) showError(errors.join(' '));
+      renderFound();
+      updateProcessState();
+    });
+  }
+
+  function describeUnrecognized(name, tables) {
+    var t = tables.filter(function (x) { return x.role !== 'empty'; });
+    if (!t.length) return '"' + name + '" has no data.';
+    if (t.every(function (x) { return x.role === 'result'; })) return '"' + name + '" is a previous Cleaned result, not one of the two source reports.';
+    var inc = t.filter(function (x) { return x.role === 'voyceIncomplete'; })[0];
+    if (inc) return '"' + name + '"' + (inc.sheet ? ' (sheet "' + inc.sheet + '")' : '') + ' looks like the Voyce Performance export but is missing: ' + inc.missingVoyce.join(', ') + '.';
+    var cols = t[0].headers.map(String).filter(function (h) { return h.trim(); });
+    return '"' + name + '" is not one of the two reports' + (cols.length ? ' (its columns: ' + cols.slice(0, 5).join(', ') + (cols.length > 5 ? ', ...' : '') + ')' : '') +
+      '. If you pasted cells, include the header row. See "How are the reports recognized?" below.';
+  }
+
+  /** Reads, recognizes and places one added file. Resolves to an error message, or '' when added. */
+  function addOne(src) {
+    var name = src.name || 'file', ext = (/\.([a-z0-9]+)$/i.exec(name) || [, ''])[1].toLowerCase();
+    if (!src.pasted && !/^(csv|tsv|txt|xlsx|xls)$/.test(ext)) return Promise.resolve('"' + name + '" is not a report file. Use .csv, .xlsx, or paste the cells.');
+    if (!src.size) return Promise.resolve('"' + name + '" is empty.');
+    if (src.size > MAX_FILE_BYTES) return Promise.resolve('"' + name + '" is ' + fmtBytes(src.size) + '. The limit is 20 MB per file.');
+
+    return readBytes(src).then(function (bytes) {
+      var base64 = toBase64(bytes);
+      for (var i = 0; i < state.items.length; i++) {
+        if (state.items[i].base64 === base64) return '"' + name + '" is already added.';
+      }
+      var item = { id: nextId++, name: name, pasted: !!src.pasted, size: src.size, mimeType: src.type || '', base64: base64, found: {}, pending: false };
+      var recognize;
+      if (ext === 'xlsx') {
+        recognize = window.ReportingIdentify.identifyXlsx(bytes, report()).then(function (r) { return r.tables; }, function () { return null; });
+      } else if (ext === 'xls') {
+        recognize = Promise.resolve(null);
+      } else {
+        recognize = Promise.resolve(window.ReportingIdentify.identifyText(new TextDecoder('utf-8').decode(bytes), report()).tables);
+      }
+      return recognize.then(function (tables) {
+        if (!tables) { item.pending = true; return place(item); }        // checked by the server on Process
+        var voyce = tables.filter(function (t) { return t.role === 'voyce'; });
+        var shortCalls = tables.filter(function (t) { return t.role === 'shortCalls'; });
+        if (voyce.length > 1) return '"' + name + '" has more than one Voyce Performance tab (' + voyce.map(function (t) { return t.sheet; }).join(', ') + '). Keep only one.';
+        if (shortCalls.length > 1) return '"' + name + '" has more than one tab that could be the Short Calls export (' + shortCalls.map(function (t) { return t.sheet; }).join(', ') + '). Keep only one.';
+        if (!voyce.length && !shortCalls.length) return describeUnrecognized(name, tables);
+        if (voyce.length) item.found.voyce = { sheet: voyce[0].sheet, rows: voyce[0].rowCount };
+        if (shortCalls.length) item.found.shortCalls = { sheet: shortCalls[0].sheet, rows: shortCalls[0].rowCount };
+        if (item.pasted) {
+          var roles = Object.keys(item.found);
+          item.name = 'Pasted ' + roles.map(function (r) { return ROLE_SHORT[r]; }).join(' and ') + ' data ' + pasteCount + (ext === 'tsv' ? '.tsv' : '.csv');
+        }
+        return place(item);
+      });
+    });
+  }
+
+  /** Puts a recognized item in place; a newer file for a report replaces the older one. */
+  function place(item) {
+    if (item.pending) {
+      if (itemFor('voyce') && itemFor('shortCalls')) return '"' + item.name + '" was not added: both reports are already here. Remove one first.';
+      if (state.items.length >= MAX_ITEMS) return '"' + item.name + '" was not added: remove a file first.';
+      state.items.push(item);
+      return '';
+    }
+    var replaced = [];
+    Object.keys(item.found).forEach(function (role) {
+      var old = itemFor(role);
+      if (old) { delete old.found[role]; replaced.push(ROLE_NAME[role]); }
+    });
+    state.items = state.items.filter(function (it) { return it.pending || Object.keys(it.found).length; });
+    // A recognized file makes an unrecognized Excel file unnecessary once both reports are known.
+    if (itemFor('voyce') || item.found.voyce) {
+      if ((itemFor('shortCalls') || item.found.shortCalls)) state.items = state.items.filter(function (it) { return !it.pending; });
+    }
+    state.items.push(item);
+    if (replaced.length) toast('Replaced the previous ' + replaced.join(' and ') + '.');
+    return '';
+  }
+
+  function removeItem(id) {
+    if (state.processing) return;
+    state.items = state.items.filter(function (it) { return it.id !== id; });
+    hideError();
+    renderFound();
+    updateProcessState();
+    $('rpt-drop-body').focus();
+  }
+
+  function sourceText(item, role) {
+    var f = item.found[role], parts = [item.pasted ? 'Pasted cells' : item.name];
+    if (f.sheet) parts.push('tab "' + f.sheet + '"');
+    if (typeof f.rows === 'number') parts.push(fmtInt(f.rows) + ' rows');
+    return parts.join(' \u00B7 ');
+  }
+
+  function renderFound() {
+    var list = $('rpt-found'), html = [], pend = pendingItems();
+    ROLES.forEach(function (role) {
+      var it = itemFor(role);
+      var cls = it ? 'is-ok' : (pend.length ? 'is-pending' : '');
+      var icon = it ? '\u2713' : (pend.length ? '?' : '');
+      var src = it ? sourceText(it, role) : (pend.length ? 'Will be checked when you press Process' : 'Not added yet');
+      html.push('<li class="rpt-found-row ' + cls + '" data-role="' + role + '"><span class="rpt-found-icon" aria-hidden="true">' + icon + '</span>' +
+        '<span class="rpt-found-main"><span class="rpt-found-role">' + ROLE_NAME[role] + '</span>' +
+        '<span class="rpt-found-src" title="' + esc(src) + '">' + esc(src) + '</span></span>' +
+        (it ? '<button type="button" class="rpt-file-del" data-remove="' + it.id + '" aria-label="Remove ' + esc(it.pasted ? 'pasted cells' : it.name) + '">&times;</button>' : '') + '</li>');
+    });
+    pend.forEach(function (it) {
+      html.push('<li class="rpt-found-row is-pending"><span class="rpt-found-icon" aria-hidden="true">?</span>' +
+        '<span class="rpt-found-main"><span class="rpt-found-role">Excel file</span><span class="rpt-found-src">' + esc(it.name) +
+        ' \u00B7 recognized when you press Process</span></span>' +
+        '<button type="button" class="rpt-file-del" data-remove="' + it.id + '" aria-label="Remove ' + esc(it.name) + '">&times;</button></li>');
+    });
+    list.innerHTML = html.join('');
+    Array.prototype.forEach.call(list.querySelectorAll('[data-remove]'), function (b) {
+      b.onclick = function () { removeItem(Number(b.getAttribute('data-remove'))); };
+    });
+    $('rpt-dropzone').classList.toggle('is-ready', !!(itemFor('voyce') && itemFor('shortCalls')));
+  }
+
+  function readiness() {
+    var v = itemFor('voyce'), s = itemFor('shortCalls'), pend = pendingItems().length;
+    if (v && s) return { ready: true, text: 'Both reports found. Ready to process.' };
+    if (pend) return { ready: true, text: 'Ready. The Excel file will be checked when you press Process.' };
+    if (!v && !s) return { ready: false, text: 'Add the Voyce Performance export and the Short Calls export.' };
+    return { ready: false, text: 'Now add the ' + ROLE_NAME[v ? 'shortCalls' : 'voyce'] + '.' };
+  }
+
+  function updateProcessState() {
+    var r = readiness(), btn = $('rpt-vc-process-btn'), status = $('rpt-vc-status');
+    btn.disabled = !r.ready || state.processing || state.reading > 0;
+    btn.textContent = state.processing && !state.fetching ? 'Processing...' : 'Process';
+    var fetchBtn = $('rpt-vc-fetch-btn');
+    fetchBtn.disabled = state.processing || state.reading > 0;
+    fetchBtn.textContent = state.fetching ? 'Fetching...' : 'Fetch both reports';
+    $('rpt-vc-from').disabled = $('rpt-vc-to').disabled = state.processing;
+    if (state.fetching) status.textContent = '';
+    else if (state.processing) status.innerHTML = '<span class="rpt-spinner" aria-hidden="true"></span>Reading and cleaning the reports. Large files can take up to a minute.';
+    else if (state.reading > 0) status.innerHTML = '<span class="rpt-spinner" aria-hidden="true"></span>Recognizing...';
+    else status.textContent = r.text;
+    setStep(state.result ? 3 : (r.ready ? 2 : 1));
+  }
+
+  function showError(msg) { var el = $('rpt-vc-error'); el.textContent = msg; el.hidden = false; }
+  function hideError() { $('rpt-vc-error').hidden = true; }
+
+  // ---------------------------------------------------------------- process
+  function runVoyceClean() {
+    if (!readiness().ready || state.processing || state.reading) return;
+    state.processing = true;
+    hideError();
+    updateProcessState();
+    var send = [], seen = {};
+    [itemFor('voyce'), itemFor('shortCalls')].concat(pendingItems()).forEach(function (it) {
+      if (it && !seen[it.id]) { seen[it.id] = true; send.push({ name: it.name, mimeType: it.mimeType, base64: it.base64 }); }
+    });
+    google.script.run
+      .withSuccessHandler(function (result) {
+        state.processing = false;
+        if (!result || !result.columns) { updateProcessState(); showError('The server returned no result. Please try again.'); return; }
+        onResult(result);
+      })
+      .withFailureHandler(function (err) {
+        state.processing = false;
+        updateProcessState();
+        showError((err && err.message) || String(err));
+      })
+      .runVoycePerformanceReport(send);
+  }
+
+  var AUTO_NOTE = 'Dates are New York time. Signs out anyone using the same Voyce login elsewhere.';
+
+  function fetchVoyceClean() {
+    if (state.processing || state.reading) return;
+    hideError();
+    var range = readRange('rpt-vc-from', 'rpt-vc-to');
+    if (range.error) { showError(range.error); return; }
+    state.processing = true; state.fetching = true;
+    updateProcessState();
+    setStep(2);
+    $('rpt-vc-auto-status').innerHTML = '<span class="rpt-spinner" aria-hidden="true"></span>Fetching both reports from Voyce and Sisense, then cleaning. This usually takes 20 to 60 seconds.';
+    var finish = function () {
+      state.processing = false; state.fetching = false;
+      $('rpt-vc-auto-status').textContent = AUTO_NOTE;
+      updateProcessState();
+    };
+    google.script.run
+      .withSuccessHandler(function (out) {
+        finish();
+        if (!out || !out.performance || !out.performance.columns) { showError('The server returned no result. Please try again.'); return; }
+        onResult(out.performance, true);
+        state.range = range;
+        OnlineTime.setResult(out.onlineTime, range);
+        $('rpt-vc-files').textContent = 'Fetched from Voyce and Sisense \u00B7 ' + range.label + ' (New York time)';
+        $('rpt-both-xlsx').hidden = !(out.onlineTime && out.onlineTime.columns);
+        toast('Both reports ready: ' + fmtInt(out.performance.rows.length) + ' + ' + fmtInt(out.onlineTime ? out.onlineTime.rows.length : 0) + ' rows.');
+      })
+      .withFailureHandler(function (err) {
+        finish();
+        showError('Automatic fetch failed: ' + ((err && err.message) || String(err)) + ' You can still add the exports yourself below.');
+      })
+      .runAutomatedVoyceReports(range.from, range.to);
+  }
+
+  function headerWanted() { return $('rpt-with-header').checked; }
+
+  function selectTab(which) {
+    ['perf', 'ot'].forEach(function (t) {
+      var on = t === which;
+      $('rpt-tab-' + t).classList.toggle('is-active', on);
+      $('rpt-tab-' + t).setAttribute('aria-selected', on ? 'true' : 'false');
+      $('rpt-pane-' + t).hidden = !on;
+    });
+  }
+
+  /** Name part for downloads: the fetched dates, or a timestamp for uploaded files. */
+  function fileTag() {
+    if (!state.range) return stamp();
+    return state.range.from + (state.range.to !== state.range.from ? '_to_' + state.range.to : '');
+  }
+
+  function exportBoth() {
+    var ot = OnlineTime.result();
+    if (!state.result || !ot) return;
+    var btn = $('rpt-both-xlsx');
+    btn.disabled = true;
+    var name = 'Voyce_Reports_' + fileTag();
+    var perf = Object.assign({}, state.result, { sheetName: 'Voyce Performance' });
+    var online = Object.assign({}, ot, { sheetName: 'Provider Online Time' });
+    window.ReportingExport.buildWorkbook([perf, online], { header: headerWanted() }).then(function (bytes) {
+      download(bytes, name + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      toast('Downloaded ' + name + '.xlsx (2 sheets)');
+      btn.disabled = false;
+      setStep(4);
+    }, function (err) {
+      btn.disabled = false;
+      toast('The Excel file could not be built: ' + ((err && err.message) || err), 'error');
+    });
+  }
+
+  function onResult(result, quiet) {
+    state.result = result;
+    state.range = null;
+    OnlineTime.clear();
+    selectTab('perf');
+    $('rpt-both-xlsx').hidden = true;
+    $('rpt-tab-perf-count').textContent = fmtInt(result.rows.length);
+    state.hay = null;
+    state.query = '';
+    state.page = 1;
+    $('rpt-vc-search').value = '';
+    applyFilter();
+    $('rpt-vc-upload-panel').hidden = true;
+    $('rpt-vc-result-panel').hidden = false;
+    $('rpt-vc-reset').style.display = '';
+    var d = result.diagnostics;
+    $('rpt-vc-files').textContent = 'Voyce: ' + d.voyceSource + '  \u00B7  Short Calls: ' + d.shortCallsSource;
+    renderNotices(d);
+    renderMetrics(d);
+    renderHead(result.columns);
+    renderPage();
+    setStep(3);
+    if (!quiet) toast('Report ready: ' + fmtInt(d.finalCleanedRowCount) + ' rows.');
+  }
+
+  function resetVoyceClean() {
+    if (state.processing) return;
+    state.items = [];
+    state.result = null; state.hay = null; state.filtered = null; state.range = null;
+    OnlineTime.clear();
+    hideError();
+    renderFound();
+    $('rpt-vc-upload-panel').hidden = false;
+    $('rpt-vc-result-panel').hidden = true;
+    $('rpt-vc-reset').style.display = 'none';
+    updateProcessState();
+    $('rpt-drop-body').focus();
+  }
+
+  function renderNotices(d) {
+    var warn = [], info = [];
+    if (d.status === 'COMPLETED_EMPTY_SOURCE') warn.push('The Voyce Performance export has a header row but no data rows, so the result is empty.');
+    else if (d.finalCleanedRowCount === 0) warn.push('No rows remained after cleaning. Check that the right Voyce export was used.');
+    if (d.malformedSecondsToAnswer > 0) warn.push(fmtInt(d.malformedSecondsToAnswer) + ' row(s) had a SecondsToAnswer that is not a number and were left out (same as the production pipeline).');
+    if (d.duplicateGroupsMultiPopulatedH > 0) warn.push(fmtInt(d.duplicateGroupsMultiPopulatedH) + ' duplicate group(s) had more than one accepted row. The first one in the file was kept for each, as the production pipeline does. This is unusual; check the export if it happens often.');
+    if (d.shortCallsDistinctIds > 0 && d.shortCallsMatchedCount === 0 && d.finalCleanedRowCount > 0) warn.push('None of the ' + fmtInt(d.shortCallsDistinctIds) + ' Short Calls transaction IDs were found in the Voyce data. Check that both reports cover the same dates.');
+    if (d.dateOrderAssumed) warn.push('Dates like 05/09/2026 were read as month/day (US format), because nothing in the data shows a day above 12 in the first position. If the data uses day/month, the times are wrong: export again with dates like 2026-09-05.');
+    if (d.timesWithoutSeconds > 0) warn.push(fmtInt(d.timesWithoutSeconds) + ' time value(s) have no seconds (for example 9/25/2026 8:26). Excel copies times the way they are displayed, so seconds may have been cut off; duplicates are matched on the exact AssignedToInterpreterTime, so this can change the result. Before copying, format the time columns as yyyy-mm-dd hh:mm:ss, or add the export file instead.');
+    (d.skippedSources || []).forEach(function (s) { info.push(s); });
+    if (d.rowsSkippedNoTransactionId > 0) info.push(fmtInt(d.rowsSkippedNoTransactionId) + ' Voyce row(s) without a Transaction Id were skipped (same as the production pipeline).');
+    var html = '';
+    if (warn.length) html += '<div class="notice notice-warn" role="status"><strong>Please check:</strong><ul>' + warn.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
+    if (info.length) html += '<div class="notice rpt-notice-info" role="status"><ul>' + info.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
+    $('rpt-vc-notices').innerHTML = html;
+  }
+
+  function renderMetrics(d) {
+    var boxes = [
+      ['Voyce rows read', d.voyceRawRowCount, ''],
+      ['Removed by Rule 1', d.rowsRemovedSecondsToAnswer, 'SecondsToAnswer \u2264 1'],
+      ['Duplicate groups', d.duplicateGroupsDetected, fmtInt(d.duplicateRowsRemovedEmptyH) + ' row(s) removed'],
+      ['Final rows', d.finalCleanedRowCount, ''],
+      ['Short Calls flagged', d.shortCallsMatchedCount, fmtInt(d.shortCallsDistinctIds) + ' IDs in Short Calls file'],
+      ['Accepted', d.acceptedTransactionsCount, '']
+    ];
+    $('rpt-vc-metric-strip').innerHTML = boxes.map(function (b, i) {
+      return '<div class="metric-box"><span class="metric-title">' + esc(b[0]) + '</span>' +
+        '<span class="metric-val"' + (i === 3 ? ' style="color: var(--primary-blue);"' : '') + '>' + fmtInt(b[1]) + '</span>' +
+        (b[2] ? '<span class="rpt-metric-sub">' + esc(b[2]) + '</span>' : '') + '</div>';
+    }).join('');
+  }
+
+  // ---------------------------------------------------------------- table, search, paging
+  function renderHead(columns) {
+    $('rpt-vc-thead-row').innerHTML = columns.map(function (c) {
+      return '<th scope="col"' + (c.type === 'integer' ? ' class="rpt-num"' : '') + '>' + esc(c.header) + '</th>';
+    }).join('');
+  }
+
+  function applyFilter() {
+    var rows = state.result ? state.result.rows : [];
+    var q = state.query.trim().toLowerCase();
+    if (!q) { state.filtered = rows; state.page = 1; return; }
+    if (!state.hay) state.hay = rows.map(function (r) { return r.join('\u0001').toLowerCase(); });
+    var out = [];
+    for (var i = 0; i < rows.length; i++) if (state.hay[i].indexOf(q) !== -1) out.push(rows[i]);
+    state.filtered = out;
+    state.page = 1;
+  }
+
+  function onSearchInput() {
+    clearTimeout(state.searchTimer);
+    state.searchTimer = setTimeout(function () {
+      state.query = $('rpt-vc-search').value || '';
+      applyFilter();
+      renderPage();
+    }, 180);
+  }
+
+  function renderPage() {
+    var cols = state.result.columns, rows = state.filtered || [];
+    var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    if (state.page > pages) state.page = pages;
+    var start = (state.page - 1) * PAGE_SIZE, slice = rows.slice(start, start + PAGE_SIZE);
+    var html;
+    if (!slice.length) {
+      html = '<tr><td colspan="' + cols.length + '" style="text-align:center; padding:28px; color:var(--text-muted);">' +
+        (state.query ? 'No rows match your search.' : 'No rows.') + '</td></tr>';
+    } else {
+      html = slice.map(function (row) {
+        return '<tr>' + cols.map(function (c, i) {
+          var v = row[i];
+          if (v === '' || v === null || v === undefined) return '<td' + (c.type === 'integer' ? ' class="rpt-num"' : '') + '><span class="rpt-blank">\u2014</span></td>';
+          if (c.type === 'integer') return '<td class="rpt-num">' + (Number(v) === 1 ? '<span class="rpt-flag">1</span>' : esc(v)) + '</td>';
+          return '<td>' + esc(v) + '</td>';
+        }).join('') + '</tr>';
+      }).join('');
+    }
+    $('rpt-vc-tbody').innerHTML = html;
+    $('rpt-vc-pager-info').textContent = rows.length
+      ? 'Rows ' + fmtInt(start + 1) + '\u2013' + fmtInt(start + slice.length) + ' of ' + fmtInt(rows.length) +
+        (state.query ? ' matching' : '') + ' \u00B7 page ' + state.page + ' of ' + pages
+      : '0 rows';
+    $('rpt-vc-prev').disabled = state.page <= 1;
+    $('rpt-vc-next').disabled = state.page >= pages;
+  }
+
+  function changePage(delta) {
+    var pages = Math.max(1, Math.ceil((state.filtered || []).length / PAGE_SIZE));
+    var next = state.page + delta;
+    if (next < 1 || next > pages) return;
+    state.page = next;
+    renderPage();
+    var tc = document.querySelector('#rpt-vc-result-panel .table-container');
+    if (tc && tc.scrollIntoView) tc.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  // ---------------------------------------------------------------- export (built in the browser)
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + p(d.getHours()) + p(d.getMinutes());
+  }
+
+  function download(data, name, mime) {
+    var url = URL.createObjectURL(new Blob([data], { type: mime }));
+    var a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+  }
+
+  function exportResult(format) {
+    if (!state.result || state.exporting) return;
+    state.exporting = true;
+    var btns = [$('rpt-vc-export-csv'), $('rpt-vc-export-xlsx')];
+    btns.forEach(function (b) { b.disabled = true; });
+    var name = 'Voyce_Performance_' + fileTag();
+    var opts = { header: headerWanted() };
+    var done = function () { state.exporting = false; btns.forEach(function (b) { b.disabled = false; }); setStep(4); };
+    try {
+      if (format === 'csv') {
+        download(window.ReportingExport.buildCsv(state.result, opts), name + '.csv', 'text/csv;charset=utf-8');
+        toast('Downloaded ' + name + '.csv');
+        done();
+        return;
+      }
+      window.ReportingExport.buildXlsx(state.result, opts).then(function (bytes) {
+        download(bytes, name + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        toast('Downloaded ' + name + '.xlsx');
+        done();
+      }, function (err) {
+        done();
+        toast('The Excel file could not be built: ' + ((err && err.message) || err), 'error');
+      });
+    } catch (err) {
+      done();
+      toast('The file could not be built: ' + ((err && err.message) || err), 'error');
+    }
+  }
+
+  // ---------------------------------------------------------------- tab: Provider Online Time Detail Report
+  // Filled by fetchVoyceClean (same dates as the cleaned report). Own table state; shares the helpers above.
+  var OnlineTime = (function () {
+    var ot = { result: null, filtered: null, hay: null, query: '', page: 1, exporting: false, range: null, timer: null };
+
+    function bind() {
+      $('rpt-ot-search').addEventListener('input', function () {
+        clearTimeout(ot.timer);
+        ot.timer = setTimeout(function () { ot.query = $('rpt-ot-search').value || ''; applyFilter(); renderPage(); }, 180);
+      });
+      $('rpt-ot-prev').addEventListener('click', function () { changePage(-1); });
+      $('rpt-ot-next').addEventListener('click', function () { changePage(1); });
+      $('rpt-ot-export-csv').addEventListener('click', function () { exportFile('csv'); });
+      $('rpt-ot-export-xlsx').addEventListener('click', function () { exportFile('xlsx'); });
+      $('rpt-ot-copy').addEventListener('click', function () { copyRows(ot.result, headerWanted()); });
+    }
+
+    /** No online time data (uploaded files, start over): the tab explains where it comes from. */
+    function clear() {
+      ot.result = null; ot.filtered = null; ot.hay = null; ot.range = null;
+      $('rpt-ot-empty').hidden = false;
+      $('rpt-ot-body').hidden = true;
+      $('rpt-tab-ot-count').textContent = '';
+    }
+
+    function setResult(result, range) {
+      if (!result || !result.columns) { clear(); return; }
+      ot.result = result; ot.range = range; ot.hay = null; ot.query = ''; ot.page = 1;
+      $('rpt-ot-search').value = '';
+      $('rpt-ot-empty').hidden = true;
+      $('rpt-ot-body').hidden = false;
+      $('rpt-tab-ot-count').textContent = fmtInt(result.rows.length);
+      applyFilter();
+      renderMetrics();
+      $('rpt-ot-thead-row').innerHTML = result.columns.map(function (c) { return '<th scope="col">' + esc(c.header) + '</th>'; }).join('');
+      renderPage();
+    }
+
+    function colIndex(name) {
+      var cols = ot.result.columns;
+      for (var i = 0; i < cols.length; i++) if (String(cols[i].header).trim().toLowerCase() === name) return i;
+      return -1;
+    }
+
+    function renderMetrics() {
+      var rows = ot.result.rows, pid = colIndex('provider id'), min = colIndex('minutes'), seen = {}, providers = 0, minutes = 0;
+      rows.forEach(function (r) {
+        if (pid >= 0 && r[pid] !== '' && !seen[r[pid]]) { seen[r[pid]] = true; providers++; }
+        if (min >= 0) { var m = Number(r[min]); if (isFinite(m)) minutes += m; }
+      });
+      var boxes = [['Rows', fmtInt(rows.length), ''], ['Providers', pid >= 0 ? fmtInt(providers) : '—', ''],
+        ['Total minutes', min >= 0 ? fmtInt(minutes) : '—', 'Minutes column, all rows']];
+      $('rpt-ot-metric-strip').innerHTML = boxes.map(function (b, i) {
+        return '<div class="metric-box"><span class="metric-title">' + esc(b[0]) + '</span>' +
+          '<span class="metric-val"' + (i === 0 ? ' style="color: var(--primary-blue);"' : '') + '>' + esc(b[1]) + '</span>' +
+          (b[2] ? '<span class="rpt-metric-sub">' + esc(b[2]) + '</span>' : '') + '</div>';
+      }).join('');
+    }
+
+    function applyFilter() {
+      var rows = ot.result ? ot.result.rows : [], q = ot.query.trim().toLowerCase();
+      ot.page = 1;
+      if (!q) { ot.filtered = rows; return; }
+      if (!ot.hay) ot.hay = rows.map(function (r) { return r.join('\u0001').toLowerCase(); });
+      ot.filtered = rows.filter(function (r, i) { return ot.hay[i].indexOf(q) !== -1; });
+    }
+
+    function renderPage() {
+      var cols = ot.result.columns, rows = ot.filtered || [];
+      var pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      if (ot.page > pages) ot.page = pages;
+      var start = (ot.page - 1) * PAGE_SIZE, slice = rows.slice(start, start + PAGE_SIZE);
+      $('rpt-ot-tbody').innerHTML = slice.length ? slice.map(function (row) {
+        return '<tr>' + cols.map(function (c, i) {
+          var v = row[i];
+          return (v === '' || v === null || v === undefined) ? '<td><span class="rpt-blank">—</span></td>' : '<td>' + esc(v) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') : '<tr><td colspan="' + cols.length + '" style="text-align:center; padding:28px; color:var(--text-muted);">' +
+        (ot.query ? 'No rows match your search.' : 'Voyce returned no rows for these dates.') + '</td></tr>';
+      $('rpt-ot-pager-info').textContent = rows.length
+        ? 'Rows ' + fmtInt(start + 1) + '–' + fmtInt(start + slice.length) + ' of ' + fmtInt(rows.length) +
+          (ot.query ? ' matching' : '') + ' · page ' + ot.page + ' of ' + pages
+        : '0 rows';
+      $('rpt-ot-prev').disabled = ot.page <= 1;
+      $('rpt-ot-next').disabled = ot.page >= pages;
+    }
+
+    function changePage(delta) {
+      var pages = Math.max(1, Math.ceil((ot.filtered || []).length / PAGE_SIZE)), next = ot.page + delta;
+      if (next < 1 || next > pages) return;
+      ot.page = next;
+      renderPage();
+      var tc = document.querySelector('#rpt-pane-ot .table-container');
+      if (tc && tc.scrollIntoView) tc.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+
+    function exportFile(format) {
+      if (!ot.result || ot.exporting) return;
+      ot.exporting = true;
+      var btns = [$('rpt-ot-export-csv'), $('rpt-ot-export-xlsx')];
+      btns.forEach(function (b) { b.disabled = true; });
+      var name = 'Provider_Online_Time_' + fileTag();
+      var opts = { header: headerWanted() };
+      var done = function () { ot.exporting = false; btns.forEach(function (b) { b.disabled = false; }); setStep(4); };
+      try {
+        if (format === 'csv') {
+          download(window.ReportingExport.buildCsv(ot.result, opts), name + '.csv', 'text/csv;charset=utf-8');
+          toast('Downloaded ' + name + '.csv');
+          done();
+          return;
+        }
+        window.ReportingExport.buildXlsx(ot.result, opts).then(function (bytes) {
+          download(bytes, name + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+          toast('Downloaded ' + name + '.xlsx');
+          done();
+        }, function (err) { done(); toast('The Excel file could not be built: ' + ((err && err.message) || err), 'error'); });
+      } catch (err) {
+        done();
+        toast('The file could not be built: ' + ((err && err.message) || err), 'error');
+      }
+    }
+
+    bind();
+    return { setResult: setResult, clear: clear, result: function () { return ot.result; } };
+  })();
+  OnlineTime.clear();
+
+  bindUpload();
+  renderFound();
+  updateProcessState();
+
+  window.Reporting = {
+    show: show,
+    backToCatalog: backToCatalog,
+    resetVoyceClean: resetVoyceClean
+  };
+})();
+</script>

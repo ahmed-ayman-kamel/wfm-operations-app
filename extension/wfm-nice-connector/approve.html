@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Allow this app? – WFM NICE Connector</title>
+<style>
+ body{font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:22px;color:#111c2e;background:#fff}
+ h1{font-size:18px;margin:0 0 6px} p{margin:8px 0;color:#475467} code{display:block;word-break:break-all;background:#f4f6fa;border:1px solid #e2e7ee;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#111c2e}
+ .row{display:flex;gap:10px;justify-content:flex-end;margin-top:18px} button{font:inherit;font-weight:600;border-radius:8px;padding:8px 16px;cursor:pointer;border:1px solid #d0d7e2;background:#fff}
+ button.p{background:#0a6fd8;border-color:#0a6fd8;color:#fff} ul{margin:8px 0 0 18px;padding:0;color:#475467;font-size:13px}
+</style></head><body>
+<h1>Allow this app to run NICE reports?</h1>
+<p>The page below asked the WFM NICE Connector to run a report in NICE WebStation with <b>your</b> NICE session:</p>
+<code id="o"></code>
+<ul><li>Choose <b>Allow</b> only if you just pressed <b>Start automation</b> in the WFM Operations App.</li>
+<li>The connector only opens NICE WebStation report pages and hands the report data back to that app. It never stores passwords.</li></ul>
+<div class="row"><button id="no">Don’t allow</button><button id="yes" class="p">Allow</button></div>
+<script src="approve.js"></script></body></html>

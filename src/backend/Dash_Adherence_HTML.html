@@ -1,0 +1,1296 @@
+<!--
+  Dash_Adherence_HTML.html — NEW FILE. The Adherence dashboard page (included by Index.html, next to Dash_Voyce_HTML).
+  Built from Dash_Adherence.src.html + Tailwind (compiled and scoped to #adhd-root; see build.js). Same design system as the
+  Voyce dashboard.
+  Server: getAdherenceDashboardData(), getAdherenceDashboardStamp() (Dash_Adherence.gs); adhStartRun(), adhSaveReport(),
+  adhReportRunFailure() (Adherence.gs). NICE is reached only through the "WFM NICE Connector" Chrome extension
+  (window.postMessage bridge, see the NICE bridge section below).
+  Tables reproduce the workbook "Adherence" sheet by sheet: Overall, SDACMs, Per Supervisor, Daily, Per Interpreter,
+  Per Language, Per Language Group: same columns, same Queue split, same number formats, Grand Total rows.
+  Every figure is a ratio of sums (Adherence % = Σ Min. in Adherence ÷ Σ Scheduled Time Min), exactly like the pivots.
+  All text that comes from data is written with textContent (never innerHTML).
+-->
+<div id="view-dash-adherence" class="page-view" style="display:none">
+<style>#adhd-root{--ad-canvas:244 246 250;--ad-surface:255 255 255;--ad-raised:250 251 253;--ad-ink:17 28 46;--ad-ink2:71 84 103;--ad-muted:116 128 146;--ad-rule:226 231 238;--ad-accent:10 111 216;--ad-accent-ink:255 255 255;--ad-good:13 122 84;--ad-good-bg:225 244 235;--ad-bad:190 52 38;--ad-bad-bg:252 233 229;--ad-warn:201 128 0;--ad-s1:10 111 216;--ad-s2:235 104 52;--ad-shadow-card:0 1px 2px rgba(16,24,40,.04),0 6px 20px -8px rgba(16,24,40,.1);--ad-shadow-pop:0 2px 6px rgba(16,24,40,.06),0 18px 44px -12px rgba(16,24,40,.28);color-scheme:light}body.dark-mode #adhd-root{--ad-canvas:13 18 28;--ad-surface:22 28 40;--ad-raised:27 34 48;--ad-ink:234 239 246;--ad-ink2:176 188 205;--ad-muted:128 141 160;--ad-rule:42 52 70;--ad-accent:92 162 246;--ad-accent-ink:8 20 38;--ad-good:76 206 148;--ad-good-bg:17 57 43;--ad-bad:247 132 112;--ad-bad-bg:68 29 25;--ad-warn:245 182 66;--ad-s1:57 135 229;--ad-s2:217 89 38;--ad-shadow-card:0 1px 0 hsla(0,0%,100%,.03) inset,0 10px 28px -12px rgba(0,0,0,.7);--ad-shadow-pop:0 1px 0 hsla(0,0%,100%,.04) inset,0 22px 50px -14px rgba(0,0,0,.8);color-scheme:dark}#adhd-root,#adhd-root *,#adhd-root :after,#adhd-root :before{box-sizing:border-box}#adhd-root{display:block;width:100%;max-width:100%;min-width:0;flex:1 1 auto;color:rgb(var(--ad-ink));font-family:inherit;line-height:1.45;-webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01"}#adhd-root :where(button,input,select){font:inherit;color:inherit;margin:0;text-transform:none;letter-spacing:inherit}#adhd-root :where(input,select){border:0;outline-offset:0}#adhd-root :where(button){background:none;border:0;padding:0;cursor:pointer;box-shadow:none;min-height:0;width:auto}#adhd-root :where(h1,h2,h3,h4,p,ul,ol,dl,dd,figure){margin:0;padding:0}#adhd-root :where(table){border-collapse:separate;border-spacing:0;width:100%;margin:0;background:none;box-shadow:none}#adhd-root :where(th,td){padding:0;border:0;background:none;text-transform:none;letter-spacing:normal;font-weight:inherit;font-size:inherit;color:inherit;vertical-align:middle}#adhd-root :where(svg text){font-family:inherit}#adhd-root [hidden]{display:none!important}#adhd-root,#adhd-root *,#adhd-root ::before,#adhd-root ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }#adhd-root .ad-card{border-radius:18px;--tw-bg-opacity:1;--tw-shadow:var(--ad-shadow-card);--tw-shadow-colored:var(--ad-shadow-card);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);--tw-ring-color:rgb(var(--ad-rule)/0.7)}#adhd-root .ad-btn,#adhd-root .ad-card{background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}#adhd-root .ad-btn{display:inline-flex;height:2.25rem;align-items:center;gap:.5rem;border-radius:.5rem;--tw-bg-opacity:1;padding-left:.875rem;padding-right:.875rem;font-size:13px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#adhd-root .ad-btn:hover{--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1));--tw-ring-color:rgb(var(--ad-ink2)/0.3)}#adhd-root .ad-btn:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ad-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-btn:active{--tw-scale-x:.98;--tw-scale-y:.98;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}#adhd-root .ad-btn:disabled{pointer-events:none;opacity:.5}#adhd-root .ad-btn-primary{display:inline-flex;height:2.25rem;align-items:center;gap:.5rem;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ad-accent)/var(--tw-bg-opacity,1));padding-left:.875rem;padding-right:.875rem;font-size:13px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ad-accent-ink)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#adhd-root .ad-btn-primary:hover{--tw-brightness:brightness(1.1);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}#adhd-root .ad-btn-primary:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ad-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-btn-primary:active{--tw-scale-x:.98;--tw-scale-y:.98;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}#adhd-root .ad-btn-primary:disabled{pointer-events:none;opacity:.6}#adhd-root .ad-field{display:inline-flex;height:2.25rem;align-items:center;gap:.375rem;white-space:nowrap;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));padding-left:.75rem;padding-right:.625rem;font-size:13px;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#adhd-root .ad-field:hover{--tw-ring-color:rgb(var(--ad-ink2)/0.4)}#adhd-root .ad-field:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ad-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-field-on{background-color:rgb(var(--ad-accent)/.07);--tw-ring-color:rgb(var(--ad-accent)/0.6)}#adhd-root .ad-seg{display:inline-flex;max-width:100%;overflow-x:auto;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ad-canvas)/var(--tw-bg-opacity,1));padding:.125rem;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1));scrollbar-width:none}#adhd-root .ad-seg-btn{height:2rem;flex:none;border-radius:.375rem;padding-left:.75rem;padding-right:.75rem;font-size:12.5px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ad-ink2)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#adhd-root .ad-seg-btn:hover{--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1))}#adhd-root .ad-seg-btn:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ad-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-seg-on{--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));--tw-shadow:0 1px 2px rgb(16 24 40/.08),0 0 0 1px rgb(var(--ad-rule));--tw-shadow-colored:0 1px 2px var(--tw-shadow-color),0 0 0 1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}#adhd-root .ad-tab{position:relative;height:2.75rem;white-space:nowrap;padding-left:.25rem;padding-right:.25rem;font-size:13.5px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ad-muted)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .ad-tab:hover{--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1))}#adhd-root .ad-tab:focus-visible{--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-tab-on{--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1))}#adhd-root .ad-tab-on:after{position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:9999px;content:var(--tw-content);--tw-bg-opacity:1;background-color:rgb(var(--ad-accent)/var(--tw-bg-opacity,1))}#adhd-root .ad-pop{position:fixed;z-index:60;min-width:260px;max-width:340px;animation:ad-pop .14s ease-out both;border-radius:.75rem;--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));padding:.5rem;--tw-shadow:var(--ad-shadow-pop);--tw-shadow-colored:var(--ad-shadow-pop);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1))}#adhd-root .ad-opt{display:flex;width:100%;align-items:center;gap:.625rem;border-radius:.5rem;padding:.5rem .625rem;text-align:left;font-size:13px;--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .ad-opt:hover{--tw-bg-opacity:1;background-color:rgb(var(--ad-canvas)/var(--tw-bg-opacity,1))}#adhd-root .ad-opt:focus-visible{--tw-bg-opacity:1;background-color:rgb(var(--ad-canvas)/var(--tw-bg-opacity,1));outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-input{height:2.25rem;width:100%;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ad-canvas)/var(--tw-bg-opacity,1));padding-left:.75rem;padding-right:.75rem;font-size:13px;--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1))}#adhd-root .ad-input::-moz-placeholder{--tw-text-opacity:1;color:rgb(var(--ad-muted)/var(--tw-text-opacity,1))}#adhd-root .ad-input::placeholder{--tw-text-opacity:1;color:rgb(var(--ad-muted)/var(--tw-text-opacity,1))}#adhd-root .ad-input:focus{--tw-shadow:0 0 0 3px rgb(var(--ad-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px;--tw-ring-color:rgb(var(--ad-accent)/0.6)}#adhd-root .ad-chip{display:inline-flex;height:1.75rem;align-items:center;gap:.375rem;border-radius:9999px;background-color:rgb(var(--ad-accent)/.1);padding-left:.625rem;padding-right:.25rem;font-size:12px;--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-color:rgb(var(--ad-accent)/0.25)}@keyframes ad-shimmer{0%{background-position:-400px 0}to{background-position:400px 0}}#adhd-root .ad-skel{animation:ad-shimmer 1.3s linear infinite;border-radius:.375rem;background-image:linear-gradient(90deg,rgb(var(--ad-rule)/.55) 0,rgb(var(--ad-rule)/.95) 120px,rgb(var(--ad-rule)/.55) 240px);background-size:800px 100%}#adhd-root .ad-tbl-wrap{position:relative;max-height:68vh;overflow:auto;overscroll-behavior:contain;border-bottom-right-radius:18px;border-bottom-left-radius:18px}#adhd-root .ad-th{position:sticky;top:0;z-index:2;min-width:92px;white-space:normal;border-bottom-width:1px;--tw-border-opacity:1;border-color:rgb(var(--ad-rule)/var(--tw-border-opacity,1));--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1));padding:.625rem .75rem;text-align:right;vertical-align:bottom;font-size:11.5px;font-weight:600;line-height:1.25;--tw-text-opacity:1;color:rgb(var(--ad-ink2)/var(--tw-text-opacity,1))}#adhd-root .ad-th-first{left:0;z-index:3;min-width:190px;text-align:left}#adhd-root .ad-td{height:2.5rem;white-space:nowrap;border-bottom-width:1px;border-color:rgb(var(--ad-rule)/.7);padding-left:.75rem;padding-right:.75rem;text-align:right;font-size:13px;--tw-numeric-spacing:tabular-nums;font-variant-numeric:var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction);--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.1s}#adhd-root .ad-td-first{position:sticky;left:0;z-index:1;--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));text-align:left;font-weight:500}#adhd-root .ad-row:hover>td{--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1))}#adhd-root .ad-row-total>td{border-top-width:1px;--tw-border-opacity:1;border-color:rgb(var(--ad-rule)/var(--tw-border-opacity,1));--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1));font-weight:700}#adhd-root .ad-row-grand>td{position:sticky;bottom:0;z-index:1;--tw-shadow:0 -1px 0 rgb(var(--ad-rule));--tw-shadow-colored:0 -1px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}#adhd-root .ad-row-grand>td.ad-td-first{z-index:2}#adhd-root .ad-good{background-color:rgb(var(--ad-good-bg)/.7);--tw-text-opacity:1;color:rgb(var(--ad-good)/var(--tw-text-opacity,1))}#adhd-root .ad-bad{background-color:rgb(var(--ad-bad-bg)/.7);--tw-text-opacity:1;color:rgb(var(--ad-bad)/var(--tw-text-opacity,1))}#adhd-root .ad-draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:ad-draw .9s cubic-bezier(.2,.7,.2,1) .1s forwards}@keyframes ad-draw{to{stroke-dashoffset:0}}#adhd-root .ad-grow{transform-box:fill-box;transform-origin:left center;animation:ad-grow .7s cubic-bezier(.2,.7,.2,1) both}#adhd-root .ad-rise{transform-box:fill-box;transform-origin:center bottom;animation:ad-rise .7s cubic-bezier(.2,.7,.2,1) both}@keyframes ad-grow{0%{transform:scaleX(0)}to{transform:none}}@keyframes ad-rise{0%{transform:scaleY(0)}to{transform:none}}#adhd-root .ad-drawer-wrap{position:fixed;inset:0;z-index:70}#adhd-root .ad-drawer-back{inset:0;background-color:rgb(8 14 24/.38);--tw-backdrop-blur:blur(1px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);animation:ad-fade .2s ease-out both}#adhd-root .ad-drawer,#adhd-root .ad-drawer-back{position:absolute}#adhd-root .ad-drawer{right:0;top:0;display:flex;height:100%;width:100%;max-width:600px;flex-direction:column;--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));--tw-shadow:var(--ad-shadow-pop);--tw-shadow-colored:var(--ad-shadow-pop);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1));animation:ad-slide .28s cubic-bezier(.2,.7,.2,1) both}#adhd-root .ad-drawer-out .ad-drawer{animation:ad-slide-out .19s ease-in both}#adhd-root .ad-drawer-out .ad-drawer-back{animation:ad-fade-out .19s ease-in both}@keyframes ad-slide{0%{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}@keyframes ad-slide-out{to{transform:translateX(40px);opacity:0}}@keyframes ad-fade{0%{opacity:0}to{opacity:1}}@keyframes ad-fade-out{to{opacity:0}}#adhd-root .ad-dr-row{display:flex;width:100%;align-items:center;gap:.75rem;border-top-width:1px;border-color:rgb(var(--ad-rule)/.7);--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));padding:.5rem .75rem;font-size:13px;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .ad-dr-row:hover{--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1))}#adhd-root .ad-dr-row:focus-visible{--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1));outline:2px solid transparent;outline-offset:2px}#adhd-root .ad-cellbar{position:relative;display:inline-block;height:.375rem;width:4rem;flex:none;overflow:visible;border-radius:9999px;--tw-bg-opacity:1;background-color:rgb(var(--ad-canvas)/var(--tw-bg-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-inset:inset;--tw-ring-color:rgb(var(--ad-rule)/0.6)}#adhd-root .ad-link{cursor:pointer;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1));text-decoration-line:underline;text-decoration-color:rgb(var(--ad-rule)/1);text-decoration-thickness:2px;text-underline-offset:3px;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .ad-link:hover{--tw-text-opacity:1;color:rgb(var(--ad-accent)/var(--tw-text-opacity,1));text-decoration-color:rgb(var(--ad-accent)/1)}#adhd-root .ad-step-dot{display:grid;height:1.5rem;width:1.5rem;flex:none;place-items:center;border-radius:9999px;--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1));--tw-text-opacity:1;color:rgb(var(--ad-muted)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1))}#adhd-root .pointer-events-none{pointer-events:none}#adhd-root .visible{visibility:visible}#adhd-root .static{position:static}#adhd-root .absolute{position:absolute}#adhd-root .relative{position:relative}#adhd-root .sticky{position:sticky}#adhd-root .-inset-y-0\.5{top:-.125rem;bottom:-.125rem}#adhd-root .inset-y-0{top:0;bottom:0}#adhd-root .left-0{left:0}#adhd-root .left-2\.5{left:.625rem}#adhd-root .z-20{z-index:20}#adhd-root .mx-1{margin-left:.25rem;margin-right:.25rem}#adhd-root .mx-4{margin-left:1rem;margin-right:1rem}#adhd-root .mx-5{margin-left:1.25rem;margin-right:1.25rem}#adhd-root .mb-1\.5{margin-bottom:.375rem}#adhd-root .mb-3{margin-bottom:.75rem}#adhd-root .mb-4{margin-bottom:1rem}#adhd-root .mb-5{margin-bottom:1.25rem}#adhd-root .mb-px{margin-bottom:1px}#adhd-root .ml-1{margin-left:.25rem}#adhd-root .ml-auto{margin-left:auto}#adhd-root .mr-2{margin-right:.5rem}#adhd-root .mt-0\.5{margin-top:.125rem}#adhd-root .mt-1{margin-top:.25rem}#adhd-root .mt-2{margin-top:.5rem}#adhd-root .mt-2\.5{margin-top:.625rem}#adhd-root .mt-3{margin-top:.75rem}#adhd-root .mt-4{margin-top:1rem}#adhd-root .mt-5{margin-top:1.25rem}#adhd-root .mt-6{margin-top:1.5rem}#adhd-root .block{display:block}#adhd-root .inline-block{display:inline-block}#adhd-root .flex{display:flex}#adhd-root .inline-flex{display:inline-flex}#adhd-root .table{display:table}#adhd-root .grid{display:grid}#adhd-root .hidden{display:none}#adhd-root .h-1{height:.25rem}#adhd-root .h-1\.5{height:.375rem}#adhd-root .h-11{height:2.75rem}#adhd-root .h-12{height:3rem}#adhd-root .h-2{height:.5rem}#adhd-root .h-2\.5{height:.625rem}#adhd-root .h-3{height:.75rem}#adhd-root .h-4{height:1rem}#adhd-root .h-5{height:1.25rem}#adhd-root .h-6{height:1.5rem}#adhd-root .h-8{height:2rem}#adhd-root .h-9{height:2.25rem}#adhd-root .h-\[260px\]{height:260px}#adhd-root .h-\[3px\]{height:3px}#adhd-root .h-full{height:100%}#adhd-root .max-h-\[280px\]{max-height:280px}#adhd-root .max-h-\[320px\]{max-height:320px}#adhd-root .w-11{width:2.75rem}#adhd-root .w-12{width:3rem}#adhd-root .w-16{width:4rem}#adhd-root .w-2{width:.5rem}#adhd-root .w-2\.5{width:.625rem}#adhd-root .w-20{width:5rem}#adhd-root .w-24{width:6rem}#adhd-root .w-28{width:7rem}#adhd-root .w-3{width:.75rem}#adhd-root .w-32{width:8rem}#adhd-root .w-4{width:1rem}#adhd-root .w-40{width:10rem}#adhd-root .w-5{width:1.25rem}#adhd-root .w-8{width:2rem}#adhd-root .w-\[136px\]{width:136px}#adhd-root .w-\[200px\]{width:200px}#adhd-root .w-\[320px\]{width:320px}#adhd-root .w-full{width:100%}#adhd-root .w-px{width:1px}#adhd-root .min-w-0{min-width:0}#adhd-root .min-w-\[180px\]{min-width:180px}#adhd-root .min-w-full{min-width:100%}#adhd-root .max-w-\[160px\]{max-width:160px}#adhd-root .max-w-\[300px\]{max-width:300px}#adhd-root .max-w-full{max-width:100%}#adhd-root .max-w-md{max-width:28rem}#adhd-root .flex-1{flex:1 1 0%}#adhd-root .flex-none{flex:none}#adhd-root .rotate-180{--tw-rotate:180deg;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}@keyframes ad-in{0%{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}#adhd-root .animate-ad-in{animation:ad-in .36s cubic-bezier(.2,.7,.2,1) both}@keyframes ad-pop{0%{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}#adhd-root .animate-ad-pop{animation:ad-pop .14s ease-out both}@keyframes ping{75%,to{transform:scale(2);opacity:0}}#adhd-root .animate-ping{animation:ping 1s cubic-bezier(0,0,.2,1) infinite}@keyframes spin{to{transform:rotate(1turn)}}#adhd-root .animate-spin{animation:spin 1s linear infinite}#adhd-root .cursor-pointer{cursor:pointer}#adhd-root .resize{resize:both}#adhd-root .list-disc{list-style-type:disc}#adhd-root .grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}#adhd-root .grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}#adhd-root .grid-cols-\[max-content_1fr\]{grid-template-columns:max-content 1fr}#adhd-root .flex-wrap{flex-wrap:wrap}#adhd-root .place-items-center{place-items:center}#adhd-root .items-start{align-items:flex-start}#adhd-root .items-end{align-items:flex-end}#adhd-root .items-center{align-items:center}#adhd-root .items-baseline{align-items:baseline}#adhd-root .justify-end{justify-content:flex-end}#adhd-root .justify-center{justify-content:center}#adhd-root .justify-between{justify-content:space-between}#adhd-root .gap-0\.5{gap:.125rem}#adhd-root .gap-1{gap:.25rem}#adhd-root .gap-1\.5{gap:.375rem}#adhd-root .gap-2{gap:.5rem}#adhd-root .gap-2\.5{gap:.625rem}#adhd-root .gap-3{gap:.75rem}#adhd-root .gap-4{gap:1rem}#adhd-root .gap-6{gap:1.5rem}#adhd-root .gap-px{gap:1px}#adhd-root .gap-x-4{-moz-column-gap:1rem;column-gap:1rem}#adhd-root .gap-x-5{-moz-column-gap:1.25rem;column-gap:1.25rem}#adhd-root .gap-x-6{-moz-column-gap:1.5rem;column-gap:1.5rem}#adhd-root .gap-y-1{row-gap:.25rem}#adhd-root .gap-y-2{row-gap:.5rem}#adhd-root .gap-y-2\.5{row-gap:.625rem}#adhd-root .gap-y-3{row-gap:.75rem}#adhd-root .overflow-auto{overflow:auto}#adhd-root .overflow-hidden{overflow:hidden}#adhd-root .overflow-x-auto{overflow-x:auto}#adhd-root .overflow-y-auto{overflow-y:auto}#adhd-root .overscroll-contain{overscroll-behavior:contain}#adhd-root .truncate{overflow:hidden;white-space:nowrap}#adhd-root .text-ellipsis,#adhd-root .truncate{text-overflow:ellipsis}#adhd-root .rounded{border-radius:.25rem}#adhd-root .rounded-\[5px\]{border-radius:5px}#adhd-root .rounded-full{border-radius:9999px}#adhd-root .rounded-lg{border-radius:.5rem}#adhd-root .rounded-md{border-radius:.375rem}#adhd-root .rounded-sm{border-radius:.125rem}#adhd-root .rounded-xl{border-radius:.75rem}#adhd-root .rounded-xl2{border-radius:18px}#adhd-root .rounded-t-xl2{border-top-left-radius:18px;border-top-right-radius:18px}#adhd-root .border-2{border-width:2px}#adhd-root .border-b{border-bottom-width:1px}#adhd-root .border-t{border-top-width:1px}#adhd-root .border-t-2{border-top-width:2px}#adhd-root .border-t-\[1\.5px\]{border-top-width:1.5px}#adhd-root .border-dashed{border-style:dashed}#adhd-root .border-dotted{border-style:dotted}#adhd-root .border-accent{--tw-border-opacity:1;border-color:rgb(var(--ad-accent)/var(--tw-border-opacity,1))}#adhd-root .border-good{--tw-border-opacity:1;border-color:rgb(var(--ad-good)/var(--tw-border-opacity,1))}#adhd-root .border-ink2{--tw-border-opacity:1;border-color:rgb(var(--ad-ink2)/var(--tw-border-opacity,1))}#adhd-root .border-rule{--tw-border-opacity:1;border-color:rgb(var(--ad-rule)/var(--tw-border-opacity,1))}#adhd-root .border-rule\/70{border-color:rgb(var(--ad-rule)/.7)}#adhd-root .border-t-transparent{border-top-color:transparent}#adhd-root .bg-accent{--tw-bg-opacity:1;background-color:rgb(var(--ad-accent)/var(--tw-bg-opacity,1))}#adhd-root .bg-accent\/10{background-color:rgb(var(--ad-accent)/.1)}#adhd-root .bg-bad{--tw-bg-opacity:1;background-color:rgb(var(--ad-bad)/var(--tw-bg-opacity,1))}#adhd-root .bg-bad-bg{--tw-bg-opacity:1;background-color:rgb(var(--ad-bad-bg)/var(--tw-bg-opacity,1))}#adhd-root .bg-bad\/70{background-color:rgb(var(--ad-bad)/.7)}#adhd-root .bg-canvas{--tw-bg-opacity:1;background-color:rgb(var(--ad-canvas)/var(--tw-bg-opacity,1))}#adhd-root .bg-good{--tw-bg-opacity:1;background-color:rgb(var(--ad-good)/var(--tw-bg-opacity,1))}#adhd-root .bg-good-bg{--tw-bg-opacity:1;background-color:rgb(var(--ad-good-bg)/var(--tw-bg-opacity,1))}#adhd-root .bg-good\/75{background-color:rgb(var(--ad-good)/.75)}#adhd-root .bg-ink{--tw-bg-opacity:1;background-color:rgb(var(--ad-ink)/var(--tw-bg-opacity,1))}#adhd-root .bg-ink2\/30{background-color:rgb(var(--ad-ink2)/.3)}#adhd-root .bg-raised{--tw-bg-opacity:1;background-color:rgb(var(--ad-raised)/var(--tw-bg-opacity,1))}#adhd-root .bg-rule{--tw-bg-opacity:1;background-color:rgb(var(--ad-rule)/var(--tw-bg-opacity,1))}#adhd-root .bg-rule\/70{background-color:rgb(var(--ad-rule)/.7)}#adhd-root .bg-s1\/75{background-color:rgb(var(--ad-s1)/.75)}#adhd-root .bg-surface{--tw-bg-opacity:1;background-color:rgb(var(--ad-surface)/var(--tw-bg-opacity,1))}#adhd-root .bg-warn{--tw-bg-opacity:1;background-color:rgb(var(--ad-warn)/var(--tw-bg-opacity,1))}#adhd-root .p-5{padding:1.25rem}#adhd-root .px-0{padding-left:0;padding-right:0}#adhd-root .px-1{padding-left:.25rem;padding-right:.25rem}#adhd-root .px-1\.5{padding-left:.375rem;padding-right:.375rem}#adhd-root .px-2{padding-left:.5rem;padding-right:.5rem}#adhd-root .px-2\.5{padding-left:.625rem;padding-right:.625rem}#adhd-root .px-3{padding-left:.75rem;padding-right:.75rem}#adhd-root .px-4{padding-left:1rem;padding-right:1rem}#adhd-root .px-5{padding-left:1.25rem;padding-right:1.25rem}#adhd-root .px-6{padding-left:1.5rem;padding-right:1.5rem}#adhd-root .py-0\.5{padding-top:.125rem;padding-bottom:.125rem}#adhd-root .py-10{padding-top:2.5rem;padding-bottom:2.5rem}#adhd-root .py-16{padding-top:4rem;padding-bottom:4rem}#adhd-root .py-2{padding-top:.5rem;padding-bottom:.5rem}#adhd-root .py-2\.5{padding-top:.625rem;padding-bottom:.625rem}#adhd-root .py-3{padding-top:.75rem;padding-bottom:.75rem}#adhd-root .py-6{padding-top:1.5rem;padding-bottom:1.5rem}#adhd-root .py-px{padding-top:1px;padding-bottom:1px}#adhd-root .pb-10{padding-bottom:2.5rem}#adhd-root .pb-2{padding-bottom:.5rem}#adhd-root .pb-3{padding-bottom:.75rem}#adhd-root .pb-4{padding-bottom:1rem}#adhd-root .pb-5{padding-bottom:1.25rem}#adhd-root .pl-4{padding-left:1rem}#adhd-root .pl-8{padding-left:2rem}#adhd-root .pl-9{padding-left:2.25rem}#adhd-root .pt-1{padding-top:.25rem}#adhd-root .pt-2{padding-top:.5rem}#adhd-root .pt-2\.5{padding-top:.625rem}#adhd-root .pt-3{padding-top:.75rem}#adhd-root .pt-4{padding-top:1rem}#adhd-root .pt-5{padding-top:1.25rem}#adhd-root .text-left{text-align:left}#adhd-root .text-center{text-align:center}#adhd-root .text-right{text-align:right}#adhd-root .align-middle{vertical-align:middle}#adhd-root .text-\[11\.5px\]{font-size:11.5px}#adhd-root .text-\[11px\]{font-size:11px}#adhd-root .text-\[12\.5px\]{font-size:12.5px}#adhd-root .text-\[12px\]{font-size:12px}#adhd-root .text-\[13\.5px\]{font-size:13.5px}#adhd-root .text-\[13px\]{font-size:13px}#adhd-root .text-\[15px\]{font-size:15px}#adhd-root .text-\[20px\]{font-size:20px}#adhd-root .text-\[22px\]{font-size:22px}#adhd-root .text-\[26px\]{font-size:26px}#adhd-root .text-\[34px\]{font-size:34px}#adhd-root .text-\[56px\]{font-size:56px}#adhd-root .font-bold{font-weight:700}#adhd-root .font-extrabold{font-weight:800}#adhd-root .font-medium{font-weight:500}#adhd-root .font-semibold{font-weight:600}#adhd-root .uppercase{text-transform:uppercase}#adhd-root .tabular-nums{--tw-numeric-spacing:tabular-nums;font-variant-numeric:var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction)}#adhd-root .leading-none{line-height:1}#adhd-root .leading-relaxed{line-height:1.625}#adhd-root .leading-snug{line-height:1.375}#adhd-root .leading-tight{line-height:1.25}#adhd-root .tracking-\[-0\.02em\]{letter-spacing:-.02em}#adhd-root .tracking-\[-0\.03em\]{letter-spacing:-.03em}#adhd-root .tracking-\[-0\.04em\]{letter-spacing:-.04em}#adhd-root .tracking-\[\.06em\]{letter-spacing:.06em}#adhd-root .text-accent{--tw-text-opacity:1;color:rgb(var(--ad-accent)/var(--tw-text-opacity,1))}#adhd-root .text-accent-ink{--tw-text-opacity:1;color:rgb(var(--ad-accent-ink)/var(--tw-text-opacity,1))}#adhd-root .text-bad{--tw-text-opacity:1;color:rgb(var(--ad-bad)/var(--tw-text-opacity,1))}#adhd-root .text-good{--tw-text-opacity:1;color:rgb(var(--ad-good)/var(--tw-text-opacity,1))}#adhd-root .text-inherit{color:inherit}#adhd-root .text-ink{--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1))}#adhd-root .text-ink2{--tw-text-opacity:1;color:rgb(var(--ad-ink2)/var(--tw-text-opacity,1))}#adhd-root .text-muted{--tw-text-opacity:1;color:rgb(var(--ad-muted)/var(--tw-text-opacity,1))}#adhd-root .text-warn{--tw-text-opacity:1;color:rgb(var(--ad-warn)/var(--tw-text-opacity,1))}#adhd-root .accent-\[rgb\(var\(--ad-accent\)\)\]{accent-color:rgb(var(--ad-accent))}#adhd-root .opacity-0{opacity:0}#adhd-root .opacity-60{opacity:.6}#adhd-root .opacity-80{opacity:.8}#adhd-root .shadow-card{--tw-shadow:var(--ad-shadow-card);--tw-shadow-colored:var(--ad-shadow-card)}#adhd-root .shadow-card,#adhd-root .shadow-pop{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}#adhd-root .shadow-pop{--tw-shadow:var(--ad-shadow-pop);--tw-shadow-colored:var(--ad-shadow-pop)}#adhd-root .outline-none{outline:2px solid transparent;outline-offset:2px}#adhd-root .ring-1{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}#adhd-root .ring-accent{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-accent)/var(--tw-ring-opacity,1))}#adhd-root .ring-accent\/25{--tw-ring-color:rgb(var(--ad-accent)/0.25)}#adhd-root .ring-bad{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-bad)/var(--tw-ring-opacity,1))}#adhd-root .ring-bad\/30{--tw-ring-color:rgb(var(--ad-bad)/0.3)}#adhd-root .ring-good{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-good)/var(--tw-ring-opacity,1))}#adhd-root .ring-ink2\/40{--tw-ring-color:rgb(var(--ad-ink2)/0.4)}#adhd-root .ring-rule{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-rule)/var(--tw-ring-opacity,1))}#adhd-root .ring-rule\/70{--tw-ring-color:rgb(var(--ad-rule)/0.7)}#adhd-root .ring-warn{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ad-warn)/var(--tw-ring-opacity,1))}#adhd-root .blur{--tw-blur:blur(8px)}#adhd-root .blur,#adhd-root .filter{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}#adhd-root .transition-\[width\]{transition-property:width;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .transition-colors{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#adhd-root .duration-200{transition-duration:.2s}#adhd-root .duration-700{transition-duration:.7s}#adhd-root .ease-soft{transition-timing-function:cubic-bezier(.2,.7,.2,1)}#adhd-root .\[scrollbar-width\:none\]{scrollbar-width:none}@media (prefers-reduced-motion:reduce){#adhd-root *,#adhd-root :after,#adhd-root :before{animation-duration:1ms!important;animation-delay:0ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}}@media (forced-colors:active){#adhd-root .ad-bad,#adhd-root .ad-good{forced-color-adjust:none}}@media print{#adhd-root .ad-tbl-wrap{max-height:none;overflow:visible}}#adhd-root .empty\:hidden:empty{display:none}#adhd-root .hover\:bg-accent\/15:hover{background-color:rgb(var(--ad-accent)/.15)}#adhd-root .hover\:text-ink:hover{--tw-text-opacity:1;color:rgb(var(--ad-ink)/var(--tw-text-opacity,1))}#adhd-root .hover\:underline:hover{text-decoration-line:underline}#adhd-root :is(.group:hover .group-hover\:opacity-60){opacity:.6}@media (min-width:640px){#adhd-root .sm\:inline{display:inline}#adhd-root .sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}#adhd-root .sm\:border-l{border-left-width:1px}#adhd-root .sm\:border-t-0{border-top-width:0}}@media (min-width:768px){#adhd-root .md\:col-span-6{grid-column:span 6/span 6}#adhd-root .md\:inline-block{display:inline-block}#adhd-root .md\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (min-width:1024px){#adhd-root .lg\:block{display:block}#adhd-root .lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:1280px){#adhd-root .xl\:col-span-12{grid-column:span 12/span 12}#adhd-root .xl\:col-span-4{grid-column:span 4/span 4}#adhd-root .xl\:col-span-5{grid-column:span 5/span 5}#adhd-root .xl\:col-span-7{grid-column:span 7/span 7}#adhd-root .xl\:grid{display:grid}#adhd-root .xl\:grid-cols-12{grid-template-columns:repeat(12,minmax(0,1fr))}#adhd-root .xl\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}#adhd-root .xl\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}#adhd-root .xl\:grid-cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}#adhd-root .xl\:grid-cols-7{grid-template-columns:repeat(7,minmax(0,1fr))}#adhd-root .xl\:gap-3{gap:.75rem}#adhd-root .xl\:border-l{border-left-width:1px}#adhd-root .xl\:border-t-0{border-top-width:0}}@media (min-width:1536px){#adhd-root .\32xl\:block{display:block}#adhd-root .\32xl\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>
+<section id="adhd-root" aria-label="Adherence dashboard">
+
+  <header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-5">
+    <div class="min-w-0">
+      <h1 class="text-[26px] leading-tight font-extrabold tracking-[-0.02em] text-ink">Adherence</h1>
+      <p class="mt-1 text-[13.5px] text-ink2" id="ad-sub">Schedule adherence from NICE WFM, by queue, team and interpreter.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[12.5px] font-medium text-ink2 ring-1 ring-rule bg-surface" id="ad-status" role="status">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-good opacity-60 animate-ping" id="ad-ping"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-good" id="ad-dot"></span></span>
+        <span id="ad-updated">Loading data…</span>
+      </span>
+      <button type="button" class="ad-btn-primary" id="ad-run-btn" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>
+        <span>Start automation</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="ad-run" class="mb-4" hidden></div>
+
+  <div class="ad-card px-3 py-2.5" role="group" aria-label="Filters">
+    <div class="flex flex-wrap items-center gap-2" id="ad-filters"></div>
+    <div class="flex flex-wrap items-center gap-1.5 empty:hidden pt-2.5 mt-2.5 border-t border-rule/70" id="ad-chips" aria-label="Active filters"></div>
+  </div>
+
+  <nav class="mt-4 flex gap-6 overflow-x-auto border-b border-rule px-1 [scrollbar-width:none]" role="tablist" aria-label="Dashboard views" id="ad-tabs"></nav>
+  <div id="ad-msg" class="empty:hidden mt-4"></div>
+  <div id="ad-view" class="pt-5 transition-opacity duration-200" aria-live="polite"></div>
+  <div id="ad-layer"></div>
+</section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  /* ================================================================ helpers */
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(tag, props) {
+    var n = document.createElement(tag), p = props || {};
+    Object.keys(p).forEach(function (k) {
+      var v = p[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+      else if (k === 'on') Object.keys(v).forEach(function (e) { n.addEventListener(e, v[e]); });
+      else if (k === 'style') n.setAttribute('style', v);
+      else n.setAttribute(k, v === true ? '' : v);
+    });
+    for (var i = 2; i < arguments.length; i++) { var c = arguments[i]; if (c === null || c === undefined || c === false) continue; n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); }
+    return n;
+  }
+  function sv(tag, attrs) {
+    var n = document.createElementNS(NS, tag), a = attrs || {};
+    Object.keys(a).forEach(function (k) { if (a[k] === null || a[k] === undefined) return; if (k === 'text') n.textContent = a[k]; else n.setAttribute(k, a[k]); });
+    for (var i = 2; i < arguments.length; i++) if (arguments[i]) n.appendChild(arguments[i]);
+    return n;
+  }
+  function $(id) { return document.getElementById(id); }
+  function clear(n) { while (n && n.firstChild) n.removeChild(n.firstChild); }
+  function icon(d, size) { return sv('svg', { width: size || 14, height: size || 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, sv('path', { d: d })); }
+  var I = { down: 'M6 9l6 6 6-6', up: 'M18 15l-6-6-6 6', x: 'M18 6 6 18M6 6l12 12', check: 'M20 6 9 17l-5-5', search: 'M21 21l-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14z',
+    dl: 'M12 3v12m0 0-4-4m4 4 4-4M5 21h14', cal: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+    sliders: 'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6', chev: 'M9 18l6-6-6-6', play: 'M5 3l14 9-14 9V3z', alert: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+    spark: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z', ext: 'M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6', refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5', filter: 'M3 5h18l-7 9v5l-4 2v-7z' };
+  var reduced = false; try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  var nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }), nf1 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  /** The workbook's number formats. */
+  function fmt(v, code) {
+    if (v === null || v === undefined || !isFinite(v)) return '—';
+    switch (code) {
+      case '#,##0': case 'int': return nf0.format(v);
+      case '#,##0.0': return nf1.format(v);
+      case '0%': return (v * 100).toFixed(0) + '%';
+      case '0.0%': return (v * 100).toFixed(1) + '%';
+      case '0.00%': return (v * 100).toFixed(2) + '%';
+      default: return String(v);
+    }
+  }
+  function pts(v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1) + ' pts'; }
+  function ymd(s) { return [+s.slice(0, 4), +s.slice(5, 7), +s.slice(8, 10)]; }
+  function addDays(s, n) { var p = ymd(s); return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10); }
+  function diffDays(a, b) { var p = ymd(a), q = ymd(b); return Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(p[0], p[1] - 1, p[2])) / 864e5); }
+  function dow(s) { var p = ymd(s); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); }
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function fDay(s) { var p = ymd(s); return p[2] + ' ' + MON[p[1] - 1]; }
+  function fDayW(s) { return DOW[dow(s)] + ' ' + fDay(s); }
+  function fDayLong(s) { return DOW[dow(s)] + ' ' + fDay(s) + ' ' + s.slice(0, 4); }
+  function fMDY(s) { var p = ymd(s); return ('0' + p[1]).slice(-2) + '-' + ('0' + p[2]).slice(-2) + '-' + String(p[0]).slice(2); }   // workbook: mm-dd-yy
+  function niceStep(span, n) { var raw = span / n, e = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; }
+  function ticks(lo, hi, n) { if (!(hi > lo)) hi = lo + 1; var st = niceStep(hi - lo, n), a = Math.floor(lo / st) * st, out = []; for (var v = a; v <= hi + st * .5; v += st) out.push(+v.toFixed(10)); if (out[out.length - 1] < hi) out.push(+(out[out.length - 1] + st).toFixed(10)); return out; }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function csvCell(v) { var s = String(v === null || v === undefined ? '' : v); if (/^[=+\-@\t\r]/.test(s) && !/^-?\d[\d.,]*%?$/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function download(name, text) {
+    var a = el('a', { href: URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' })), download: name });
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 600);
+  }
+  function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('adhd.' + k) || 'null'); localStorage.setItem('adhd.' + k, JSON.stringify(v)); } catch (e) { return null; } }
+  function countUp(node, to, f) {
+    if (reduced || !isFinite(to)) { node.textContent = fmt(to, f); return; }
+    var t0 = null, from = 0, dur = 750;
+    function step(t) { if (!t0) t0 = t; var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); node.textContent = fmt(from + (to - from) * e, f); if (k < 1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }
+
+  /* ================================================================ state */
+  var P = null, stamp = '', role = '', shown = false, loading = false, pollTimer = null;
+  var DIMS = [
+    { k: 'q', label: 'Queue' }, { k: 'sd', label: 'SDACM' }, { k: 'sup', label: 'Supervisor' }, { k: 'lg', label: 'Language Group' },
+    { k: 'lang', label: 'Language' }, { k: 'plat', label: 'Platform' }, { k: 'act', label: 'Activity' }, { k: 'agent', label: 'Interpreter' }
+  ];
+  var VIEWS = [
+    { id: 'overview', label: 'Overview' }, { id: 'overall', label: 'Overall' }, { id: 'sd', label: 'SDACMs' }, { id: 'sup', label: 'Supervisor' },
+    { id: 'daily', label: 'Daily' }, { id: 'agent', label: 'Interpreter' }, { id: 'lang', label: 'Language' }, { id: 'lg', label: 'Language Group' },
+    { id: 'act', label: 'Activities' }, { id: 'health', label: 'Data health' }
+  ];
+  var PRESETS = [['month', 'Latest month loaded'], ['latest', 'Latest day'], ['last7', 'Last 7 days'], ['mtd', 'Month to date'], ['lastmonth', 'Last month'], ['all', 'All loaded data']];
+  var S = { view: store('view') || 'overview', range: { preset: 'month' }, filt: {}, compare: store('compare') !== false, sorts: {}, q: {}, open: null, trendBy: 'day' };
+  DIMS.forEach(function (d) { S.filt[d.k] = {}; });
+  if (!VIEWS.some(function (v) { return v.id === S.view; })) S.view = 'overview';
+
+  /* ================================================================ data model */
+  var FIELDS = ['sm', 'am', 'i', 'o'];
+  var AV = {};
+  function prep(payload) {
+    P = payload; AV = {};
+    ['q', 'sd', 'sup', 'lg', 'lang', 'plat', 'name'].forEach(function (k) { AV[k] = P.agents.map(function (a) { return a[k]; }); });
+    AV.agent = P.agents.map(function (a) { return a.id; });
+    passCache = null;
+  }
+  function hasAny(o) { for (var k in o) if (o[k]) return true; return false; }
+  var passCache = null;
+  /** agents that pass the dimension filters; agents without a Queue (not in the Database) never pass, as the pivots hide them */
+  function agentPass() {
+    if (passCache) return passCache;
+    passCache = P.agents.map(function (x, a) {
+      if (AV.q[a] === '(blank)') return false;
+      for (var i = 0; i < DIMS.length; i++) { var k = DIMS[i].k; if (k === 'act') continue; var f = S.filt[k]; if (hasAny(f) && !f[AV[k][a]]) return false; }
+      return true;
+    });
+    return passCache;
+  }
+  function lowerBound(date) { var l = 0, h = P.dates.length; while (l < h) { var m = (l + h) >> 1; if (P.dates[m] < date) l = m + 1; else h = m; } return l; }
+  function select(from, to, opts) {
+    opts = opts || {};
+    var ap = agentPass(), lo = lowerBound(from), hi = lowerBound(addDays(to, 1)), af = S.filt.act, useA = hasAny(af) && !opts.allActs, out = [], f = P.f;
+    for (var i = 0; i < f.d.length; i++) {
+      var d = f.d[i];
+      if (d < lo || d >= hi || !ap[f.a[i]]) continue;
+      if (useA && !af[P.acts[f.t[i]]]) continue;
+      out.push(i);
+    }
+    return out;
+  }
+  function zero() { return { sm: 0, am: 0, i: 0, o: 0, n: 0 }; }
+  function add(s, i) { var f = P.f; s.sm += f.sm[i]; s.am += f.am[i]; s.i += f.i[i]; s.o += f.o[i]; s.n++; }
+  function sumOf(idx) { var s = zero(); idx.forEach(function (i) { add(s, i); }); return s; }
+  function groupBy(idx, keyFn) { var m = {}, order = []; idx.forEach(function (i) { var k = keyFn(i), s = m[k]; if (!s) { s = m[k] = zero(); order.push(k); } add(s, i); }); return { map: m, keys: order }; }
+  /** The pivot's calculated field and the extras, all from sums. */
+  function kpi(s) {
+    return { sm: s.sm, i: s.i, o: s.o, am: s.am, hours: s.sm / 60,
+             adh: s.sm > 0 ? s.i / s.sm : null, conf: s.sm > 0 ? s.am / s.sm : null, outPct: s.sm > 0 ? s.o / s.sm : null };
+  }
+  function qOf(i) { return AV.q[P.f.a[i]]; }
+
+  /* ================================================================ period */
+  function dataMin() { return P.dates[0] || ''; }
+  function dataMax() { return P.dates[P.dates.length - 1] || ''; }
+  function resolveRange() {
+    var m = dataMax() || P.today, t = P.today, r = S.range, from, to;
+    switch (r.preset) {
+      case 'month': from = m.slice(0, 8) + '01'; to = m; break;
+      case 'latest': from = to = m; break;
+      case 'last7': from = addDays(m, -6); to = m; break;
+      case 'mtd': from = t.slice(0, 8) + '01'; to = addDays(t, -1); break;
+      case 'lastmonth': { var first = t.slice(0, 8) + '01', last = addDays(first, -1); from = last.slice(0, 8) + '01'; to = last; break; }
+      case 'custom': from = r.from; to = r.to; break;
+      default: from = dataMin(); to = dataMax();
+    }
+    var cf = from < dataMin() ? dataMin() : from, ct = to > dataMax() ? dataMax() : to;
+    return { from: from, to: to, cf: cf, ct: ct, n: ct >= cf ? diffDays(cf, ct) + 1 : 0 };
+  }
+  function prevRange(R) {
+    if (!S.compare || R.n < 1) return null;
+    var pf = addDays(R.cf, -R.n), pt = addDays(R.cf, -1);
+    return pt < dataMin() ? null : { from: pf, to: pt };
+  }
+  function rangeText(R) { if (R.n < 1) return 'No loaded days in this period'; if (R.cf === R.ct) return fDayLong(R.cf); return fDay(R.cf) + ' – ' + fDay(R.ct) + ' ' + R.ct.slice(0, 4); }
+  function presetLabel() { var p = PRESETS.filter(function (x) { return x[0] === S.range.preset; })[0]; return p ? p[1] : 'Custom range'; }
+
+  /* ================================================================ workbook tables */
+  var COLS = [['sm', 'Scheduled Time Min'], ['i', 'Min. in Adherence'], ['o', 'Min. out Adherence'], ['adh', 'Adherence %']];
+  /** One entry per workbook sheet. pct = the Adherence % format per queue, exactly as each sheet formats it. */
+  var TABLES = {
+    overall: { sheet: 'Overall Adherence', first: 'All LOBs', dim: 'q', split: false, pct: { all: '0.00%' }, order: 'queue' },
+    sd: { sheet: 'SDACMs Level', first: 'SDACMs', dim: 'sd', split: false, pct: { all: '0%' }, sort: { k: 'sm', dir: -1 } },
+    sup: { sheet: 'Per Supervisor', first: 'Supervisor', dim: 'sup', split: true, pct: { VRI: '0.0%', Operator: '0%' }, sort: { k: 'sm', dir: -1 } },
+    daily: { sheet: 'Daily Adherence', first: 'Date', dim: 'day', split: true, pct: { VRI: '0%', Operator: '0%' }, sort: { k: '_label', dir: 1 } },
+    agent: { sheet: 'Per Interpreter', first: 'Agent Name', dim: 'name', split: true, pct: { VRI: '0%', Operator: '0%' }, sort: { k: 'sm', dir: -1 } },
+    lang: { sheet: 'Per Language', first: 'Language', dim: 'lang', split: true, pct: { VRI: '0.00%', Operator: '0%' }, sort: { k: '_label', dir: 1 } },
+    lg: { sheet: 'Per Language Group', first: 'Language Group', dim: 'lg', split: true, pct: { VRI: '0.00%', Operator: '0%' }, sort: { k: '_label', dir: 1 } }
+  };
+  var DRILL = { sd: 'sup', sup: 'agent', lang: 'agent', lg: 'lang', overall: 'sup' };
+  /** Rows of one workbook table for one queue (or all queues), with its Grand Total. Like the pivots, blank values are hidden. */
+  function tableRows(key, idx, queue) {
+    var def = TABLES[key], src = queue ? idx.filter(function (i) { return qOf(i) === queue; }) : idx;
+    var keyFn = def.dim === 'day' ? function (i) { return P.dates[P.f.d[i]]; } : function (i) { return AV[def.dim][P.f.a[i]]; };
+    var g = groupBy(src, keyFn);
+    var rows = g.keys.filter(function (v) { return v !== '(blank)'; }).map(function (v) {
+      return { label: def.dim === 'day' ? fMDY(v) : v, sortVal: v, value: v, k: kpi(g.map[v]) };
+    });
+    if (def.order === 'queue') rows.sort(function (a, b) { return (a.value === 'VRI' ? 0 : 1) - (b.value === 'VRI' ? 0 : 1); });
+    return { rows: rows, total: { label: 'Grand Total', k: kpi(sumOf(src.filter(function (i) { return keyFn(i) !== '(blank)'; }))) } };
+  }
+
+  /* ================================================================ floating layer */
+  var layer = null, popAnchor = null, tip = null;
+  function closePop() { S.open = null; var p = document.querySelector('#adhd-root .ad-pop'); if (p) p.remove(); if (popAnchor) { popAnchor.setAttribute('aria-expanded', 'false'); popAnchor = null; } }
+  function openPop(anchor, content, id, alignRight) {
+    closePop(); S.open = id; popAnchor = anchor; anchor.setAttribute('aria-expanded', 'true');
+    var pop = el('div', { class: 'ad-pop', role: 'dialog' }, content);
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+    layer.appendChild(pop);
+    var r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    var left = alignRight ? r.right - w : r.left; left = Math.max(8, Math.min(left, vw - w - 8));
+    var top = r.bottom + 6; if (top + h > vh - 8 && r.top - h - 6 > 8) top = r.top - h - 6;
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    var first = [].filter.call(pop.querySelectorAll('input,button'), function (x) { return !x.hidden && x.offsetParent !== null; })[0]; if (first) first.focus();
+    return pop;
+  }
+  function showTip(host, x, y, title, rows) {
+    hideTip();
+    tip = el('div', { class: 'pointer-events-none absolute z-20 min-w-[180px] max-w-[300px] rounded-xl bg-surface px-3 py-2.5 text-[12px] shadow-pop ring-1 ring-rule animate-ad-pop', role: 'status' },
+      el('div', { class: 'mb-1.5 font-bold text-ink', text: title }));
+    rows.forEach(function (r) {
+      var sw = r.sw ? el('span', { class: 'inline-block h-2.5 w-2.5 flex-none rounded-sm', style: 'background:' + r.sw }) : null;
+      tip.appendChild(el('div', { class: 'flex items-center gap-2 py-px text-ink2' }, sw, el('span', { text: r.label }), el('b', { class: 'ml-auto pl-4 font-bold tabular-nums text-ink', text: r.value })));
+    });
+    host.appendChild(tip);
+    var W = host.clientWidth, w = tip.offsetWidth, h = tip.offsetHeight, left = x + 14;
+    if (left + w > W) left = Math.max(0, x - w - 14);
+    tip.style.left = left + 'px'; tip.style.top = Math.max(0, Math.min(y - h / 2, host.clientHeight - h)) + 'px';
+  }
+  function hideTip() { if (tip && tip.parentNode) tip.parentNode.removeChild(tip); tip = null; }
+
+  /* ================================================================ filters */
+  function dimOptions(k) {
+    var seen = {}, out = [];
+    if (k === 'act') return (P.acts || []).slice().sort().map(function (a) { return { v: a, label: a }; });
+    P.agents.forEach(function (a, i) { if (AV.q[i] === '(blank)') return; var v = AV[k][i]; if (v === '(blank)' || seen[v]) return; seen[v] = 1; out.push({ v: v, label: k === 'agent' ? a.name : v }); });
+    return out.sort(function (a, b) { return a.label.localeCompare(b.label); });
+  }
+  function agentName(id) { for (var i = 0; i < P.agents.length; i++) if (P.agents[i].id === id) return P.agents[i].name; return id; }
+  function selectedOf(k) { return Object.keys(S.filt[k]).filter(function (v) { return S.filt[k][v]; }); }
+  function fieldBtn(label, value, on, onClick, id) {
+    var b = el('button', { type: 'button', class: 'ad-field' + (on ? ' ad-field-on' : ''), 'aria-haspopup': 'dialog', 'aria-expanded': 'false', id: id },
+      el('span', { class: 'text-ink2', text: label }), el('span', { class: 'max-w-[160px] overflow-hidden text-ellipsis font-semibold text-ink', text: value }), el('span', { class: 'text-muted' }, icon(I.down, 13)));
+    b.addEventListener('click', function (e) { e.stopPropagation(); if (S.open === id) { closePop(); return; } onClick(b); });
+    return b;
+  }
+  function renderFilters() {
+    var box = $('ad-filters'); clear(box);
+    var R = resolveRange();
+    box.appendChild(fieldBtn('Period', presetLabel(), true, openPeriod, 'ad-f-period'));
+    box.appendChild(el('span', { class: 'hidden sm:inline px-1 text-[12.5px] text-ink2 tabular-nums', text: rangeText(R) }));
+    box.appendChild(el('span', { class: 'hidden lg:block w-px h-6 bg-rule mx-1', 'aria-hidden': 'true' }));
+    DIMS.forEach(function (d) {
+      var sel = selectedOf(d.k), val = !sel.length ? 'All' : sel.length === 1 ? (d.k === 'agent' ? agentName(sel[0]) : sel[0]) : sel.length + ' selected';
+      box.appendChild(fieldBtn(d.label, val, sel.length > 0, function (b) { openMulti(b, d); }, 'ad-f-' + d.k));
+    });
+    box.appendChild(el('span', { class: 'flex-1' }));
+    var opt = el('button', { type: 'button', class: 'ad-btn', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', id: 'ad-f-opts' }, icon(I.sliders, 15), el('span', { text: 'View options' }));
+    opt.addEventListener('click', function (e) { e.stopPropagation(); if (S.open === 'opts') { closePop(); return; } openOptions(opt); });
+    box.appendChild(opt);
+  }
+  function openPeriod(anchor) {
+    var list = el('div', { class: 'grid gap-0.5', role: 'listbox', 'aria-label': 'Period' });
+    PRESETS.forEach(function (p) {
+      var on = S.range.preset === p[0];
+      list.appendChild(el('button', { type: 'button', class: 'ad-opt', role: 'option', 'aria-selected': String(on), on: { click: function () { S.range = { preset: p[0] }; closePop(); render(); } } },
+        el('span', { class: 'w-4 text-accent' }, on ? icon(I.check, 15) : null), el('span', { text: p[1] })));
+    });
+    var R = resolveRange(), a = el('input', { type: 'date', class: 'ad-input', value: R.n ? R.cf : dataMin(), min: dataMin(), max: dataMax(), 'aria-label': 'From' }),
+        b = el('input', { type: 'date', class: 'ad-input', value: R.n ? R.ct : dataMax(), min: dataMin(), max: dataMax(), 'aria-label': 'To' });
+    var apply = el('button', { type: 'button', class: 'ad-btn-primary w-full justify-center', text: 'Apply dates', on: { click: function () {
+      if (!a.value || !b.value) return; var x = a.value, y = b.value; if (x > y) { var t = x; x = y; y = t; }
+      S.range = { preset: 'custom', from: x, to: y }; closePop(); render(); } } });
+    openPop(anchor, el('div', {}, list, el('div', { class: 'mt-2 grid gap-2 border-t border-rule pt-3' },
+      el('div', { class: 'grid grid-cols-2 gap-2' }, el('label', { class: 'grid gap-1 text-[11.5px] font-medium text-ink2' }, 'From', a), el('label', { class: 'grid gap-1 text-[11.5px] font-medium text-ink2' }, 'To', b)), apply)), 'period');
+  }
+  function openMulti(anchor, d) {
+    var opts = dimOptions(d.k), listBox = el('div', { class: 'mt-2 max-h-[280px] overflow-auto grid gap-0.5', role: 'listbox', 'aria-multiselectable': 'true', 'aria-label': d.label });
+    var search = el('input', { type: 'search', class: 'ad-input', placeholder: 'Search ' + d.label.toLowerCase(), 'aria-label': 'Search ' + d.label });
+    function draw() {
+      clear(listBox); var q = search.value.trim().toLowerCase(), n = 0;
+      opts.forEach(function (o) {
+        if (q && o.label.toLowerCase().indexOf(q) < 0) return; if (++n > 400) return;
+        var on = !!S.filt[d.k][o.v];
+        listBox.appendChild(el('button', { type: 'button', class: 'ad-opt', role: 'option', 'aria-selected': String(on), on: { click: function () {
+          S.filt[d.k][o.v] = !S.filt[d.k][o.v]; passCache = null; draw(); renderBody(true); } } },
+          el('span', { class: 'grid h-4 w-4 flex-none place-items-center rounded-[5px] ring-1 transition-colors ' + (on ? 'bg-accent ring-accent text-accent-ink' : 'ring-ink2/40') }, on ? icon(I.check, 12) : null),
+          el('span', { class: 'truncate', text: o.label })));
+      });
+      if (!n) listBox.appendChild(el('p', { class: 'px-2.5 py-3 text-[12.5px] text-muted', text: 'Nothing matches “' + search.value + '”.' }));
+    }
+    search.addEventListener('input', draw);
+    if (opts.length <= 8) search.hidden = true;
+    var foot = el('div', { class: 'mt-2 flex items-center justify-between border-t border-rule pt-2' },
+      el('button', { type: 'button', class: 'ad-btn h-8', text: 'Clear', on: { click: function () { S.filt[d.k] = {}; passCache = null; closePop(); render(); } } }),
+      el('button', { type: 'button', class: 'ad-btn-primary h-8', text: 'Done', on: { click: function () { closePop(); render(); } } }));
+    draw();
+    openPop(anchor, el('div', {}, search, listBox, foot), d.k);
+  }
+  function openOptions(anchor) {
+    var sw = el('input', { type: 'checkbox', class: 'mt-1 h-4 w-4 accent-[rgb(var(--ad-accent))]', 'aria-label': 'Compare with the previous period' });
+    sw.checked = S.compare; sw.addEventListener('change', function () { S.compare = sw.checked; store('compare', S.compare); renderBody(); });
+    openPop(anchor, el('div', { class: 'w-[320px]' }, el('div', { class: 'flex items-start justify-between gap-4 px-2 py-2.5' },
+      el('div', {}, el('div', { class: 'text-[13px] font-semibold text-ink', text: 'Compare' }), el('div', { class: 'mt-0.5 text-[12px] leading-snug text-ink2', text: 'Show the change against the previous period of the same length on the overview.' })), sw)), 'opts', true);
+  }
+  function renderChips() {
+    var box = $('ad-chips'); clear(box);
+    DIMS.forEach(function (d) {
+      selectedOf(d.k).forEach(function (v) {
+        var label = d.k === 'agent' ? agentName(v) : v;
+        box.appendChild(el('span', { class: 'ad-chip animate-ad-pop' }, el('span', { class: 'text-ink2', text: d.label }), el('b', { class: 'font-semibold', text: label }),
+          el('button', { type: 'button', class: 'grid h-5 w-5 place-items-center rounded-full text-ink2 hover:bg-accent/15 hover:text-ink', 'aria-label': 'Remove ' + d.label + ' ' + label, on: { click: function () { S.filt[d.k][v] = false; passCache = null; render(); } } }, icon(I.x, 12))));
+      });
+    });
+    if (box.firstChild) box.appendChild(el('button', { type: 'button', class: 'ml-1 text-[12.5px] font-semibold text-accent hover:underline', text: 'Clear all', on: { click: function () { DIMS.forEach(function (d) { S.filt[d.k] = {}; }); passCache = null; render(); } } }));
+  }
+  function renderTabs() {
+    var box = $('ad-tabs'); clear(box);
+    VIEWS.forEach(function (v) {
+      var on = S.view === v.id;
+      box.appendChild(el('button', { type: 'button', class: 'ad-tab' + (on ? ' ad-tab-on' : ''), role: 'tab', 'aria-selected': String(on), id: 'ad-tab-' + v.id, text: v.label,
+        on: { click: function () { if (S.view === v.id) return; S.view = v.id; store('view', v.id); renderTabs(); renderBody(); } } }));
+    });
+  }
+  function setFilter(k, v) { S.filt[k] = {}; S.filt[k][v] = true; passCache = null; }
+
+  /* ================================================================ building blocks */
+  function card(title, sub, actions, extraClass) {
+    var head = el('div', { class: 'flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3' },
+      el('div', { class: 'min-w-0' }, el('h2', { class: 'text-[15px] font-bold text-ink', text: title }), sub ? el('p', { class: 'mt-0.5 text-[12.5px] text-ink2', text: sub }) : null),
+      actions ? el.apply(null, ['div', { class: 'flex min-w-0 max-w-full flex-wrap items-center gap-2' }].concat(Array.isArray(actions) ? actions : [actions])) : null);
+    return el('section', { class: 'ad-card min-w-0 ' + (extraClass || '') }, head);
+  }
+  function seg(options, current, onPick, label) {
+    var g = el('div', { class: 'ad-seg', role: 'group', 'aria-label': label });
+    options.forEach(function (o) { g.appendChild(el('button', { type: 'button', class: 'ad-seg-btn' + (current === o[0] ? ' ad-seg-on' : ''), 'aria-pressed': String(current === o[0]), text: o[1], on: { click: function () { onPick(o[0]); } } })); });
+    return g;
+  }
+  function searchBox(key, placeholder) {
+    var wrap = el('label', { class: 'relative flex items-center' }, el('span', { class: 'pointer-events-none absolute left-2.5 text-muted' }, icon(I.search, 14)));
+    var inp = el('input', { type: 'search', class: 'ad-input h-9 w-[200px] pl-8', placeholder: placeholder, 'aria-label': placeholder, value: S.q[key] || '' });
+    var t = null;
+    inp.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { S.q[key] = inp.value; renderBody(); var again = document.querySelector('#adhd-root input[data-q="' + key + '"]'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 160); });
+    inp.setAttribute('data-q', key); wrap.appendChild(inp);
+    return wrap;
+  }
+  function csvBtn(fn) { return el('button', { type: 'button', class: 'ad-btn', on: { click: fn } }, icon(I.dl, 15), el('span', { text: 'CSV' })); }
+  function emptyState(title, text, action) {
+    return el('div', { class: 'ad-card grid place-items-center px-6 py-16 text-center animate-ad-in' },
+      el('div', { class: 'mb-3 grid h-11 w-11 place-items-center rounded-full bg-accent/10 text-accent' }, icon(I.cal, 20)),
+      el('h2', { class: 'text-[15px] font-bold text-ink', text: title }), el('p', { class: 'mt-1 max-w-md text-[13px] text-ink2', text: text }), action || null);
+  }
+  function note(text) { return el('p', { class: 'mt-3 px-1 text-[12.5px] leading-relaxed text-ink2', text: text }); }
+  function dot(color) { return el('span', { class: 'inline-block h-2.5 w-2.5 flex-none rounded-full', style: 'background:' + color }); }
+  var QCOL = { VRI: 'rgb(var(--ad-s1))', Operator: 'rgb(var(--ad-s2))' };
+  var avgVal = null;                                                // team average of the current selection (status colouring)
+  function targetPill(v) {
+    var st = cmpStatus(v); if (!st) return null;
+    return el('span', { class: 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ' + (st === 'good' ? 'bg-good-bg text-good' : 'bg-bad-bg text-bad'), title: 'Target ≥ ' + fmt(P.target, '0%') }, icon(st === 'good' ? I.check : I.x, 10), st === 'good' ? 'On target' : 'Off target');
+  }
+  function cmpStatus(v) { var t = P && P.target; if (v === null || !isFinite(v)) return ''; if (t) return v >= t ? 'good' : 'bad'; return ''; }
+
+  /** One workbook table: sortable headers, sticky header/first column, Grand Total row. */
+  function workbookTable(key, def, rows, total, pctFmt, opts) {
+    opts = opts || {};
+    var sort = S.sorts[key] || def.sort || null, q = (S.q[key] || '').trim().toLowerCase();
+    var shown = q ? rows.filter(function (r) { return r.label.toLowerCase().indexOf(q) >= 0; }) : rows.slice();
+    if (sort) shown.sort(function (a, b) {
+      if (sort.k === '_label') { var x = a.sortVal !== undefined ? a.sortVal : a.label, y = b.sortVal !== undefined ? b.sortVal : b.label; return sort.dir * String(x).localeCompare(String(y)); }
+      var av = a.k[sort.k], bv = b.k[sort.k]; av = (av === null || !isFinite(av)) ? -Infinity : av; bv = (bv === null || !isFinite(bv)) ? -Infinity : bv;
+      return sort.dir * (av - bv) || a.label.localeCompare(b.label);
+    });
+    var thead = el('thead'), hr = el('tr');
+    function th(k, text, first) {
+      var active = sort && sort.k === k;
+      var b = el('button', { type: 'button', class: 'group inline-flex items-end gap-1 text-inherit hover:text-ink ' + (first ? 'text-left' : 'text-right justify-end'), on: { click: function () {
+        var dir = active ? -sort.dir : (k === '_label' ? 1 : -1); S.sorts[key] = { k: k, dir: dir }; renderBody(); } } },
+        el('span', { text: text }), el('span', { class: 'mb-px transition-transform duration-200 ' + (active ? 'text-accent' : 'opacity-0 group-hover:opacity-60') + (active && sort.dir > 0 ? ' rotate-180' : '') }, icon(I.down, 12)));
+      return el('th', { scope: 'col', class: 'ad-th' + (first ? ' ad-th-first' : ''), 'aria-sort': active ? (sort.dir < 0 ? 'descending' : 'ascending') : 'none' }, b);
+    }
+    hr.appendChild(th('_label', def.first, true));
+    COLS.forEach(function (c) { hr.appendChild(th(c[0], ' ' + c[1], false)); });
+    thead.appendChild(hr);
+    var tbody = el('tbody');
+    function row(r, isTotal) {
+      var tr = el('tr', { class: 'ad-row' + (isTotal ? ' ad-row-total ad-row-grand' : '') + (opts.onRow && !isTotal ? ' cursor-pointer' : '') });
+      tr.appendChild(el('td', { class: 'ad-td ad-td-first' }, el('span', { text: r.label })));
+      COLS.forEach(function (c) {
+        var v = r.k[c[0]], f = c[0] === 'adh' ? pctFmt : '#,##0', st = c[0] === 'adh' ? cmpStatus(v) : '';
+        var td = el('td', { class: 'ad-td' + (st === 'good' ? ' ad-good' : st === 'bad' ? ' ad-bad' : '') });
+        if (c[0] === 'adh' && !isTotal && total && v !== null && isFinite(v)) td.appendChild(adhCell(v, P.target || total.k.adh, f)); else td.textContent = fmt(v, f);
+        if (c[0] === 'adh' && v !== null && isFinite(v)) td.title = (v * 100).toFixed(4) + '%';
+        tr.appendChild(td);
+      });
+      if (opts.onRow && !isTotal) { tr.tabIndex = 0; tr.title = 'Details for ' + r.label; tr.addEventListener('click', function () { opts.onRow(r); }); tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') opts.onRow(r); }); }
+      return tr;
+    }
+    shown.forEach(function (r) { tbody.appendChild(row(r, false)); });
+    if (total && shown.length) tbody.appendChild(row(total, true));
+    if (!shown.length) tbody.appendChild(el('tr', {}, el('td', { class: 'px-4 py-10 text-center text-[13px] text-ink2', colspan: 5, text: q ? 'No rows match “' + S.q[key] + '”.' : 'No rows for these filters.' })));
+    return el('div', { class: 'ad-tbl-wrap border-t border-rule' }, el('table', { class: 'min-w-full' }, thead, tbody));
+  }
+  function tableCsv(def, rows, total, pctFmt, name) {
+    var out = [[def.first].concat(COLS.map(function (c) { return c[1]; })).map(csvCell).join(',')];
+    rows.concat(total ? [total] : []).forEach(function (r) { out.push([r.label].concat(COLS.map(function (c) { var v = r.k[c[0]]; return v === null || !isFinite(v) ? '' : c[0] === 'adh' ? fmt(v, pctFmt) : v; })).map(csvCell).join(',')); });
+    download(name, out.join('\r\n'));
+  }
+  function fileTag(R) { return R.cf + '_' + R.ct; }
+
+  /* ================================================================ charts (hand-drawn SVG, one axis per panel) */
+  function roundTop(x, y, w, h, r) { r = Math.min(r, w / 2, h); if (h <= 0) return ''; return 'M' + x + ',' + (y + h) + 'V' + (y + r) + 'Q' + x + ',' + y + ' ' + (x + r) + ',' + y + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'V' + (y + h) + 'Z'; }
+  function roundRight(x, y, w, h, r) { r = Math.min(r, h / 2, w); if (w <= 0) return ''; return 'M' + x + ',' + y + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'V' + (y + h - r) + 'Q' + (x + w) + ',' + (y + h) + ' ' + (x + w - r) + ',' + (y + h) + 'H' + x + 'Z'; }
+  function pctTick(t, span) { var p = Math.round(t * 10000) / 100; return (Math.abs(p - Math.round(p)) > 1e-9 ? p.toFixed(1) : p.toFixed(0)) + '%'; }
+  function drawLine(path) {
+    if (reduced) return;
+    requestAnimationFrame(function () { try { var len = path.getTotalLength(); path.style.setProperty('--len', len); path.setAttribute('class', 'ad-draw'); } catch (e) {} });
+  }
+  /**
+   * Trend: one or more adherence series (lines, % axis) over days or weeks, plus a separate panel below with
+   * scheduled hours (bars, its own axis). Crosshair + tooltip; arrow keys read each point.
+   */
+  function trendChart(host, labels, series, bars, o) {
+    var W = Math.max(320, host.clientWidth || 900), small = W < 560, left = small ? 46 : 58, right = small ? 18 : 116, pad = 22, topH = small ? 170 : 210, gap = 30, botH = small ? 70 : 84, axisH = 26;
+    var H = pad + topH + gap + botH + axisH, plotW = W - left - right, n = labels.length, band = plotW / Math.max(1, n), bw = Math.max(3, Math.min(22, band * .55));
+    var cx = function (i) { return left + band * i + band / 2; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    var all = []; series.forEach(function (s) { s.v.forEach(function (v) { if (v !== null && isFinite(v)) all.push(v); }); });
+    if (o.avg !== null && o.avg !== undefined) all.push(o.avg);
+    if (o.target) all.push(o.target);
+    var lo = all.length ? Math.min.apply(null, all) : 0.9, hi = all.length ? Math.max.apply(null, all) : 1;
+    var span = (hi - lo) || 0.01; lo = Math.max(0, lo - span * .25); hi = Math.min(1, hi + span * .25); if (hi <= lo) hi = lo + 0.01;
+    var tt = ticks(lo, hi, 4), vLo = tt[0], vHi = tt[tt.length - 1], y = function (v) { return pad + topH - (v - vLo) / ((vHi - vLo) || 1) * topH; };
+    tt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: 'rgb(var(--ad-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'rgb(var(--ad-muted))', text: pctTick(t, vHi - vLo) })); });
+    svg.appendChild(sv('text', { x: left, y: pad - 8, 'font-size': 11.5, 'font-weight': 600, fill: 'rgb(var(--ad-ink2))', text: 'Adherence %' }));
+    if (o.avg !== null && o.avg !== undefined) {
+      svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(o.avg), y2: y(o.avg), stroke: 'rgb(var(--ad-ink2))', 'stroke-width': 1.25, 'stroke-dasharray': '5 4' }));
+    }
+    var endLabels = [];
+    if (o.target) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(o.target), y2: y(o.target), stroke: 'rgb(var(--ad-good))', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' })); endLabels.push({ y: y(o.target), text: 'Target ' + fmt(o.target, '0%'), muted: true }); }
+    if (o.avg !== null && o.avg !== undefined) endLabels.push({ y: y(o.avg), text: 'All ' + fmt(o.avg, '0.0%'), muted: true });
+    series.forEach(function (s) {
+      var d = '', pen = false, last = -1;
+      s.v.forEach(function (v, k) { if (v === null || !isFinite(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + cx(k).toFixed(1) + ',' + y(v).toFixed(1); pen = true; last = k; });
+      if (!d) return;
+      var p = sv('path', { d: d, fill: 'none', stroke: s.color, 'stroke-width': 2.25, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+      svg.appendChild(p); drawLine(p);
+      s.v.forEach(function (v, k) { if (v === null || !isFinite(v) || n > 45) return; svg.appendChild(sv('circle', { cx: cx(k), cy: y(v), r: 3, fill: 'rgb(var(--ad-surface))', stroke: s.color, 'stroke-width': 1.75 })); });
+      if (last >= 0) { svg.appendChild(sv('circle', { cx: cx(last), cy: y(s.v[last]), r: 4.5, fill: s.color, stroke: 'rgb(var(--ad-surface))', 'stroke-width': 2 })); endLabels.push({ y: y(s.v[last]), text: s.name + ' ' + fmt(s.v[last], '0.0%') }); }
+    });
+    if (!small) {                                                    // direct labels at the line ends, nudged apart
+      endLabels.sort(function (a, b) { return a.y - b.y; });
+      for (var e = 1; e < endLabels.length; e++) if (endLabels[e].y - endLabels[e - 1].y < 14) endLabels[e].y = endLabels[e - 1].y + 14;
+      for (var e2 = endLabels.length - 2; e2 >= 0; e2--) if (endLabels[e2 + 1].y > pad + topH + 4) { var sh = endLabels[e2 + 1].y - (pad + topH + 4); endLabels.forEach(function (l) { l.y -= sh; }); break; }
+      endLabels.forEach(function (l) { svg.appendChild(sv('text', { x: W - right + 8, y: l.y + 4, 'font-size': 11.5, 'font-weight': l.muted ? 600 : 700, fill: l.muted ? 'rgb(var(--ad-ink2))' : 'rgb(var(--ad-ink))', text: l.text })); });
+    }
+    // bars panel: scheduled hours
+    var top2 = pad + topH + gap, bmax = Math.max.apply(null, bars.concat([1])), bt = ticks(0, bmax, 2), btop = bt[bt.length - 1] || 1, yb = function (v) { return top2 + botH - v / btop * botH; };
+    svg.appendChild(sv('text', { x: left, y: top2 - 8, 'font-size': 11.5, 'font-weight': 600, fill: 'rgb(var(--ad-ink2))', text: 'Scheduled hours' }));
+    bt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: yb(t), y2: yb(t), stroke: 'rgb(var(--ad-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: yb(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'rgb(var(--ad-muted))', text: fmt(t, '#,##0') })); });
+    bars.forEach(function (v, k) { if (!(v > 0)) return; var h = v / btop * botH; svg.appendChild(sv('path', { d: roundTop(cx(k) - bw / 2, yb(v), bw, h, 4), fill: 'rgb(var(--ad-ink2))', 'fill-opacity': .32, class: reduced ? null : 'ad-rise', style: 'animation-delay:' + Math.min(400, k * 12) + 'ms' })); });
+    var every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 60))));
+    labels.forEach(function (l, k) { if (k % every === 0) svg.appendChild(sv('text', { x: cx(k), y: top2 + botH + 18, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ad-muted))', text: l.short })); });
+    // hover / keyboard
+    var cross = sv('rect', { y: pad - 4, height: top2 + botH - pad + 8, fill: 'rgb(var(--ad-ink) / .05)', rx: 6, visibility: 'hidden' });
+    svg.insertBefore(cross, svg.firstChild);
+    var cur = -1;
+    function at(k) {
+      k = Math.max(0, Math.min(n - 1, k)); cur = k;
+      cross.setAttribute('x', cx(k) - band / 2 + 1); cross.setAttribute('width', Math.max(2, band - 2)); cross.setAttribute('visibility', 'visible');
+      var rows = series.map(function (s) { return { sw: s.color, label: s.name, value: fmt(s.v[k], '0.00%') }; });
+      rows.push({ label: 'Scheduled hours', value: fmt(bars[k], '#,##0') });
+      showTip(host, cx(k) * (host.clientWidth / W), 70, labels[k].title, rows);
+    }
+    var hit = sv('rect', { x: left, y: 0, width: plotW, height: H - axisH + 6, fill: 'transparent', tabindex: 0, role: 'group', 'aria-label': 'Chart. Use the left and right arrow keys to read each point.' });
+    hit.addEventListener('pointermove', function (ev) { var r = svg.getBoundingClientRect(); at(Math.floor(((ev.clientX - r.left) * (W / r.width) - left) / band)); });
+    function leave() { cross.setAttribute('visibility', 'hidden'); hideTip(); }
+    hit.addEventListener('pointerleave', leave); hit.addEventListener('blur', leave);
+    hit.addEventListener('keydown', function (ev) { if (ev.key === 'ArrowLeft') { at(cur < 0 ? n - 1 : cur - 1); ev.preventDefault(); } else if (ev.key === 'ArrowRight') { at(cur < 0 ? 0 : cur + 1); ev.preventDefault(); } else if (ev.key === 'Escape') leave(); });
+    svg.appendChild(hit);
+    host.appendChild(svg);
+  }
+  /** Horizontal bars (one value per row), optional reference line, click to filter. */
+  function hBars(host, items, o) {
+    var W = Math.max(300, host.clientWidth || 560), rowH = 30, bh = 15, left = Math.min(190, W * .38), right = 70, top = 24, n = items.length, H = top + n * rowH + 24;
+    var maxChars = Math.max(8, Math.floor((left - 14) / 6.5)), plotW = W - left - right, lo = o.min || 0, x = function (v) { return left + Math.max(0, Math.min(v, o.max) - lo) / (o.max - lo) * plotW; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    ticks(lo, o.max, 4).forEach(function (t) { if (t > o.max + 1e-9 || t < lo - 1e-9) return; svg.appendChild(sv('line', { x1: x(t), x2: x(t), y1: top - 6, y2: top + n * rowH, stroke: 'rgb(var(--ad-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: x(t), y: top + n * rowH + 16, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ad-muted))', text: o.tick(t) })); });
+    items.forEach(function (it, i) {
+      var yy = top + i * rowH + (rowH - bh) / 2, w = Math.max(0, x(it.v) - left), g = sv('g', { tabindex: 0, 'aria-label': it.label + ': ' + o.val(it.v), class: 'outline-none' + (o.onClick ? ' cursor-pointer' : '') });
+      g.appendChild(sv('rect', { x: 0, y: top + i * rowH, width: W, height: rowH, fill: 'transparent' }));
+      g.appendChild(sv('text', { x: left - 10, y: yy + bh / 2 + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'rgb(var(--ad-ink2))', text: trunc(it.label, maxChars) }, sv('title', { text: it.label })));
+      var bar = sv('path', { d: roundRight(left, yy, w, bh, 4), fill: it.color || 'rgb(var(--ad-s1))', 'fill-opacity': .9, class: reduced ? null : 'ad-grow', style: 'animation-delay:' + Math.min(500, i * 25) + 'ms' });
+      g.appendChild(bar);
+      g.appendChild(sv('text', { x: left + w + 6, y: yy + bh / 2 + 4, 'font-size': 12, 'font-weight': 700, fill: 'rgb(var(--ad-ink))', text: o.val(it.v) }));
+      function on() { bar.setAttribute('fill-opacity', 1); showTip(host, Math.min((left + w) * host.clientWidth / W, host.clientWidth - 200), (top + i * rowH + rowH / 2) * host.clientWidth / W, it.label, it.tip || []); }
+      function off() { bar.setAttribute('fill-opacity', .9); hideTip(); }
+      g.addEventListener('pointerenter', on); g.addEventListener('pointerleave', off); g.addEventListener('focus', on); g.addEventListener('blur', off);
+      if (o.onClick) { g.addEventListener('click', function () { o.onClick(it); }); g.addEventListener('keydown', function (e) { if (e.key === 'Enter') o.onClick(it); }); }
+      svg.appendChild(g);
+    });
+    var tgtX = o.target ? x(o.target) : null;
+    if (o.target) {
+      svg.appendChild(sv('line', { x1: tgtX, x2: tgtX, y1: top - 6, y2: top + n * rowH, stroke: 'rgb(var(--ad-good))', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' }));
+      svg.appendChild(sv('text', { x: tgtX, y: top - 11, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: 'rgb(var(--ad-good))', text: 'Target ' + fmt(o.target, '0%') }));
+    }
+    if (o.ref !== undefined && o.ref !== null) {
+      svg.appendChild(sv('line', { x1: x(o.ref), x2: x(o.ref), y1: top - 6, y2: top + n * rowH, stroke: 'rgb(var(--ad-ink2))', 'stroke-width': 1.25, 'stroke-dasharray': '5 4' }));
+      if (tgtX === null || Math.abs(x(o.ref) - tgtX) > 70) svg.appendChild(sv('text', { x: x(o.ref), y: top - 11, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: 'rgb(var(--ad-ink2))', text: o.refLabel }));
+    }
+    host.appendChild(svg);
+  }
+  /** Vertical columns (histogram of interpreters by adherence band). */
+  function columns(host, items, o) {
+    var W = Math.max(280, host.clientWidth || 420), H = 220, left = 40, right = 12, top = 22, bot = 40, plotW = W - left - right, plotH = H - top - bot, n = items.length, band = plotW / n, bw = Math.min(54, band * .62);
+    var mx = Math.max.apply(null, items.map(function (i) { return i.v; }).concat([1])), tt = ticks(0, mx, 3), tp = tt[tt.length - 1] || 1, y = function (v) { return top + plotH - v / tp * plotH; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    tt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: 'rgb(var(--ad-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'rgb(var(--ad-muted))', text: fmt(t, 'int') })); });
+    items.forEach(function (it, k) {
+      var x0 = left + band * k + (band - bw) / 2, h = it.v / tp * plotH, g = sv('g', { tabindex: 0, 'aria-label': it.label + ': ' + it.v, class: 'outline-none' });
+      g.appendChild(sv('rect', { x: left + band * k, y: top, width: band, height: plotH, fill: 'transparent' }));
+      var b = sv('path', { d: roundTop(x0, y(it.v), bw, h, 4), fill: it.below === true ? 'rgb(var(--ad-bad))' : it.below === false ? 'rgb(var(--ad-good))' : 'rgb(var(--ad-s1))', 'fill-opacity': it.below === null || it.below === undefined ? .35 + .55 * (k / Math.max(1, n - 1)) : .8, class: reduced ? null : 'ad-rise', style: 'animation-delay:' + k * 60 + 'ms' });
+      g.appendChild(b);
+      if (it.v > 0) g.appendChild(sv('text', { x: x0 + bw / 2, y: y(it.v) - 6, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: 'rgb(var(--ad-ink))', text: fmt(it.v, 'int') }));
+      g.appendChild(sv('text', { x: x0 + bw / 2, y: top + plotH + 17, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ad-ink2))', text: it.label }));
+      function on() { showTip(host, (x0 + bw) * host.clientWidth / W, (top + plotH / 2) * host.clientWidth / W, it.title, it.tip); }
+      g.addEventListener('pointerenter', on); g.addEventListener('pointerleave', hideTip); g.addEventListener('focus', on); g.addEventListener('blur', hideTip);
+      if (o.onClick && it.v > 0) { g.setAttribute('class', 'outline-none cursor-pointer'); g.setAttribute('role', 'button'); g.addEventListener('click', function () { o.onClick(it, k); }); g.addEventListener('keydown', function (e) { if (e.key === 'Enter') o.onClick(it, k); }); }
+      svg.appendChild(g);
+    });
+    svg.appendChild(sv('text', { x: left + plotW / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ad-muted))', text: o.xLabel }));
+    host.appendChild(svg);
+  }
+  /** Heatmap rows × days, sequential single hue (lighter = less), value printed when the cell is wide enough. */
+  function heatmap(host, rowLabels, colLabels, M, o) {
+    var W = Math.max(320, host.clientWidth || 900), left = Math.min(170, W * .3), top = 26, right = 8, cell = Math.max(10, Math.min(110, (W - left - right) / Math.max(1, colLabels.length))), rh = 28, H = top + rowLabels.length * rh + 8;
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    var mx = 0; M.forEach(function (r) { r.forEach(function (c) { if (c && c.v > mx) mx = c.v; }); }); if (!mx) mx = 1;
+    var every = Math.max(1, Math.ceil(26 / cell));
+    colLabels.forEach(function (c, j) { if (j % every === 0) svg.appendChild(sv('text', { x: left + cell * j + cell / 2, y: top - 9, 'text-anchor': 'middle', 'font-size': 10.5, fill: 'rgb(var(--ad-muted))', text: c.short })); });
+    rowLabels.forEach(function (r, i) {
+      var lab = sv('text', { x: left - 10, y: top + i * rh + rh / 2 + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'rgb(var(--ad-ink2))', text: trunc(r, Math.floor((left - 14) / 6.5)), class: o.onRow ? 'cursor-pointer' : null }, sv('title', { text: r }));
+      if (o.onRow) lab.addEventListener('click', function () { o.onRow(r); });
+      svg.appendChild(lab);
+      M[i].forEach(function (c, j) {
+        var x0 = left + cell * j + 1, y0 = top + i * rh + 1, w = cell - 2, h = rh - 2;
+        if (!c) { svg.appendChild(sv('rect', { x: x0, y: y0, width: w, height: h, rx: 4, fill: 'rgb(var(--ad-canvas))' })); return; }
+        var t = Math.sqrt(c.v / mx), a = .06 + .86 * t;
+        var g = sv('g', { tabindex: 0, class: 'outline-none', 'aria-label': r + ', ' + colLabels[j].title + ': ' + o.val(c.v) });
+        g.appendChild(sv('rect', { x: x0, y: y0, width: w, height: h, rx: 4, fill: 'rgb(var(--ad-s1) / ' + a.toFixed(3) + ')' }));
+        if (cell >= 40) g.appendChild(sv('text', { x: x0 + w / 2, y: y0 + h / 2 + 4, 'text-anchor': 'middle', 'font-size': 10.5, 'font-weight': 600, fill: a > .55 ? '#fff' : 'rgb(var(--ad-ink))', text: o.cellText(c.v) }));
+        function on() { showTip(host, (x0 + w) * host.clientWidth / W, (y0 + h / 2) * host.clientWidth / W, r + ' · ' + colLabels[j].title, c.tip); }
+        g.addEventListener('pointerenter', on); g.addEventListener('pointerleave', hideTip); g.addEventListener('focus', on); g.addEventListener('blur', hideTip);
+        svg.appendChild(g);
+      });
+    });
+    host.appendChild(svg);
+  }
+  function spark(vals, color) {
+    var W = 140, H = 34, svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, 'aria-hidden': 'true', class: 'block' });
+    var ok = vals.filter(function (v) { return v !== null && isFinite(v); });
+    if (ok.length < 2) return svg;
+    var lo = Math.min.apply(null, ok), hi = Math.max.apply(null, ok), sp = (hi - lo) || 1, n = vals.length;
+    var px = function (i) { return 3 + (W - 9) * i / (n - 1); }, py = function (v) { return H - 4 - (H - 8) * (v - lo) / sp; };
+    var d = '', pen = false, last = -1;
+    vals.forEach(function (v, i) { if (v === null || !isFinite(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + px(i).toFixed(1) + ',' + py(v).toFixed(1); pen = true; last = i; });
+    var p = sv('path', { d: d, fill: 'none', stroke: color || 'rgb(var(--ad-muted))', 'stroke-width': 1.75, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+    svg.appendChild(p); drawLine(p);
+    svg.appendChild(sv('circle', { cx: px(last), cy: py(vals[last]), r: 3, fill: color || 'rgb(var(--ad-accent))' }));
+    return svg;
+  }
+  function legendItem(color, text, dashed) {
+    return el('span', { class: 'inline-flex items-center gap-2' }, dashed ? el('i', { class: 'inline-block w-4 border-t-[1.5px] border-dashed border-ink2' }) : el('i', { class: 'inline-block h-[3px] w-4 rounded', style: 'background:' + color }), text);
+  }
+
+  /* ================================================================ views */
+  function queuesShown() { var sel = selectedOf('q'); return ['VRI', 'Operator'].filter(function (q) { return !sel.length || sel.indexOf(q) >= 0; }); }
+
+  function viewOverview(root, R, idx) {
+    var K = kpi(sumOf(idx)), prev = prevRange(R), PK = prev ? kpi(sumOf(select(prev.from, prev.to))) : null;
+    avgVal = K.adh;
+    var days = tableRows('daily', idx, null).rows.sort(function (a, b) { return a.value < b.value ? -1 : 1; });
+    var qs = queuesShown();
+    function delta(key, isPct, up, host) {
+      if (!PK || PK[key] === null || K[key] === null || !isFinite(PK[key]) || !isFinite(K[key])) return null;
+      var diff = isPct ? (K[key] - PK[key]) : (PK[key] ? (K[key] - PK[key]) / PK[key] : 0), flat = Math.abs(diff) < (isPct ? .0005 : .0005);
+      var good = flat || up === 0 ? '' : ((diff > 0) === (up > 0) ? 'good' : 'bad');
+      return el('span', { class: 'inline-flex items-center gap-1.5' },
+        el('span', { class: 'inline-flex items-center gap-0.5 rounded-md px-1.5 py-px text-[11.5px] font-bold ' + (good === 'good' ? 'bg-good-bg text-good' : good === 'bad' ? 'bg-bad-bg text-bad' : 'bg-canvas text-ink2') },
+          flat ? null : icon(diff > 0 ? I.up : I.down, 11), flat ? 'No change' : (isPct ? pts(diff) : (diff > 0 ? '+' : '−') + Math.abs(diff * 100).toFixed(1) + '%')),
+        el('span', { class: 'text-muted', text: 'vs previous ' + R.n + (R.n === 1 ? ' day' : ' days') }));
+    }
+
+    // 1. Hero: the headline number, the queues, and three plain-language highlights
+    var hero = el('section', { class: 'ad-card grid overflow-hidden xl:grid-cols-12 animate-ad-in', 'aria-label': 'Adherence summary' });
+    var big = el('span', { class: 'text-[56px] font-extrabold leading-none tracking-[-0.04em] tabular-nums text-ink', text: '0%' });
+    var left = el('div', { class: 'relative px-6 pt-5 pb-5 xl:col-span-5' },
+      el('div', { class: 'flex items-center justify-between gap-3' }, el('h2', { class: 'flex items-center gap-2 text-[13px] font-semibold text-ink2' }, 'Adherence', targetPill(K.adh)), el('span', { class: 'text-[12px] text-muted', text: rangeText(R) + (P.target ? ' · Target ≥ ' + fmt(P.target, '0%') : '') })),
+      el('div', { class: 'mt-2 flex flex-wrap items-end gap-x-4 gap-y-2' }, big, delta('adh', true, 1) || el('span')),
+      el('p', { class: 'mt-2 text-[12.5px] text-ink2', text: fmt(K.i, 'int') + ' of ' + fmt(K.sm, 'int') + ' scheduled minutes were in adherence; ' + fmt(K.o, 'int') + ' were not.' }));
+    var sp = el('div', { class: 'mt-3 overflow-hidden' }); sp.appendChild(spark(days.slice(-21).map(function (r) { return r.k.adh; }), 'rgb(var(--ad-accent))'));
+    left.appendChild(el('div', { class: 'mt-1 flex items-center gap-3 text-[11.5px] text-muted' }, sp, el('span', { text: 'Daily adherence, last ' + Math.min(21, days.length) + ' days' })));
+    countUp(big, K.adh, '0.0%');
+    hero.appendChild(left);
+    var right = el('div', { class: 'grid border-t border-rule sm:grid-cols-2 xl:col-span-7 xl:border-l xl:border-t-0' });
+    ['VRI', 'Operator'].forEach(function (q, k) {
+      var on = qs.indexOf(q) >= 0, qi = on ? idx.filter(function (i) { return qOf(i) === q; }) : [], QK = kpi(sumOf(qi));
+      var qd = tableRows('daily', qi, null).rows.sort(function (a, b) { return a.value < b.value ? -1 : 1; });
+      var v = el('span', { class: 'text-[34px] font-extrabold leading-none tracking-[-0.03em] tabular-nums text-ink', text: on ? '0%' : '—' });
+      var cell = el('div', { class: 'px-5 pt-5 pb-4 ' + (k ? 'border-t border-rule sm:border-t-0 sm:border-l' : ''), role: 'button', tabindex: 0, title: 'Show only ' + q },
+        el('div', { class: 'flex items-center gap-2' }, dot(QCOL[q]), el('h3', { class: 'text-[13px] font-semibold text-ink', text: q }), on ? targetPill(QK.adh) : null, el('span', { class: 'text-[12px] text-muted', text: q === 'VRI' ? 'Video interpreting' : 'Operators (PENs)' })),
+        el('div', { class: 'mt-2 flex items-baseline gap-3' }, v, on && QK.adh !== null && K.adh !== null ? el('span', { class: 'text-[12px] font-semibold text-ink2', text: (QK.adh >= K.adh ? '▲ ' : '▼ ') + pts(QK.adh - K.adh).replace('+', '').replace('−', '') + (QK.adh >= K.adh ? ' above' : ' below') + ' overall' }) : null),
+        el('dl', { class: 'mt-3 grid grid-cols-3 gap-2 text-[11.5px]' },
+          el('div', {}, el('dt', { class: 'text-muted', text: 'Scheduled h' }), el('dd', { class: 'font-bold text-ink tabular-nums', text: fmt(QK.hours, '#,##0') })),
+          el('div', {}, el('dt', { class: 'text-muted', text: 'Min. out' }), el('dd', { class: 'font-bold text-ink tabular-nums', text: fmt(QK.o, 'int') })),
+          el('div', {}, el('dt', { class: 'text-muted', text: 'Share of time' }), el('dd', { class: 'font-bold text-ink tabular-nums', text: K.sm ? fmt(QK.sm / K.sm, '0%') : '—' }))));
+      var s2 = el('div', { class: 'mt-3' }); s2.appendChild(spark(qd.slice(-21).map(function (r) { return r.k.adh; }), QCOL[q])); cell.appendChild(s2);
+      if (on) { countUp(v, QK.adh, '0.0%'); cell.addEventListener('click', function () { setFilter('q', q); render(); }); cell.addEventListener('keydown', function (e) { if (e.key === 'Enter') { setFilter('q', q); render(); } }); }
+      right.appendChild(cell);
+    });
+    hero.appendChild(right);
+    root.appendChild(hero);
+
+    // Highlights (computed, plain language)
+    var hl = highlights(idx, K, days);
+    if (hl.length) {
+      var ul = el('ul', { class: 'grid gap-2 px-5 pb-4 pt-1 text-[13px] leading-snug text-ink2 sm:grid-cols-2 xl:grid-cols-4' });
+      hl.forEach(function (h) { ul.appendChild(el('li', { class: 'flex gap-2.5 rounded-xl bg-canvas px-3 py-2.5 ring-1 ring-rule/70' }, el('span', { class: 'mt-0.5 text-accent' }, icon(I.spark, 15)), el('span', {}, el('b', { class: 'block text-[12px] font-semibold text-ink', text: h[0] }), h[1]))); });
+      var hc = el('section', { class: 'mt-3 ad-card animate-ad-in', 'aria-label': 'Highlights' }, el('div', { class: 'px-5 pt-4 pb-2 text-[15px] font-bold text-ink', text: 'Highlights' }), ul);
+      root.appendChild(hc);
+    }
+
+    // 2. KPI strip
+    var agents = {}; idx.forEach(function (i) { agents[P.f.a[i]] = 1; });
+    var nAg = Object.keys(agents).length;
+    var vols = [['Scheduled hours', K.hours, '#,##0', 'hours', false, 0], ['Minutes in adherence', K.i, 'int', 'i', false, 0], ['Minutes out of adherence', K.o, 'int', 'o', false, -1],
+                ['Out of adherence %', K.outPct, '0.00%', 'outPct', true, -1], ['Conformance %', K.conf, '0.0%', 'conf', true, 0], ['Interpreters', nAg, 'int', null, false, 0]];
+    var strip = el('section', { class: 'mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl2 bg-rule/70 ring-1 ring-rule/70 shadow-card md:grid-cols-3 xl:grid-cols-6 animate-ad-in', 'aria-label': 'Volumes' });
+    var perDayAg = {}; idx.forEach(function (i) { var dk = P.f.d[i]; (perDayAg[dk] || (perDayAg[dk] = {}))[P.f.a[i]] = 1; });
+    vols.forEach(function (v) {
+      var num = el('div', { class: 'mt-0.5 text-[20px] font-bold tracking-[-0.02em] tabular-nums text-ink', text: fmt(v[1], v[2]) });
+      var series = days.slice(-14).map(function (r) { return v[3] ? r.k[v[3]] : null; });
+      if (!v[3]) series = Object.keys(perDayAg).sort(function (a, b) { return a - b; }).slice(-14).map(function (dk) { return Object.keys(perDayAg[dk]).length; });
+      var sp2 = spark(series, 'rgb(var(--ad-muted))'); sp2.setAttribute('width', 84); sp2.setAttribute('height', 24);
+      strip.appendChild(el('div', { class: 'flex items-end justify-between gap-2 bg-surface px-4 py-3', title: v[0] === 'Conformance %' ? 'Actual time ÷ scheduled time (NICE "Percent in Conformance", from totals)' : '' },
+        el('div', { class: 'min-w-0' }, el('div', { class: 'text-[12px] font-medium text-ink2', text: v[0] }), num, v[3] ? (function () { var dv = delta(v[3], v[4], v[5]); return dv ? el('div', { class: 'mt-0.5 text-[11px]' }, dv) : null; })() : null),
+        series.length > 2 ? el('div', { class: 'hidden flex-none opacity-80 2xl:block', 'aria-hidden': 'true' }, sp2) : null));
+      if (typeof v[1] === 'number' && v[2] !== '0.0%' && v[2] !== '0.00%') countUp(num, v[1], v[2]);
+    });
+    root.appendChild(strip);
+
+    var grid = el('div', { class: 'mt-3 grid gap-3 xl:grid-cols-12' });
+    // 3. Trend
+    var src = S.trendBy === 'week' ? weekRowsBy(idx) : null;
+    var labels, series = [], bars;
+    if (S.trendBy === 'week') {
+      labels = src.labels; bars = src.total.map(function (k) { return k.hours; });
+      qs.forEach(function (q) { series.push({ name: q, color: QCOL[q], v: src.byQ[q].map(function (k) { return k ? k.adh : null; }) }); });
+    } else {
+      var dq = {}; qs.forEach(function (q) { dq[q] = {}; tableRows('daily', idx, q).rows.forEach(function (r) { dq[q][r.value] = r.k; }); });
+      labels = days.map(function (r) { return { short: fDay(r.value), title: fDayLong(r.value) }; }); bars = days.map(function (r) { return r.k.hours; });
+      qs.forEach(function (q) { series.push({ name: q, color: QCOL[q], v: days.map(function (r) { var k = dq[q][r.value]; return k ? k.adh : null; }) }); });
+    }
+    var c1 = card('Adherence trend', rangeText(R) + (S.trendBy === 'week' ? ', by week of the month' : ', by day') + '. Each point is a ratio of the day’s totals.',
+      [seg([['day', 'Days'], ['week', 'Weeks']], S.trendBy, function (k) { S.trendBy = k; renderBody(); }, 'Group by')], 'xl:col-span-12 animate-ad-in');
+    var host = el('div', { class: 'relative px-4 pb-2' }); c1.appendChild(host);
+    requestAnimationFrame(function () { if (labels.length) trendChart(host, labels, series, bars, { avg: K.adh, target: P.target, aria: 'Adherence trend' }); else host.appendChild(el('p', { class: 'px-1 py-6 text-[13px] text-ink2', text: 'No days in this selection.' })); });
+    var lg = el('div', { class: 'flex flex-wrap gap-x-5 gap-y-1 px-5 pb-4 text-[12px] text-ink2' });
+    series.forEach(function (s) { lg.appendChild(legendItem(s.color, s.name)); });
+    lg.appendChild(legendItem(null, 'All (whole selection)', true)); if (P.target) lg.appendChild(el('span', { class: 'inline-flex items-center gap-2' }, el('i', { class: 'inline-block w-4 border-t-2 border-dotted border-good' }), 'Target ' + fmt(P.target, '0%'))); lg.appendChild(el('span', { class: 'inline-flex items-center gap-2' }, el('i', { class: 'inline-block h-2.5 w-2.5 rounded-sm bg-ink2/30' }), 'Scheduled hours (lower panel)'));
+    c1.appendChild(lg); grid.appendChild(c1);
+
+    // 4. SDACMs and supervisors (ranked, reference = whole selection)
+    var sdRows = tableRows('sd', idx, null).rows.filter(function (r) { return r.k.sm > 0; }).sort(function (a, b) { return (b.k.adh || 0) - (a.k.adh || 0); });
+    var supRows = tableRows('sup', idx, null).rows.filter(function (r) { return r.k.sm > 0; }).sort(function (a, b) { return (b.k.adh || 0) - (a.k.adh || 0); });
+    var supQ = {}; idx.forEach(function (i) { var s = AV.sup[P.f.a[i]], q = qOf(i); supQ[s] = supQ[s] && supQ[s] !== q ? 'Mixed' : q; });
+    var all = sdRows.concat(supRows).map(function (r) { return r.k.adh || 0; }).concat([K.adh || 0]).concat(P.target ? [P.target] : []);
+    var mn = Math.max(0, Math.floor((Math.min.apply(null, all) - .02) * 50) / 50), mxv = Math.min(1, Math.ceil((Math.max.apply(null, all) + .005) * 100) / 100);
+    var barOpts = function (aria, dim) { return { min: mn, max: mxv, ref: K.adh, target: P.target, refLabel: 'Overall ' + fmt(K.adh, '0.0%'), tick: function (t) { return pctTick(t, mxv - mn); }, val: function (v) { return fmt(v, '0.0%'); }, aria: aria,
+      onClick: function (it) { openDrawer({ kind: 'group', dim: dim, value: it.label }); } }; };
+    var c2 = card('Adherence by SDACM', 'Select a bar for details.', null, 'md:col-span-6 xl:col-span-4 animate-ad-in');
+    var h2 = el('div', { class: 'relative px-4 pb-4' }); c2.appendChild(h2);
+    requestAnimationFrame(function () { hBars(h2, sdRows.map(function (r) { return { label: r.label, v: r.k.adh || 0, tip: tipRows(r.k) }; }), barOpts('Adherence by SDACM', 'sd')); });
+    if (sdRows.length) {                                                    // the numbers behind the bars, one line each
+      var tb = el('tbody');
+      sdRows.forEach(function (r) {
+        var tr = el('tr', { class: 'ad-row cursor-pointer', tabindex: 0, title: 'Details for ' + r.label, on: { click: function () { openDrawer({ kind: 'group', dim: 'sd', value: r.label }); }, keydown: function (e) { if (e.key === 'Enter') openDrawer({ kind: 'group', dim: 'sd', value: r.label }); } } },
+          el('td', { class: 'ad-td ad-td-first h-9', text: r.label }), el('td', { class: 'ad-td h-9', text: fmt(r.k.hours, '#,##0') }), el('td', { class: 'ad-td h-9', text: fmt(r.k.o, 'int') }), el('td', { class: 'ad-td h-9', text: K.o ? fmt(r.k.o / K.o, '0%') : '—' }));
+        tb.appendChild(tr);
+      });
+      c2.appendChild(el('div', { class: 'mx-4 mb-4 overflow-hidden rounded-xl ring-1 ring-rule' }, el('table', { class: 'min-w-full' },
+        el('thead', {}, el('tr', {}, el('th', { class: 'ad-th ad-th-first static', text: 'SDACM' }), el('th', { class: 'ad-th static min-w-0', text: 'Sched. h' }), el('th', { class: 'ad-th static min-w-0', text: 'Min. out' }), el('th', { class: 'ad-th static min-w-0', text: 'Share of out' }))), tb)));
+    }
+    grid.appendChild(c2);
+    var c3 = card('Supervisors, ranked', 'Colour shows the queue. Dashed line: the whole selection. Select one for details.', el('div', { class: 'flex gap-3 text-[12px] text-ink2' }, el('span', { class: 'inline-flex items-center gap-1.5' }, dot(QCOL.VRI), 'VRI'), el('span', { class: 'inline-flex items-center gap-1.5' }, dot(QCOL.Operator), 'Operator')), 'xl:col-span-5 animate-ad-in');
+    var h3 = el('div', { class: 'relative px-4 pb-4' }); c3.appendChild(h3);
+    requestAnimationFrame(function () { hBars(h3, supRows.map(function (r) { return { label: r.label, v: r.k.adh || 0, color: QCOL[supQ[r.label]] || 'rgb(var(--ad-ink2))', tip: tipRows(r.k) }; }), barOpts('Supervisors ranked by adherence', 'sup')); });
+
+    // 5. Heatmap: share of scheduled minutes out of adherence, supervisor × day
+    var dates = days.map(function (r) { return r.value; }), dIx = {}; dates.forEach(function (d, j) { dIx[d] = j; });
+    var sups = supRows.map(function (r) { return r.label; }).sort(function (a, b) { return a.localeCompare(b); }), sIx = {}; sups.forEach(function (s, i) { sIx[s] = i; });
+    var M = sups.map(function () { return dates.map(function () { return null; }); }), acc = {};
+    idx.forEach(function (i) { var s = AV.sup[P.f.a[i]]; if (!(s in sIx)) return; var key = sIx[s] + '|' + dIx[P.dates[P.f.d[i]]], a = acc[key] || (acc[key] = zero()); add(a, i); });
+    Object.keys(acc).forEach(function (k) { var p = k.split('|'), kk = kpi(acc[k]); if (kk.sm > 0) M[+p[0]][+p[1]] = { v: kk.outPct, tip: [{ label: 'Out of adherence', value: fmt(kk.outPct, '0.0%') }, { label: 'Adherence', value: fmt(kk.adh, '0.0%') }, { label: 'Minutes out', value: fmt(kk.o, 'int') }, { label: 'Scheduled minutes', value: fmt(kk.sm, 'int') }] }; });
+    var c4 = card('Where minutes are lost', 'Share of scheduled minutes out of adherence, by supervisor and day. Darker = more minutes lost. Select a name for details.', null, 'xl:col-span-7 animate-ad-in');
+    var h4 = el('div', { class: 'relative overflow-x-auto px-4 pb-4' }); c4.appendChild(h4);
+    requestAnimationFrame(function () { if (sups.length && dates.length) heatmap(h4, sups, dates.map(function (d) { return { short: fDay(d).split(' ')[0], title: fDayLong(d) }; }), M, { aria: 'Minutes out of adherence by supervisor and day', val: function (v) { return fmt(v, '0.0%'); }, cellText: function (v) { return (v * 100).toFixed(1); }, onRow: function (s) { openDrawer({ kind: 'group', dim: 'sup', value: s }); } }); });
+    c4.appendChild(el('div', { class: 'flex items-center gap-2 px-5 pb-4 text-[11.5px] text-ink2' }, el('span', { text: 'Less' }),
+      el('span', { class: 'inline-block h-2.5 w-24 rounded-full', style: 'background:linear-gradient(90deg,rgb(var(--ad-s1)/.06),rgb(var(--ad-s1)/.92))' }), el('span', { text: 'More minutes out of adherence (cell value = %)' })));
+
+    // 6. Distribution of interpreters + largest gaps
+    var per = groupBy(idx, function (i) { return P.f.a[i]; }), bands = P.target ? [['< 90%', 0, .90], ['90–94%', .90, .94], ['94–' + fmt(P.target, '0%'), .94, P.target], [fmt(P.target, '0%') + '–98%', P.target, .98], ['≥ 98%', .98, 2]] : [['< 85%', 0, .85], ['85–90%', .85, .90], ['90–95%', .90, .95], ['95–98%', .95, .98], ['≥ 98%', .98, 2]];
+    var counts = bands.map(function () { return 0; }), withTime = [];
+    per.keys.forEach(function (a) { var k = kpi(per.map[a]); if (!(k.sm > 0)) return; withTime.push({ a: +a, k: k }); for (var b = 0; b < bands.length; b++) if (k.adh >= bands[b][1] && k.adh < bands[b][2]) { counts[b]++; break; } });
+    var c5 = card('Interpreters by adherence', withTime.length + ' interpreters with scheduled time' + (P.target ? '; ' + withTime.filter(function (w) { return w.k.adh >= P.target; }).length + ' meet the ' + fmt(P.target, '0%') + ' target (green)' : '') + '. Select a column to see who.', null, 'md:col-span-6 xl:col-span-4 animate-ad-in');
+    var h5 = el('div', { class: 'relative px-4 pb-4' }); c5.appendChild(h5);
+    requestAnimationFrame(function () { columns(h5, bands.map(function (b, k) { return { label: b[0], v: counts[k], below: P.target ? b[2] <= P.target : null, title: b[0] + ' adherence', tip: [{ label: 'Interpreters', value: fmt(counts[k], 'int') }, { label: 'Share', value: withTime.length ? fmt(counts[k] / withTime.length, '0%') : '—' }] }; }), { aria: 'Interpreters by adherence band', xLabel: 'Adherence over the period', onClick: function (it, k) { openDrawer({ kind: 'band', lo: bands[k][1], hi: bands[k][2], label: bands[k][0] }); } }); });
+    grid.appendChild(c5);
+    var gaps = withTime.slice().sort(function (a, b) { return b.k.o - a.k.o; }).slice(0, 10);
+    var c6 = card('Largest gaps', 'The 10 interpreters with the most minutes out of adherence. Colour shows the queue. Select one for details.', null, 'xl:col-span-4 animate-ad-in');
+    var h6 = el('div', { class: 'relative px-4 pb-4' }); c6.appendChild(h6);
+    requestAnimationFrame(function () {
+      if (!gaps.length) { h6.appendChild(el('p', { class: 'px-1 py-6 text-[13px] text-ink2', text: 'No interpreters in this selection.' })); return; }
+      var mo = gaps[0].k.o || 1;
+      hBars(h6, gaps.map(function (g) { return { label: P.agents[g.a].name, id: P.agents[g.a].id, a: g.a, v: g.k.o, color: QCOL[AV.q[g.a]], tip: [{ label: 'Minutes out', value: fmt(g.k.o, 'int') }, { label: 'Adherence', value: fmt(g.k.adh, '0.0%') }, { label: 'Supervisor', value: AV.sup[g.a] }, { label: 'Queue', value: AV.q[g.a] }] }; }),
+        { max: mo * 1.12, tick: function (t) { return fmt(t, '#,##0'); }, val: function (v) { return fmt(v, 'int'); }, aria: 'Interpreters with the most minutes out of adherence', onClick: function (it) { openDrawer({ kind: 'agent', a: it.a }); } });
+    });
+    grid.appendChild(c6);
+    grid.appendChild(c3);
+    grid.appendChild(c4);
+    root.appendChild(grid);
+  }
+  function tipRows(k) { return [{ label: 'Adherence', value: fmt(k.adh, '0.00%') }, { label: 'Scheduled minutes', value: fmt(k.sm, 'int') }, { label: 'Minutes out', value: fmt(k.o, 'int') }, { label: 'Conformance', value: fmt(k.conf, '0.0%') }]; }
+  function weekOf(d) { var n = +d.slice(8); return n > 21 ? 'week4' : n > 14 ? 'week3' : n > 7 ? 'week2' : 'week1'; }
+  function weekRowsBy(idx) {
+    var keys = {}, byQ = { VRI: {}, Operator: {} }, tot = {};
+    idx.forEach(function (i) { var d = P.dates[P.f.d[i]], w = d.slice(0, 7) + ' ' + weekOf(d); keys[w] = 1; var q = qOf(i); var a = byQ[q][w] || (byQ[q][w] = zero()); add(a, i); var t = tot[w] || (tot[w] = zero()); add(t, i); });
+    var ks = Object.keys(keys).sort();
+    return { labels: ks.map(function (k) { var p = k.split(' '); return { short: MON[+p[0].slice(5, 7) - 1] + ' ' + p[1].replace('week', 'W'), title: p[1].replace('week', 'Week ') + ' of ' + MON[+p[0].slice(5, 7) - 1] + ' ' + p[0].slice(0, 4) }; }),
+             total: ks.map(function (k) { return kpi(tot[k]); }), byQ: { VRI: ks.map(function (k) { return byQ.VRI[k] ? kpi(byQ.VRI[k]) : null; }), Operator: ks.map(function (k) { return byQ.Operator[k] ? kpi(byQ.Operator[k]) : null; }) } };
+  }
+  /** Plain-language highlights, computed from the selection. */
+  function highlights(idx, K, days) {
+    var out = [];
+    var sup = tableRows('sup', idx, null).rows.filter(function (r) { return r.k.sm >= 600; });
+    if (P.target && sup.length) { var met = sup.filter(function (r) { return r.k.adh >= P.target; }).length; out.push(['Target ' + fmt(P.target, '0%'), met + ' of ' + sup.length + ' supervisors meet it; overall ' + fmt(K.adh, '0.0%') + ' is ' + pts(K.adh - P.target).replace('+', '') + (K.adh >= P.target ? ' above.' : ' below.')]); }
+    if (sup.length > 1) {
+      sup.sort(function (a, b) { return b.k.adh - a.k.adh; });
+      out.push(['Strongest team', sup[0].label + ' at ' + fmt(sup[0].k.adh, '0.0%') + ' (' + pts(sup[0].k.adh - K.adh).replace('+', '+') + ' vs overall).']);
+      var w = sup[sup.length - 1];
+      out.push(['Most room to improve', w.label + ' at ' + fmt(w.k.adh, '0.0%') + ': ' + fmt(w.k.o, 'int') + ' minutes out of adherence.']);
+    }
+    var per = groupBy(idx, function (i) { return P.f.a[i]; }), outs = per.keys.map(function (a) { return per.map[a].o; }).filter(function (o) { return o > 0; }).sort(function (a, b) { return b - a; });
+    if (outs.length >= 10 && K.o > 0) { var top = Math.max(1, Math.round(outs.length * .1)), share = outs.slice(0, top).reduce(function (a, b) { return a + b; }, 0) / K.o;
+      out.push(['Where to focus', top + ' interpreters (the top 10%) account for ' + fmt(share, '0%') + ' of all minutes out of adherence. See Largest gaps.']); }
+    var dd = days.filter(function (r) { return r.k.sm > 0; });
+    if (dd.length > 1 && out.length < 3) { var lo = dd.slice().sort(function (a, b) { return a.k.adh - b.k.adh; })[0]; out.push(['Weakest day', fDayW(lo.value) + ' at ' + fmt(lo.k.adh, '0.0%') + ' (' + fmt(lo.k.o, 'int') + ' minutes out).']); }
+    var acts = groupBy(idx, function (i) { return P.acts[P.f.t[i]]; }), best = null;
+    acts.keys.forEach(function (a) { var k = kpi(acts.map[a]); if (!best || k.o > best.k.o) best = { a: a, k: k }; });
+    if (best && K.o > 0) out.push(['Biggest source of lost minutes', best.a + ': ' + fmt(best.k.o / K.o, '0%') + ' of all minutes out of adherence (' + fmt(best.k.adh, '0.0%') + ' adherence on ' + best.a + ').']);
+    return out.slice(0, 4);
+  }
+
+  function viewTable(root, R, idx, key) {
+    var def = TABLES[key], drill = DRILL[key], dim = { overall: 'q', sd: 'sd', sup: 'sup', agent: 'agent', lang: 'lang', lg: 'lg' }[key];
+    var onRow = dim ? function (r) {
+      if (key === 'agent') { for (var a = 0; a < P.agents.length; a++) if (P.agents[a].name === r.value) { openDrawer({ kind: 'agent', a: a }); return; } return; }
+      openDrawer({ kind: 'group', dim: dim, value: r.value });
+    } : null;
+    if (!def.split) {
+      var t = tableRows(key, idx, null);
+      var c = card(def.sheet, rangeText(R) + '. ' + t.rows.length + (t.rows.length === 1 ? ' row' : ' rows') + (onRow ? '. Select a row for details.' : '.'),
+        [searchBox(key, 'Search ' + def.first.toLowerCase()), csvBtn(function () { tableCsv(def, t.rows, t.total, def.pct.all, 'adherence-' + key + '-' + fileTag(R) + '.csv'); })], 'animate-ad-in');
+      c.appendChild(workbookTable(key, def, t.rows, t.total, def.pct.all, { onRow: onRow }));
+      root.appendChild(c);
+    } else {
+      var qs = queuesShown(), grid = el('div', { class: 'grid gap-3 ' + (qs.length > 1 ? '2xl:grid-cols-2' : '') });
+      qs.forEach(function (q) {
+        var t2 = tableRows(key, idx, q), k = key + '-' + q;
+        var c2 = card(def.sheet + ' · Queue: ' + q, rangeText(R) + '. ' + t2.rows.length + (t2.rows.length === 1 ? ' row' : ' rows') + '.',
+          [searchBox(k, 'Search ' + def.first.toLowerCase()), csvBtn(function () { tableCsv(def, t2.rows, t2.total, def.pct[q], 'adherence-' + key + '-' + q + '-' + fileTag(R) + '.csv'); })], 'animate-ad-in');
+        c2.querySelector('h2').prepend(el('span', { class: 'mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle', style: 'background:' + QCOL[q] }));
+        c2.appendChild(workbookTable(k, def, t2.rows, t2.total, def.pct[q], { onRow: onRow }));
+        grid.appendChild(c2);
+      });
+      root.appendChild(grid);
+    }
+    root.appendChild(note('Same layout as the "' + def.sheet + '" sheet: Adherence % = Min. in Adherence ÷ Scheduled Time Min, calculated from the totals (never an average of percentages). Rows whose interpreter is not in the Database are left out, as in the pivots (see Data health).'));
+  }
+
+  function viewActivities(root, R) {
+    var idx = select(R.cf, R.ct, { allActs: true }), g = groupBy(idx, function (i) { return P.acts[P.f.t[i]]; }), tot = kpi(sumOf(idx));
+    var rows = g.keys.map(function (a) { return { label: a, k: kpi(g.map[a]) }; }).sort(function (a, b) { return b.k.sm - a.k.sm; });
+    var c = card('Activities', rangeText(R) + '. Every scheduled activity from NICE, with its adherence and conformance.', [csvBtn(function () {
+      var out = [['Activity', 'Scheduled Time Min', 'Min. in Adherence', 'Min. out Adherence', 'Adherence %', 'Actual minutes', 'Conformance %', 'Share of scheduled time'].join(',')];
+      rows.forEach(function (r) { out.push([r.label, r.k.sm, r.k.i, r.k.o, fmt(r.k.adh, '0.00%'), r.k.am, fmt(r.k.conf, '0.00%'), tot.sm ? fmt(r.k.sm / tot.sm, '0.00%') : ''].map(csvCell).join(',')); });
+      download('adherence-activities-' + fileTag(R) + '.csv', out.join('\r\n')); })], 'animate-ad-in');
+    var thead = el('thead', {}, el.apply(null, ['tr', {}].concat(['Activity', 'Scheduled Time Min', 'Min. in Adherence', 'Min. out Adherence', 'Adherence %', 'Actual minutes', 'Conformance %', 'Share of scheduled time'].map(function (h, j) { return el('th', { scope: 'col', class: 'ad-th' + (j ? '' : ' ad-th-first'), text: h }); }))));
+    var tb = el('tbody');
+    rows.concat([{ label: 'Grand Total', k: tot, total: true }]).forEach(function (r) {
+      var share = tot.sm ? r.k.sm / tot.sm : null, bar = el('span', { class: 'hidden md:inline-block h-1.5 w-16 overflow-hidden rounded-full bg-canvas' }, el('span', { class: 'block h-full rounded-full', style: 'width:' + ((share || 0) * 100).toFixed(1) + '%;background:rgb(var(--ad-s1))' }));
+      tb.appendChild(el('tr', { class: 'ad-row' + (r.total ? ' ad-row-total' : '') + (r.total ? '' : ' cursor-pointer'), title: r.total ? '' : 'Show only ' + r.label, on: r.total ? null : { click: function () { setFilter('act', r.label); S.view = 'overview'; store('view', 'overview'); render(); } } },
+        el('td', { class: 'ad-td ad-td-first', text: r.label }), el('td', { class: 'ad-td', text: fmt(r.k.sm, '#,##0') }), el('td', { class: 'ad-td', text: fmt(r.k.i, '#,##0') }), el('td', { class: 'ad-td', text: fmt(r.k.o, '#,##0') }),
+        el('td', { class: 'ad-td', text: fmt(r.k.adh, '0.00%') }), el('td', { class: 'ad-td', text: fmt(r.k.am, '#,##0') }), el('td', { class: 'ad-td', text: fmt(r.k.conf, '0.0%') }),
+        el('td', { class: 'ad-td' }, el('span', { class: 'inline-flex items-center justify-end gap-2' }, bar, el('span', { text: fmt(share, '0.0%') })))));
+    });
+    c.appendChild(el('div', { class: 'ad-tbl-wrap border-t border-rule' }, el('table', { class: 'min-w-full' }, thead, tb)));
+    root.appendChild(c);
+    root.appendChild(note('This view ignores the Activity filter so that every activity stays comparable. Conformance % = actual time ÷ scheduled time (NICE "Percent in Conformance", from the totals). Select an activity to filter the rest of the dashboard to it.'));
+  }
+
+  function viewHealth(root) {
+    var H = P.health, grid = el('div', { class: 'grid gap-3 lg:grid-cols-2' });
+    var c1 = card('Data', 'What the dashboard has loaded', null, 'animate-ad-in');
+    var dl = el('dl', { class: 'grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2.5 px-5 pb-5 text-[13px]' });
+    function row(a, b, bad) { dl.appendChild(el('dt', { class: bad ? 'text-bad' : 'text-ink2', text: a })); dl.appendChild(el('dd', { class: 'font-semibold ' + (bad ? 'text-bad' : 'text-ink'), text: b })); }
+    row('Last load', P.lastLoad ? new Date(P.lastLoad).toLocaleString() + (P.lastBy ? ' by ' + P.lastBy : '') : 'Never');
+    row('Last load result', P.lastStatus || '—', /^CHECK|FAIL/.test(P.lastStatus || ''));
+    row('Rows', fmt(H.rows, 'int') + ' NICE rows (agent × day × activity)');
+    row('Days', P.dates.length ? fDay(dataMin()) + ' – ' + fDay(dataMax()) + ' ' + dataMax().slice(0, 4) + ' (' + P.dates.length + ')' : 'None');
+    row('Missing days', H.missingDays.length ? H.missingDays.map(fDay).join(', ') : 'None', H.missingDays.length > 0);
+    row('Database import', P.db && P.db.ok ? 'OK (' + fmt(P.db.agents, 'int') + ' agents)' : (P.db ? P.db.message : 'Unknown'), !(P.db && P.db.ok));
+    row('Interpreters', fmt(P.agents.length, 'int') + (H.unmapped.length ? ' (' + H.unmapped.length + ' not in the Database)' : ', all found in the Database'), H.unmapped.length > 0);
+    row('Minutes check', H.minuteMismatch ? H.minuteMismatch + ' rows where scheduled ≠ in + out (as NICE reported them)' : 'Scheduled = in + out on every row');
+    c1.appendChild(dl); grid.appendChild(c1);
+    var c2 = card('Interpreters not in the Database', H.unmapped.length ? 'Add their Nice ID to the Roster Database; they then appear in every view (no reload needed).' : 'Every interpreter in the data was found in the Database.', null, 'animate-ad-in');
+    if (H.unmapped.length) {
+      var tb = el('tbody'); H.unmapped.slice(0, 200).forEach(function (u) { tb.appendChild(el('tr', { class: 'ad-row' }, el('td', { class: 'ad-td ad-td-first', text: u.id }), el('td', { class: 'ad-td text-left', text: u.name }), el('td', { class: 'ad-td', text: fmt(u.rows, 'int') }))); });
+      c2.appendChild(el('div', { class: 'ad-tbl-wrap border-t border-rule max-h-[320px]' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', { class: 'ad-th ad-th-first', text: 'Nice ID' }), el('th', { class: 'ad-th text-left', text: 'Name in NICE' }), el('th', { class: 'ad-th', text: 'Rows' }))), tb)));
+    }
+    grid.appendChild(c2);
+    var c3 = card('Recent runs', 'From the _Load Log tab (newest first)', null, 'animate-ad-in');
+    if (P.log && P.log.length) {
+      var tb3 = el('tbody');
+      P.log.forEach(function (l) { tb3.appendChild(el('tr', { class: 'ad-row' }, el('td', { class: 'ad-td ad-td-first', text: isNaN(+l[0]) ? String(l[0]) : new Date(+l[0]).toLocaleString() }), el('td', { class: 'ad-td text-left', text: l[1] }),
+        el('td', { class: 'ad-td text-left', text: l[2] && l[3] ? fDay(l[2]) + ' – ' + fDay(l[3]) : '' }), el('td', { class: 'ad-td', text: l[4] === '' ? '' : fmt(+l[4], 'int') }),
+        el('td', { class: 'ad-td text-left ' + (l[5] === 'OK' ? 'text-good' : 'text-bad'), text: l[5], title: l[6] }))); });
+      c3.appendChild(el('div', { class: 'ad-tbl-wrap border-t border-rule max-h-[320px]' }, el('table', {}, el('thead', {}, el.apply(null, ['tr', {}].concat(['Run at', 'By', 'Period', 'Rows', 'Status'].map(function (h, j) { return el('th', { class: 'ad-th' + (j ? (j === 3 ? '' : ' text-left') : ' ad-th-first'), text: h }); })))), tb3)));
+    } else c3.appendChild(el('p', { class: 'px-5 pb-5 text-[13px] text-ink2', text: 'No runs yet.' }));
+    grid.appendChild(c3);
+    var c4 = card('How the numbers are calculated', null, null, 'animate-ad-in');
+    var ul = el('ul', { class: 'grid gap-2 px-5 pb-5 pl-9 text-[13px] leading-relaxed text-ink2 list-disc' });
+    ['Data comes from the NICE WFM "Adherence" report (MU set 6 FG, details by agent and day), loaded by Start automation for the 1st of the month through yesterday.',
+     'Adherence % = Min. in Adherence ÷ Scheduled Time Min, always from totals over the selection (exactly like the workbook pivots). Scheduled Time Min = scheduled time × 1,440, rounded.',
+     'Language, Language Group, Supervisor, Platform and SDACM come from the Roster Database (IMPORTRANGE) by Nice ID; Queue is Operator when the Language Group is PENs, otherwise VRI. Moving someone to another team moves their past numbers too.',
+     'Conformance % = actual time ÷ scheduled time. Weeks are weeks of the month (1–7, 8–14, 15–21, 22–end).',
+     P.target ? 'Green/red cells compare with the adherence target of ' + fmt(P.target, '0%') + ' set in Dash_Adherence.gs.' : 'No adherence target is set, so cells are not coloured; the dashed lines show the whole selection for comparison.'
+    ].forEach(function (t) { ul.appendChild(el('li', { text: t })); });
+    c4.appendChild(ul); grid.appendChild(c4);
+    var c5 = card('Rows per day', 'NICE rows loaded for each day', null, 'animate-ad-in');
+    var tb5 = el('tbody'); H.days.slice().reverse().forEach(function (x) { tb5.appendChild(el('tr', { class: 'ad-row' }, el('td', { class: 'ad-td ad-td-first', text: fDayLong(x[0]) }), el('td', { class: 'ad-td', text: fmt(x[1], 'int') }))); });
+    c5.appendChild(el('div', { class: 'ad-tbl-wrap border-t border-rule max-h-[320px]' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', { class: 'ad-th ad-th-first', text: 'Date' }), el('th', { class: 'ad-th', text: 'Rows' }))), tb5)));
+    grid.appendChild(c5);
+    root.appendChild(grid);
+  }
+
+  function skeleton() {
+    var root = $('ad-view'); clear(root);
+    root.appendChild(el('div', { class: 'grid gap-3', 'aria-hidden': 'true' },
+      el('div', { class: 'ad-card grid gap-6 p-5 xl:grid-cols-3' }, el('div', { class: 'grid gap-3' }, el('div', { class: 'ad-skel h-3 w-24' }), el('div', { class: 'ad-skel h-12 w-40' }), el('div', { class: 'ad-skel h-2 w-full' })),
+        el('div', { class: 'grid gap-3' }, el('div', { class: 'ad-skel h-3 w-20' }), el('div', { class: 'ad-skel h-8 w-28' }), el('div', { class: 'ad-skel h-2 w-full' })),
+        el('div', { class: 'hidden xl:grid gap-3' }, el('div', { class: 'ad-skel h-3 w-20' }), el('div', { class: 'ad-skel h-8 w-28' }), el('div', { class: 'ad-skel h-2 w-full' }))),
+      el('div', { class: 'ad-card p-5' }, el('div', { class: 'ad-skel h-3 w-32 mb-5' }), el('div', { class: 'ad-skel h-[260px] w-full' }))));
+  }
+
+  /* ================================================================ detail drawer: drill down without leaving the page */
+  var DR = { stack: [], node: null, head: null, body: null, lastFocus: null };
+  var DIMNAME = { sup: 'Supervisor', sd: 'SDACM', lang: 'Language', lg: 'Language Group', q: 'Queue', plat: 'Platform' };
+  function openDrawer(spec, push) {
+    hideTip(); closePop();
+    if (!DR.node) {
+      DR.lastFocus = document.activeElement;
+      DR.head = el('div', { class: 'flex items-start gap-2 border-b border-rule px-5 pb-4 pt-4' });
+      DR.body = el('div', { class: 'relative flex-1 overflow-y-auto overscroll-contain px-5 pb-10 pt-4' });
+      DR.node = el('div', { class: 'ad-drawer-wrap', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ad-dr-title' },
+        el('div', { class: 'ad-drawer-back', on: { click: closeDrawer } }), el('aside', { class: 'ad-drawer' }, DR.head, DR.body));
+      $('adhd-root').appendChild(DR.node);
+      document.addEventListener('keydown', drawerKeys, true);
+      DR.stack = [];
+    }
+    if (!push) DR.stack = [];
+    DR.stack.push(spec);
+    drawDrawer();
+  }
+  function closeDrawer() {
+    if (!DR.node) return;
+    var n = DR.node; DR.node = null; DR.stack = []; hideTip();
+    document.removeEventListener('keydown', drawerKeys, true);
+    n.classList.add('ad-drawer-out'); setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, reduced ? 0 : 190);
+    try { if (DR.lastFocus && document.contains(DR.lastFocus)) DR.lastFocus.focus(); } catch (e) {}
+  }
+  function drawerKeys(e) {
+    if (!DR.node) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (DR.stack.length > 1) { DR.stack.pop(); drawDrawer(); } else closeDrawer(); return; }
+    if (e.key !== 'Tab') return;
+    var f = [].filter.call(DR.node.querySelectorAll('button,[href],[tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]) { f[f.length - 1].focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { f[0].focus(); e.preventDefault(); }
+  }
+  function drawDrawer() {
+    var spec = DR.stack[DR.stack.length - 1]; clear(DR.head); clear(DR.body); hideTip(); DR.body.scrollTop = 0;
+    var R = resolveRange(), all = select(R.cf, R.ct), K0 = kpi(sumOf(all));
+    var info = spec.kind === 'agent' ? drawerAgent(spec, R, all, K0) : spec.kind === 'band' ? drawerBand(spec, R, all, K0) : drawerGroup(spec, R, all, K0);
+    if (DR.stack.length > 1) DR.head.appendChild(el('button', { type: 'button', class: 'ad-btn h-8 w-8 flex-none justify-center px-0', 'aria-label': 'Back', title: 'Back', on: { click: function () { DR.stack.pop(); drawDrawer(); } } }, icon('M15 18l-6-6 6-6', 15)));
+    DR.head.appendChild(el('div', { class: 'min-w-0 flex-1 animate-ad-in' },
+      el('div', { class: 'text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted', text: info.kicker }),
+      el('h2', { id: 'ad-dr-title', class: 'mt-0.5 truncate text-[20px] font-extrabold tracking-[-0.02em] text-ink', text: info.title }),
+      el('p', { class: 'mt-0.5 text-[12.5px] text-ink2', text: info.sub })));
+    DR.head.appendChild(el('button', { type: 'button', class: 'ad-btn h-8 w-8 flex-none justify-center px-0', 'aria-label': 'Close details', title: 'Close (Esc)', on: { click: closeDrawer } }, icon(I.x, 15)));
+    var first = DR.head.querySelector('button'); if (first) first.focus();
+  }
+  function drTiles(k, K0) {
+    var d = k.adh !== null && K0.adh !== null ? k.adh - K0.adh : null;
+    var g = el('div', { class: 'grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-rule/70 ring-1 ring-rule/70 animate-ad-in' });
+    function tile(label, value, sub, st) {
+      g.appendChild(el('div', { class: 'bg-surface px-4 py-3' }, el('div', { class: 'text-[12px] font-medium text-ink2', text: label }),
+        el('div', { class: 'mt-0.5 text-[22px] font-bold tracking-[-0.02em] tabular-nums text-ink', text: value }),
+        sub ? el('div', { class: 'mt-0.5 text-[11.5px] font-semibold ' + (st === 'good' ? 'text-good' : st === 'bad' ? 'text-bad' : 'text-muted'), text: sub }) : null));
+    }
+    tile('Adherence' + (P.target ? (k.adh >= P.target ? ' · on target' : ' · off target') : ''), fmt(k.adh, '0.0%'), (P.target && k.adh !== null ? pts(k.adh - P.target) + ' vs target ' + fmt(P.target, '0%') + '; ' : '') + (d === null ? '' : pts(d) + ' vs selection'), P.target && k.adh !== null ? (k.adh >= P.target ? 'good' : 'bad') : (d === null || Math.abs(d) < .0005 ? '' : d > 0 ? 'good' : 'bad'));
+    tile('Minutes out of adherence', fmt(k.o, 'int'), K0.o ? fmt(k.o / K0.o, '0.0%') + ' of all minutes out' : '');
+    tile('Scheduled hours', fmt(k.hours, '#,##0.0'), K0.sm ? fmt(k.sm / K0.sm, '0.0%') + ' of the scheduled time' : '');
+    tile('Conformance', fmt(k.conf, '0.0%'), 'Actual time ÷ scheduled time');
+    return g;
+  }
+  function drSection(title, sub) { return el('section', { class: 'mt-6 animate-ad-in' }, el('h3', { class: 'text-[13.5px] font-bold text-ink', text: title }), sub ? el('p', { class: 'mt-0.5 text-[12px] text-ink2', text: sub }) : null); }
+  function drDaily(facts, K0) {
+    var sec = drSection('Day by day', 'Adherence each day; dashed line = ' + (P.target ? 'target ' + fmt(P.target, '0%') + '. Red dots are below target.' : 'the whole selection (' + fmt(K0.adh, '0.0%') + ').'));
+    var g = groupBy(facts, function (i) { return P.dates[P.f.d[i]]; }), ds = g.keys.slice().sort(), host = el('div', { class: 'relative mt-2' });
+    sec.appendChild(host);
+    requestAnimationFrame(function () { if (ds.length) miniTrend(host, ds.map(function (d) { return { short: fDay(d), title: fDayLong(d) }; }), ds.map(function (d) { return kpi(g.map[d]); }), P.target || K0.adh); });
+    return sec;
+  }
+  function drActs(facts) {
+    var sec = drSection('Where the minutes go', 'Minutes out of adherence by scheduled activity.');
+    var g = groupBy(facts, function (i) { return P.acts[P.f.t[i]]; }), rows = g.keys.map(function (a) { return { label: a, k: kpi(g.map[a]) }; })
+      .filter(function (r) { return r.k.o > 0; }).sort(function (a, b) { return b.k.o - a.k.o; }).slice(0, 8);
+    if (!rows.length) { sec.appendChild(el('p', { class: 'mt-2 text-[12.5px] text-ink2', text: 'No minutes out of adherence.' })); return sec; }
+    var host = el('div', { class: 'relative mt-1' }); sec.appendChild(host);
+    requestAnimationFrame(function () { hBars(host, rows.map(function (r) { return { label: r.label, v: r.k.o, tip: tipRows(r.k) }; }), { max: rows[0].k.o * 1.18, tick: function (t) { return fmt(t, '#,##0'); }, val: function (v) { return fmt(v, 'int'); }, aria: 'Minutes out of adherence by activity' }); });
+    return sec;
+  }
+  function adhCell(v, ref, f) {
+    var wrap = el('span', { class: 'inline-flex items-center justify-end gap-2' }), bar = el('span', { class: 'ad-cellbar', 'aria-hidden': 'true' });
+    var fill = el('span', { class: 'absolute inset-y-0 left-0 rounded-full ' + (P.target && v !== null ? (v >= P.target ? 'bg-good/75' : 'bg-bad/70') : 'bg-s1/75') }), lo = .8;
+    fill.style.width = (v === null || !isFinite(v) ? 0 : Math.max(2, Math.min(1, (v - lo) / (1 - lo)) * 100)).toFixed(1) + '%';
+    bar.appendChild(fill);
+    if (ref !== null && ref !== undefined && isFinite(ref) && ref > lo) { var t = el('span', { class: 'absolute -inset-y-0.5 w-px bg-ink' }); t.style.left = ((ref - lo) / (1 - lo) * 100).toFixed(1) + '%'; bar.appendChild(t); }
+    wrap.appendChild(bar); wrap.appendChild(el('span', { class: 'w-12 text-right tabular-nums', text: fmt(v, f || '0.0%') }));
+    return wrap;
+  }
+  function drPeople(title, facts, K0, order, limit) {
+    var g = groupBy(facts, function (i) { return P.f.a[i]; });
+    var rows = g.keys.map(function (a) { return { a: +a, k: kpi(g.map[a]) }; }).filter(function (r) { return r.k.sm > 0; })
+      .sort(order === 'adh' ? function (x, y) { return x.k.adh - y.k.adh; } : function (x, y) { return y.k.o - x.k.o; });
+    var sec = drSection(title + ' (' + rows.length + ')', order === 'adh' ? 'Lowest adherence first. Select one for details.' : 'Most minutes out of adherence first. Select one for details.');
+    var list = el('div', { class: 'mt-2 overflow-hidden rounded-xl ring-1 ring-rule' }), n = limit || 12;
+    list.appendChild(el('div', { class: 'flex items-center gap-3 bg-raised px-3 py-2 text-[11.5px] font-semibold text-ink2' }, el('span', { class: 'flex-1', text: 'Interpreter' }), el('span', { class: 'w-20 text-right', text: 'Min. out' }), el('span', { class: 'w-[136px] text-right', text: 'Adherence' })));
+    rows.slice(0, n).forEach(function (r) {
+      list.appendChild(el('button', { type: 'button', class: 'ad-dr-row', on: { click: function () { openDrawer({ kind: 'agent', a: r.a }, true); } } },
+        el('span', { class: 'min-w-0 flex-1 truncate text-left font-medium text-ink', text: P.agents[r.a].name }),
+        el('span', { class: 'w-20 text-right tabular-nums text-ink2', text: fmt(r.k.o, 'int') }), el('span', { class: 'w-[136px]' }, adhCell(r.k.adh, P.target || K0.adh))));
+    });
+    if (rows.length > n) list.appendChild(el('div', { class: 'bg-raised px-3 py-2 text-[12px] text-ink2', text: (rows.length - n) + ' more in the Interpreter tab.' }));
+    sec.appendChild(list);
+    return sec;
+  }
+  function drActions(btns) { return el.apply(null, ['div', { class: 'mt-5 flex flex-wrap gap-2 animate-ad-in' }].concat(btns)); }
+  function drLink(text, spec) { return el('button', { type: 'button', class: 'ad-link text-left', text: text, on: { click: function () { openDrawer(spec, true); } } }); }
+  function rankOf(all, keyFn, value, v) {
+    var g = groupBy(all, keyFn), list = g.keys.filter(function (x) { return x !== '(blank)'; }).map(function (x) { return kpi(g.map[x]); }).filter(function (q) { return q.sm > 0; });
+    return { rank: v === null ? null : list.filter(function (q) { return q.adh > v + 1e-12; }).length + 1, of: list.length };
+  }
+  function drawerAgent(spec, R, all, K0) {
+    var a = spec.a, ag = P.agents[a], facts = all.filter(function (i) { return P.f.a[i] === a; }), k = kpi(sumOf(facts));
+    var rk = rankOf(all, function (i) { return P.f.a[i]; }, a, k.adh);
+    if (!facts.length) DR.body.appendChild(el('p', { class: 'rounded-xl bg-canvas px-4 py-3 text-[13px] text-ink2', text: 'No scheduled time for ' + ag.name + ' in this selection. Change the period or remove a filter.' }));
+    else {
+      DR.body.appendChild(drTiles(k, K0));
+      if (rk.rank) DR.body.appendChild(el('p', { class: 'mt-3 text-[12.5px] text-ink2' }, 'Ranks ', el('b', { class: 'text-ink', text: rk.rank + ' of ' + rk.of }), ' interpreters by adherence in this selection (top ' + Math.max(1, Math.round(rk.rank / rk.of * 100)) + '%).'));
+      DR.body.appendChild(drDaily(facts, K0));
+      DR.body.appendChild(drActs(facts));
+    }
+    var prof = drSection('Profile', 'From the Roster Database.'), dl = el('dl', { class: 'mt-2 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[13px]' });
+    function row(t, v) { dl.appendChild(el('dt', { class: 'text-ink2', text: t })); dl.appendChild(el('dd', { class: 'min-w-0 font-semibold text-ink' }, typeof v === 'string' ? document.createTextNode(v) : v)); }
+    row('Nice ID', String(ag.id)); row('Queue', ag.q || '—');
+    [['sup', 'Supervisor'], ['sd', 'SDACM'], ['lang', 'Language'], ['lg', 'Language Group']].forEach(function (x) { var v = ag[x[0]]; row(x[1], v && v !== '(blank)' ? drLink(v, { kind: 'group', dim: x[0], value: v }) : '—'); });
+    row('Platform', ag.plat || '—');
+    prof.appendChild(dl); DR.body.appendChild(prof);
+    DR.body.appendChild(drActions([el('button', { type: 'button', class: 'ad-btn-primary h-9', on: { click: function () { setFilter('agent', ag.id); closeDrawer(); render(); } } }, icon(I.filter || I.check, 14), el('span', { text: 'Show only ' + ag.name.split(',')[0] }))]));
+    return { kicker: 'Interpreter' + (ag.q && ag.q !== '(blank)' ? ' · ' + ag.q : ''), title: ag.name, sub: rangeText(R) + (rk.rank ? ' · rank ' + rk.rank + ' of ' + rk.of : '') };
+  }
+  function drawerGroup(spec, R, all, K0) {
+    var dim = spec.dim, val = spec.value, keyFn = function (i) { return AV[dim][P.f.a[i]]; }, facts = all.filter(function (i) { return keyFn(i) === val; }), k = kpi(sumOf(facts));
+    var rk = rankOf(all, keyFn, val, k.adh);
+    if (!facts.length) DR.body.appendChild(el('p', { class: 'rounded-xl bg-canvas px-4 py-3 text-[13px] text-ink2', text: 'No scheduled time for ' + val + ' in this selection.' }));
+    else {
+      DR.body.appendChild(drTiles(k, K0));
+      if (rk.rank && rk.of > 1) DR.body.appendChild(el('p', { class: 'mt-3 text-[12.5px] text-ink2' }, 'Ranks ', el('b', { class: 'text-ink', text: rk.rank + ' of ' + rk.of }), ' ' + DIMNAME[dim].toLowerCase() + (rk.of === 1 ? '' : 's') + ' by adherence in this selection.'));
+      DR.body.appendChild(drDaily(facts, K0));
+      DR.body.appendChild(drPeople('Interpreters', facts, K0, 'o', 12));
+      DR.body.appendChild(drActs(facts));
+    }
+    var btns = [el('button', { type: 'button', class: 'ad-btn-primary h-9', on: { click: function () { setFilter(dim, val); closeDrawer(); render(); } } }, el('span', { text: 'Filter the dashboard to ' + val }))];
+    var next = { sd: 'sup', sup: 'agent', lang: 'agent', lg: 'lang' }[dim];
+    if (next) btns.push(el('button', { type: 'button', class: 'ad-btn h-9', on: { click: function () { setFilter(dim, val); S.view = next; store('view', next); closeDrawer(); render(); } } }, el('span', { text: 'Show its ' + ({ sup: 'supervisors', agent: 'interpreters', lang: 'languages' }[next]) + ' table' })));
+    DR.body.appendChild(drActions(btns));
+    return { kicker: DIMNAME[dim], title: val, sub: rangeText(R) + ' · ' + fmt(groupBy(facts, function (i) { return P.f.a[i]; }).keys.length, 'int') + ' interpreters' };
+  }
+  function drawerBand(spec, R, all, K0) {
+    var per = groupBy(all, function (i) { return P.f.a[i]; }), inBand = {};
+    per.keys.forEach(function (a) { var q = kpi(per.map[a]); if (q.sm > 0 && q.adh >= spec.lo && q.adh < spec.hi) inBand[a] = 1; });
+    var facts = all.filter(function (i) { return inBand[P.f.a[i]]; }), k = kpi(sumOf(facts));
+    DR.body.appendChild(drTiles(k, K0));
+    DR.body.appendChild(drPeople('Interpreters', facts, K0, 'adh', 40));
+    return { kicker: 'Adherence band', title: spec.label + ' adherence', sub: rangeText(R) + ' · ' + Object.keys(inBand).length + ' interpreters' };
+  }
+  /** Small single-series line (drawer): adherence per day, reference line, hover/keyboard tooltip. */
+  function miniTrend(host, labels, ks, ref) {
+    var W = Math.max(280, host.clientWidth || 500), H = 168, left = 44, right = 14, top = 12, bot = 26, plotW = W - left - right, plotH = H - top - bot, n = labels.length;
+    var vals = ks.map(function (k) { return k.adh; }), ok = vals.filter(function (v) { return v !== null && isFinite(v); }).concat(ref !== null && isFinite(ref) ? [ref] : []);
+    var lo = Math.min.apply(null, ok), hi = Math.max.apply(null, ok), sp = (hi - lo) || .02; lo = Math.max(0, lo - sp * .2); hi = Math.min(1, hi + sp * .2); if (hi <= lo) hi = lo + .01;
+    var tt = ticks(lo, hi, 3), y0 = tt[0], y1 = tt[tt.length - 1], x = function (j) { return left + (n === 1 ? plotW / 2 : plotW * j / (n - 1)); }, y = function (v) { return top + plotH - (v - y0) / ((y1 - y0) || 1) * plotH; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': 'Adherence by day' });
+    tt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: 'rgb(var(--ad-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end', 'font-size': 10.5, fill: 'rgb(var(--ad-muted))', text: pctTick(t, y1 - y0) })); });
+    if (ref !== null && isFinite(ref)) svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(ref), y2: y(ref), stroke: 'rgb(var(--ad-ink2))', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }));
+    var d = '', pen = false; vals.forEach(function (v, j) { if (v === null || !isFinite(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + x(j).toFixed(1) + ',' + y(v).toFixed(1); pen = true; });
+    if (d) { var path = sv('path', { d: d, fill: 'none', stroke: 'rgb(var(--ad-s1))', 'stroke-width': 2.25, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }); svg.appendChild(path); drawLine(path); }
+    vals.forEach(function (v, j) { if (v !== null && isFinite(v)) svg.appendChild(sv('circle', { cx: x(j), cy: y(v), r: n > 20 ? 2.2 : 3, fill: 'rgb(var(--ad-surface))', stroke: v < ref ? 'rgb(var(--ad-bad))' : 'rgb(var(--ad-s1))', 'stroke-width': 1.75 })); });
+    var every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 58))));
+    labels.forEach(function (l, j) { if (j % every === 0 || j === n - 1) svg.appendChild(sv('text', { x: x(j), y: H - 7, 'text-anchor': j === 0 && n > 1 ? 'start' : j === n - 1 && n > 1 ? 'end' : 'middle', 'font-size': 10.5, fill: 'rgb(var(--ad-muted))', text: l.short })); });
+    var cross = sv('line', { y1: top, y2: top + plotH, stroke: 'rgb(var(--ad-ink2) / .35)', 'stroke-width': 1, visibility: 'hidden' }); svg.appendChild(cross);
+    var cur = -1;
+    function at(j) { j = Math.max(0, Math.min(n - 1, j)); cur = j; cross.setAttribute('x1', x(j)); cross.setAttribute('x2', x(j)); cross.setAttribute('visibility', 'visible'); showTip(host, x(j) * host.clientWidth / W, 30, labels[j].title, tipRows(ks[j])); }
+    var hit = sv('rect', { x: left - 6, y: 0, width: plotW + 12, height: H, fill: 'transparent', tabindex: 0, 'aria-label': 'Adherence by day. Use the arrow keys to read each day.' });
+    hit.addEventListener('pointermove', function (e) { var r = svg.getBoundingClientRect(); at(Math.round(((e.clientX - r.left) * W / r.width - left) / (n === 1 ? 1 : plotW / (n - 1)))); });
+    function leave() { cross.setAttribute('visibility', 'hidden'); hideTip(); }
+    hit.addEventListener('pointerleave', leave); hit.addEventListener('blur', leave);
+    hit.addEventListener('keydown', function (e) { if (e.key === 'ArrowLeft') { at(cur < 0 ? n - 1 : cur - 1); e.preventDefault(); } else if (e.key === 'ArrowRight') { at(cur < 0 ? 0 : cur + 1); e.preventDefault(); } });
+    svg.appendChild(hit);
+    host.appendChild(svg);
+  }
+
+  /* ================================================================ render */
+  function renderBody(keepPop) {
+    hideTip(); if (!keepPop) closePop();
+    var root = $('ad-view'); clear(root); renderChips();
+    if (!P) return;
+    if (!P.dates.length && S.view !== 'health') {
+      root.appendChild(emptyState('No adherence data yet', P.canRun ? 'Press Start automation to load this month from NICE. It takes about a minute.' : 'Nothing has been loaded from NICE yet. Ask an RTM, Manager or Admin to run the automation.',
+        P.canRun ? el('button', { type: 'button', class: 'ad-btn-primary mt-4', on: { click: startRun } }, icon(I.play, 14), el('span', { text: 'Start automation' })) : null));
+      return;
+    }
+    if (S.view === 'health') { viewHealth(root); return; }
+    var R = resolveRange();
+    $('ad-sub').textContent = rangeText(R) + (hasAnyFilter() ? ', filtered' : '') + '. Schedule adherence from NICE WFM, by queue, team and interpreter.';
+    if (R.n < 1) { root.appendChild(emptyState('No data in this period', 'Data is loaded from ' + fDayLong(dataMin()) + ' to ' + fDayLong(dataMax()) + '. Pick another period.')); return; }
+    if (S.view === 'act') { viewActivities(root, R); return; }
+    var idx = select(R.cf, R.ct);
+    if (!idx.length) { root.appendChild(emptyState('Nothing matches these filters', 'Remove a filter or choose a longer period.')); return; }
+    if (S.view === 'overview') viewOverview(root, R, idx); else viewTable(root, R, idx, S.view);
+  }
+  function hasAnyFilter() { return DIMS.some(function (d) { return hasAny(S.filt[d.k]); }); }
+  function render() { if (!P) return; passCache = null; closePop(); renderFilters(); renderTabs(); renderBody(); }
+
+  function updatedText() {
+    var n = $('ad-updated'), d = $('ad-dot'), ping = $('ad-ping');
+    if (!P || !P.lastLoad) { n.textContent = P ? 'Not loaded yet' : 'Loading data…'; d.className = 'relative inline-flex h-2 w-2 rounded-full bg-warn'; ping.className = 'hidden'; return; }
+    var mins = Math.round((Date.now() - P.lastLoad) / 60000), lastDay = dataMax(), behind = lastDay && P.today ? diffDays(lastDay, P.today) : 0, stale = behind > 1 && !(P.plan && !P.plan.ok);
+    n.textContent = 'Loaded ' + (mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : mins < 2880 ? Math.round(mins / 60) + ' h ago' : Math.round(mins / 1440) + ' days ago') + (lastDay ? ' · data to ' + fDay(lastDay) : '');
+    d.className = 'relative inline-flex h-2 w-2 rounded-full ' + (stale ? 'bg-warn' : 'bg-good');
+    ping.className = stale ? 'hidden' : 'absolute inline-flex h-full w-full rounded-full bg-good opacity-60 animate-ping';
+    $('ad-status').title = stale ? 'The data ends ' + behind + ' days before today. Press Start automation to bring it up to yesterday.' : 'Data is up to date (through yesterday).';
+  }
+
+  /* ================================================================ server */
+  function gs(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (ok, fail) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[name].apply(r, args); });
+  }
+  function msg(text, kind) {
+    var m = $('ad-msg'); clear(m); if (!text) return;
+    m.appendChild(el('div', { class: 'animate-ad-in rounded-xl px-4 py-3 text-[13px] ring-1 ' + (kind === 'bad' ? 'bg-bad-bg text-bad ring-bad/30' : 'bg-accent/10 text-ink ring-accent/25'), role: kind === 'bad' ? 'alert' : 'status', text: text }));
+  }
+  function load() {
+    if (loading) return Promise.resolve(); loading = true;
+    if (!P) skeleton(); else $('ad-view').classList.add('opacity-60');
+    return gs('getAdherenceDashboardData').then(function (res) {
+      msg(''); stamp = res.stamp; prep(res.payload); $('ad-run-btn').hidden = !P.canRun; render(); updatedText();
+    }).catch(function (e) {
+      var t = (e && e.message) || String(e);
+      msg(/permission|access|not found|denied|not set up/i.test(t) ? 'The dashboard could not read the Adherence Data spreadsheet: ' + t : 'The dashboard could not load: ' + t, 'bad');
+      if (!P) clear($('ad-view'));
+    }).then(function () { loading = false; $('ad-view').classList.remove('opacity-60'); });
+  }
+  function poll() {
+    if (!shown || document.hidden || loading || RUN.active) return;
+    gs('getAdherenceDashboardStamp').then(function (r) { if (r && r.stamp !== stamp) load(); else updatedText(); }).catch(function () {});
+  }
+
+  /* ================================================================ NICE bridge (WFM NICE Connector extension) */
+  /*
+   * The page talks to the extension's content script with window.postMessage (same window, no network):
+   *   page → ext: { __wfmNice: 1, dir: 'page', type: 'hello' | 'run' | 'cancel', id, job }
+   *   ext → page: { __wfmNice: 1, dir: 'ext',  type: 'ready' | 'progress' | 'result' | 'error', id, ... }
+   * The extension uses the teammate's own NICE session in a background tab; this page never sees NICE cookies.
+   */
+  var NICE = (function () {
+    var waiters = {}, seq = 0;
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (e.source !== window || !d || d.__wfmNice !== 1 || d.dir !== 'ext') return;
+      var w = waiters[d.id]; if (!w) return;
+      if (d.type === 'progress') { if (w.onProgress) w.onProgress(d); return; }
+      delete waiters[d.id];
+      if (d.type === 'error') w.fail(d); else w.ok(d);
+    });
+    function post(m) { m.__wfmNice = 1; m.dir = 'page'; window.postMessage(m, '*'); }
+    return {
+      hello: function (ms) {
+        var id = 'h' + (++seq);
+        return new Promise(function (ok) {
+          var t = setTimeout(function () { delete waiters[id]; ok(null); }, ms || 1200);
+          waiters[id] = { ok: function (d) { clearTimeout(t); ok(d); }, fail: function () { clearTimeout(t); ok(null); } };
+          post({ type: 'hello', id: id });
+        });
+      },
+      run: function (job, onProgress) {
+        var id = 'r' + Date.now() + '_' + (++seq);
+        var p = new Promise(function (ok, fail) { waiters[id] = { ok: ok, fail: fail, onProgress: onProgress }; post({ type: 'run', id: id, job: job }); });
+        p.id = id; return p;
+      },
+      cancel: function (id) { post({ type: 'cancel', id: id }); }
+    };
+  })();
+
+  /* ================================================================ Start automation */
+  var STEPS = [
+    ['connector', 'Connect to NICE', 'Finding the WFM NICE Connector in this browser'],
+    ['session', 'Use your NICE session', 'Opening NICE WebStation in a background tab'],
+    ['generate', 'Generate the report', 'Adherence · MU set 6 FG · details by agent and day'],
+    ['wait', 'Wait for NICE', 'NICE prepares the report (usually under a minute)'],
+    ['download', 'Download the data', 'CSV from View Reports'],
+    ['save', 'Save to the sheet', 'Replacing these dates in Raw Data; lookups refresh by themselves'],
+    ['refresh', 'Refresh the dashboard', '']
+  ];
+  var RUN = { active: false, state: {}, text: {}, id: null, plan: null, t0: 0, timer: null };
+  function startRun() {
+    if (RUN.active) return;
+    if (P && P.plan && !P.plan.ok) { showRun(); setStep('connector', 'blocked', P.plan.message); RUN.active = false; finish(false, P.plan.message, true); return; }
+    RUN.active = true; RUN.state = {}; RUN.text = {}; RUN.t0 = Date.now(); RUN.plan = null; RUN.id = null; RUN.result = null; RUN.error = null;
+    $('ad-run-btn').disabled = true; showRun();
+    clearInterval(RUN.timer); RUN.timer = setInterval(drawRun, 1000);
+    setStep('connector', 'active');
+    NICE.hello(1500).then(function (info) {
+      if (!info) { setStep('connector', 'error', 'The WFM NICE Connector extension is not installed or not enabled in this browser.'); RUN.missing = true; return finish(false, 'Install the WFM NICE Connector (one time), reload this page, and press Start automation again.'); }
+      setStep('connector', 'done', 'Connector ' + (info.version || '') + ' ready');
+      return gs('adhStartRun').then(function (plan) {
+        if (!plan.ok) { setStep('session', 'blocked', plan.message); return finish(false, plan.message, true); }
+        RUN.plan = plan;
+        setStep('session', 'active', 'Period: ' + plan.label + ' (' + plan.days + ' days)');
+        var t0 = Date.now(), job = plan.job; job.runId = plan.runId;
+        var p = NICE.run(job, onProgress); RUN.id = p.id;
+        return p.then(function (res) {
+          ['session', 'generate', 'wait'].forEach(function (s) { if (RUN.state[s] !== 'done') setStep(s, 'done'); });
+          setStep('download', 'done', fmt(res.bytes || (res.csv || '').length, 'int') + ' bytes from NICE report ' + ((res.report && res.report.generated) || ''));
+          setStep('save', 'active');
+          return gs('adhSaveReport', plan.runId, res.csv, { reportOid: res.report && res.report.oid, niceSeconds: Math.round((Date.now() - t0) / 1000) }).then(function (s) {
+            RUN.result = s;
+            setStep('save', s.status === 'OK' ? 'done' : 'warn', fmt(s.rows, 'int') + ' rows saved for ' + s.label + (s.unmapped ? '; ' + fmt(s.unmapped, 'int') + ' rows not in the Database' : '') + (s.status !== 'OK' ? '. ' + s.message : ''));
+            setStep('refresh', 'active');
+            loading = false;
+            return load().then(function () { setStep('refresh', 'done'); finish(true, 'Done: ' + s.label + ' loaded from NICE in ' + Math.round((Date.now() - RUN.t0) / 1000) + ' s.'); });
+          });
+        }, function (err) {
+          var stage = err && err.stage || 'nice', text = (err && (err.message || err.error)) || 'The connector stopped.';
+          var stepId = { login: 'session', session: 'session', generate: 'generate', wait: 'wait', download: 'download', cancelled: RUN.cur || 'generate' }[stage] || (RUN.cur || 'generate');
+          setStep(stepId, stage === 'cancelled' ? 'blocked' : 'error', text);
+          gs('adhReportRunFailure', plan.runId, stage, text).catch(function () {});
+          finish(false, stage === 'cancelled' ? 'Stopped. Nothing was changed in the sheet.' : 'Nothing was changed in the sheet. ' + hintFor(stage, err && err.code));
+        });
+      });
+    }).catch(function (e) {
+      var t = (e && e.message) || String(e);
+      setStep(RUN.cur || 'save', 'error', t);
+      if (RUN.plan) gs('adhReportRunFailure', RUN.plan.runId, 'app', t).catch(function () {});
+      finish(false, /Nothing was changed/.test(t) ? '' : 'The sheet was not changed unless a step above says so.');
+    });
+  }
+  function hintFor(stage, code) {
+    var byCode = { BUSY: 'Another NICE automation is running in this browser; wait for it to finish.', FORM_CHANGED: 'NICE seems to have changed its report form. Send this message to the app owner.', TAB_CLOSED: 'The NICE tab was closed during the run; press Start automation again and leave it open.', APPROVAL: 'Press Start automation again and choose Allow in the connector window.' };
+    if (code && byCode[code]) return byCode[code];
+    return { login: 'Sign in to NICE in the tab the connector opened, then press Start automation again.', generate: 'NICE did not accept the report request; try again, and tell the app owner if it keeps failing (NICE may have changed the form).',
+             wait: 'NICE took too long to prepare the report. Try again in a few minutes.', download: 'The report could not be downloaded. Try again.' }[stage] || 'Try again in a minute.';
+  }
+  function onProgress(d) {
+    var map = { session: 'session', login: 'session', generate: 'generate', wait: 'wait', download: 'download' }, s = map[d.stage];
+    if (!s) return;
+    var order = STEPS.map(function (x) { return x[0]; }), ix = order.indexOf(s);
+    order.slice(1, ix).forEach(function (p) { if (RUN.state[p] !== 'done') setStep(p, 'done'); });
+    setStep(s, d.stage === 'login' ? 'login' : 'active', d.text);
+  }
+  function setStep(id, state, text) { RUN.state[id] = state; if (text !== undefined) RUN.text[id] = text; if (state === 'active' || state === 'login') RUN.cur = id; drawRun(); }
+  function finish(ok, text, quiet) {
+    RUN.active = false; RUN.done = { ok: ok, text: text, quiet: quiet }; clearInterval(RUN.timer); $('ad-run-btn').disabled = false; drawRun();
+  }
+  function showRun() { var box = $('ad-run'); box.hidden = false; drawRun(); }
+  function drawRun() {
+    var box = $('ad-run'); if (box.hidden) return; clear(box);
+    var secs = Math.round((Date.now() - RUN.t0) / 1000), D = RUN.done && !RUN.active ? RUN.done : null;
+    var head = el('div', { class: 'flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3' },
+      el('div', { class: 'min-w-0' }, el('h2', { class: 'text-[15px] font-bold text-ink', text: RUN.active ? 'Loading adherence from NICE…' : D && D.ok ? 'Adherence loaded' : 'Automation stopped' }),
+        el('p', { class: 'mt-0.5 text-[12.5px] text-ink2', text: RUN.plan ? RUN.plan.label + ' · ' + (RUN.active ? secs + ' s' : '') : (RUN.active ? secs + ' s' : '') })),
+      el('div', { class: 'flex items-center gap-2' },
+        RUN.active && RUN.id ? el('button', { type: 'button', class: 'ad-btn h-8', text: 'Stop', on: { click: function () { NICE.cancel(RUN.id); } } }) : null,
+        !RUN.active ? el('button', { type: 'button', class: 'ad-btn h-8', text: 'Close', on: { click: function () { $('ad-run').hidden = true; RUN.done = null; } } }) : null,
+        !RUN.active && D && !D.ok && !D.quiet ? el('button', { type: 'button', class: 'ad-btn-primary h-8', on: { click: startRun } }, icon(I.refresh, 13), el('span', { text: 'Try again' })) : null));
+    var list = el('ol', { class: 'grid gap-px px-5 pb-4 sm:grid-cols-2 xl:grid-cols-7 xl:gap-3' });
+    STEPS.forEach(function (s, k) {
+      var st = RUN.state[s[0]] || 'todo', t = RUN.text[s[0]] || s[2];
+      var mark = st === 'done' ? el('span', { class: 'ad-step-dot bg-good text-accent-ink ring-good' }, icon(I.check, 13))
+        : st === 'error' ? el('span', { class: 'ad-step-dot bg-bad text-accent-ink ring-bad' }, icon(I.x, 13))
+        : st === 'warn' || st === 'blocked' || st === 'login' ? el('span', { class: 'ad-step-dot bg-warn text-accent-ink ring-warn' }, icon(st === 'login' ? I.ext : I.alert, 13))
+        : st === 'active' ? el('span', { class: 'ad-step-dot ring-accent text-accent' }, el('span', { class: 'h-3 w-3 rounded-full border-2 border-accent border-t-transparent animate-spin' }))
+        : el('span', { class: 'ad-step-dot text-[11px] font-bold', text: String(k + 1) });
+      list.appendChild(el('li', { class: 'flex gap-2.5 py-2 ' + (st === 'todo' ? 'opacity-60' : '') }, mark,
+        el('div', { class: 'min-w-0' }, el('div', { class: 'text-[12.5px] font-semibold ' + (st === 'error' ? 'text-bad' : 'text-ink'), text: s[1] }), el('div', { class: 'mt-0.5 text-[11.5px] leading-snug ' + (st === 'error' ? 'text-bad' : st === 'login' ? 'text-warn font-semibold' : 'text-ink2'), text: t }))));
+    });
+    var bar = el('div', { class: 'h-1 overflow-hidden rounded-t-xl2 bg-canvas' }, el('div', { class: 'h-full bg-accent transition-[width] duration-700 ease-soft', style: 'width:' + (STEPS.filter(function (s) { return RUN.state[s[0]] === 'done'; }).length / STEPS.length * 100).toFixed(0) + '%' }));
+    var c = el('section', { class: 'ad-card overflow-hidden animate-ad-in', 'aria-label': 'Start automation progress', 'aria-live': 'polite' }, bar, head, list);
+    if (RUN.missing && !RUN.active) c.appendChild(el('div', { class: 'mx-5 mb-4 rounded-xl bg-canvas px-4 py-3 text-[12.5px] leading-relaxed text-ink2 ring-1 ring-rule' },
+      el('b', { class: 'block text-ink', text: 'One-time setup on this computer' }),
+      '1. Install "WFM NICE Connector" (ask the app owner for the install link or the folder). 2. Pin it, open NICE WebStation once and sign in as usual. 3. Reload this page and press Start automation. ' +
+      'The first time, the connector asks you to allow this app; choose Allow.'));
+    if (D && D.text) c.appendChild(el('p', { class: 'mx-5 mb-4 text-[12.5px] font-medium ' + (D.ok ? 'text-good' : 'text-ink2'), text: D.text }));
+    box.appendChild(c);
+  }
+
+  /* ================================================================ boot */
+  function boot() {
+    layer = $('ad-layer');
+    document.addEventListener('click', function () { if (S.open) { closePop(); if (P) renderFilters(); } });
+    document.addEventListener('keydown', function (e) { if (e.key !== 'Escape' || !S.open) return; var id = popAnchor && popAnchor.id; closePop(); if (P) renderFilters(); var a = id && $(id); if (a) a.focus(); });
+    var lastW = window.innerWidth;
+    window.addEventListener('resize', function () { if (window.innerWidth === lastW) return; lastW = window.innerWidth; closePop(); clearTimeout(boot._rz); boot._rz = setTimeout(function () { if (shown && P && S.view === 'overview') renderBody(); }, 160); });
+    window.addEventListener('scroll', function (e) { if (S.open && !(e.target && e.target.closest && e.target.closest('.ad-pop'))) { closePop(); if (P) renderFilters(); } }, true);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && shown) poll(); });
+    $('ad-run-btn').addEventListener('click', startRun);
+    setInterval(function () { if (shown && P) updatedText(); }, 60000);
+  }
+  boot();
+
+  var API = {
+    show: function () { shown = true; if (!P) load(); else { poll(); if (S.view === 'overview') renderBody(); } if (!pollTimer) pollTimer = setInterval(poll, 5 * 60 * 1000); },
+    hide: function () { shown = false; hideTip(); closePop(); },
+    setRole: function (r) { role = r || ''; },
+    // used by the automated tests
+    _t: { S: S, kpi: kpi, select: select, sumOf: sumOf, resolve: resolveRange, data: function () { return P; }, render: render, tableRows: tableRows, TABLES: TABLES, fmt: fmt, startRun: startRun, NICE: NICE, RUN: RUN, prep: prep }
+  };
+  window.ADHD_UI = API;
+  (window.WFM_DASH_QUEUE = window.WFM_DASH_QUEUE || []).push({
+    id: 'adherence', title: 'Adherence', viewId: 'view-dash-adherence',
+    icon: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+    onShow: API.show, onHide: API.hide, onRole: API.setRole
+  });
+  if (window.WFM_Dashboards) window.WFM_Dashboards.drain();
+})();
+</script>

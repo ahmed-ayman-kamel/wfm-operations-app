@@ -1,0 +1,2544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WFM Operations App</title>
+  <?!= include_('ApiShim') ?>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?!= include_('Styles') ?>
+</head>
+<body>
+
+  <!-- Animated gradient mesh (decorative) -->
+  <div class="mesh" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span>
+    <svg class="wave" viewBox="0 0 2880 200" preserveAspectRatio="none">
+      <path d="M0 110 C 240 30, 480 190, 720 110 S 1200 30, 1440 110 S 1920 190, 2160 110 S 2640 30, 2880 110 L2880 200 L0 200 Z"/>
+    </svg>
+  </div>
+
+  <!-- TOP HEADER -->
+  <header class="top-header">
+    <div class="header-left">
+      <button class="btn-sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle navigation menu">&#9776;</button>
+      <div class="brand-section">
+        <div class="brand-logo">FG</div>
+        <div class="brand-title">WFM Operations App</div>
+      </div>
+      <div class="header-breadcrumb">
+        <span>Operations</span>
+        <span>/</span>
+        <span class="current" id="breadcrumb-title">RTM Handover</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="sync-indicator">
+        <div class="sync-spinner" id="sync-spinner"></div>
+        <span id="sync-label">Synced</span>
+      </div>
+
+      <!-- Export to CSV Dropdown -->
+      <div class="export-dropdown-container" id="export-dropdown-container" style="display: none;">
+        <button class="btn-header-action" id="btn-export-trigger" onclick="toggleExportMenu(event)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="export-btn-text">Export CSV</span>
+          <span style="font-size: 8px; margin-left: 2px;">▼</span>
+        </button>
+        <div class="export-dropdown-menu" id="export-dropdown-menu">
+          <div class="export-menu-header">Raw Data Sources</div>
+          <button class="export-menu-item" onclick="triggerRawCsvExport('tickets')">
+            <span style="font-size: 16px;">🎫</span>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span style="font-weight:600; font-size:12px;">Tickets Database</span>
+              <span style="font-size:10px; color:var(--text-muted);">All issues, tasks & flags (raw)</span>
+            </div>
+          </button>
+          <button class="export-menu-item" onclick="triggerRawCsvExport('ticket_activity')">
+            <span style="font-size: 16px;">🕘</span>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span style="font-weight:600; font-size:12px;">Ticket Activity Log</span>
+              <span style="font-size:10px; color:var(--text-muted);">Comments and every ticket change</span>
+            </div>
+          </button>
+          <button class="export-menu-item" onclick="triggerRawCsvExport('todo')">
+            <span style="font-size: 16px;">📋</span>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span style="font-weight:600; font-size:12px;">RTM Handover Log</span>
+              <span style="font-size:10px; color:var(--text-muted);">All historical shifts & handovers</span>
+            </div>
+          </button>
+          <button class="export-menu-item" onclick="triggerRawCsvExport('shift_closures')">
+            <span style="font-size: 16px;">🏁</span>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span style="font-weight:600; font-size:12px;">Shift Closures Log</span>
+              <span style="font-size:10px; color:var(--text-muted);">Shift lock records & handover logs</span>
+            </div>
+          </button>
+          <button class="export-menu-item" onclick="triggerRawCsvExport('master_tasks')">
+            <span style="font-size: 16px;">⚙️</span>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span style="font-weight:600; font-size:12px;">Daily Tasks Master</span>
+              <span style="font-size:10px; color:var(--text-muted);">Recurring shift task templates</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn-header-action" id="btn-theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle Dark/Light Mode">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-text">Dark</span>
+      </button>
+
+      <span class="role-badge" id="user-role-badge">RTM</span>
+      <div class="user-profile">
+        <span id="user-email-display" style="font-weight: 500; font-size: 12px; color: rgba(255,255,255,0.85);"></span>
+        <div class="avatar" id="user-avatar">U</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ACCESS DENIED -->
+  <div id="access-denied-screen">
+    <div class="access-card">
+      <div style="font-size: 36px; margin-bottom: 16px;">🔒</div>
+      <h2 style="margin-bottom: 8px;">Access Authorization Required</h2>
+      <p style="color: var(--text-secondary); margin-bottom: 20px;">Your account is not registered in the Roles directory for WFM Operations App.</p>
+      <div id="denied-user-email" style="background: var(--border-subtle); padding: 10px; border-radius: 4px; font-weight: 600; margin-bottom: 20px;"></div>
+      <button class="btn-primary" onclick="location.reload()">Re-check Access</button>
+    </div>
+  </div>
+
+  <!-- APPLICATION WORKSPACE -->
+  <div id="app-container">
+    <aside class="sidebar">
+      <nav class="nav-list" aria-label="Main">
+        <div class="nav-item" id="nav-assistant" onclick="switchModule('assistant')" tabindex="0" role="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9Z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9Z"/></svg>
+          <span>Personal Assistant</span>
+        </div>
+        <div class="nav-item active" id="nav-todo" onclick="switchModule('todo')" tabindex="0" role="button" aria-current="page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 0 1-2-2V5a2 2 0 012-2h11"/></svg>
+          <span>RTM Handover</span>
+        </div>
+        <div class="nav-item" id="nav-tickets" onclick="switchModule('tickets')" tabindex="0" role="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+          <span>Tickets</span>
+        </div>
+        <div class="nav-item" id="nav-reporting" onclick="switchModule('reporting')" tabindex="0" role="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>Reporting</span>
+        </div>
+        <!-- DASHBOARDS: filled by Dashboards_HTML.html with the dashboards this person may open (hidden when none). -->
+        <div id="nav-dashboards" hidden></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="status-dot"></div>
+        <span>DB Connected</span>
+      </div>
+    </aside>
+
+    <main class="main-workspace">
+      <div class="content-container">
+
+        <!-- Shown only when this person did not grant the app every Google permission (see Auth.gs). -->
+        <div id="perm-banner" class="notice notice-warn" role="alert" style="display:none; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+          <div style="display:flex; flex-direction:column; gap:3px; min-width:0;">
+            <strong id="perm-banner-title">One Google permission is missing for your account</strong>
+            <span id="perm-banner-text" style="font-weight:600;"></span>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn-primary" id="perm-banner-grant">Grant permissions</button>
+            <button type="button" class="btn-secondary" onclick="location.reload()">Reload after granting</button>
+          </div>
+        </div>
+        
+        <!-- MODULE 1: TO-DO -->
+        <div id="view-todo" class="page-view">
+          <div class="metric-strip" id="todo-metric-strip">
+            <div class="metric-box">
+              <span class="metric-title">Shift Progress</span>
+              <span class="metric-val" id="todo-metric-progress">&mdash;</span>
+              <div class="progress-track"><div class="progress-fill" id="todo-progress-bar"></div></div>
+            </div>
+            <div class="metric-box">
+              <span class="metric-title">Completed</span>
+              <span class="metric-val" id="todo-metric-done" style="color: var(--status-completed-text);">0</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-title">Pending</span>
+              <span class="metric-val" id="todo-metric-pending" style="color: var(--status-pending-text);">0</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-title">Unassigned</span>
+              <span class="metric-val" id="todo-metric-unassigned">0</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-title">Assigned to me</span>
+              <span class="metric-val" id="todo-metric-mine" style="color: var(--primary-blue);">0</span>
+            </div>
+          </div>
+
+          <div class="filter-card">
+            <div class="filter-group">
+              <span class="filter-label">Date:</span>
+              <div style="display: flex; align-items: center; border: 1px solid var(--border-medium); border-radius: var(--radius-sm); overflow: hidden; height: 36px; background: var(--surface);">
+                <button onclick="changeDateOffset(-1)" style="border:none; background:none; padding:0 10px; cursor:pointer; color:var(--text-secondary);">◀</button>
+                <input type="date" id="filter-date" aria-label="Checklist date" onchange="onDateChanged()" style="border:none; outline:none; font-size:12px; font-weight:600; background:transparent; color:var(--text-primary);">
+                <button onclick="changeDateOffset(1)" style="border:none; background:none; padding:0 10px; cursor:pointer; color:var(--text-secondary);">▶</button>
+              </div>
+              <button class="btn-secondary" onclick="setToday()">Today</button>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Shift:</span>
+              <div class="segmented-control">
+                <button class="segment-btn active" data-shift="Morning" onclick="setShift('Morning')">Morning</button>
+                <button class="segment-btn" data-shift="Mid" onclick="setShift('Mid')">Mid</button>
+                <button class="segment-btn" data-shift="Overnight" onclick="setShift('Overnight')">Overnight</button>
+              </div>
+            </div>
+
+            <!-- Shift End / Lock Action Toolbar Component -->
+            <div class="filter-group" id="shift-closure-action-group"></div>
+          </div>
+
+          <!-- Shift Locked Banner -->
+          <div id="shift-locked-banner" class="locked-banner" style="display:none;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px;">🔒</span>
+              <span id="shift-locked-banner-text">This shift has been formally closed and locked.</span>
+            </div>
+            <button class="btn-secondary" onclick="viewClosureHandoverModal()" style="padding:4px 12px; font-size:11px; height:28px;">View Handover Log</button>
+          </div>
+
+          <div class="table-container">
+            <table class="wfm-table">
+              <thead>
+                <tr>
+                  <th style="width: 24%;">Task</th>
+                  <th style="width: 9%;">Shift</th>
+                  <th style="width: 25%;">Assigned To</th>
+                  <th style="width: 19%;">Received By</th>
+                  <th style="width: 13%;">Status</th>
+                  <th style="width: 10%;">Comment</th>
+                </tr>
+              </thead>
+              <tbody id="todo-table-body">
+                <tr><td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted);">Initializing operational tasks...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- MODULE 2: TICKETS (styles and logic: Tickets_HTML.html; server: Tickets.gs) -->
+        <div id="view-tickets" class="page-view" style="display: none;">
+          <div class="metric-strip tk-metrics" role="group" aria-label="Ticket summary. Select a tile to filter the list.">
+            <button type="button" class="metric-box" data-quick="active" aria-pressed="false">
+              <span class="metric-title">Active</span>
+              <span class="metric-val" id="metric-active">0</span>
+            </button>
+            <button type="button" class="metric-box" data-quick="mine" aria-pressed="false">
+              <span class="metric-title">Assigned to me</span>
+              <span class="metric-val" id="metric-mine" style="color: var(--primary-blue);">0</span>
+            </button>
+            <button type="button" class="metric-box" data-quick="overdue" aria-pressed="false">
+              <span class="metric-title">Overdue</span>
+              <span class="metric-val" id="metric-overdue">0</span>
+            </button>
+            <button type="button" class="metric-box" data-quick="urgent" aria-pressed="false">
+              <span class="metric-title">Urgent &amp; High</span>
+              <span class="metric-val" id="metric-urgent" style="color: #C2410C;">0</span>
+            </button>
+            <button type="button" class="metric-box" data-quick="issues" aria-pressed="false">
+              <span class="metric-title">Open Issues</span>
+              <span class="metric-val" id="metric-issues" style="color: #E11D48;">0</span>
+            </button>
+            <button type="button" class="metric-box" data-quick="flags" aria-pressed="false">
+              <span class="metric-title">Active Flags</span>
+              <span class="metric-val" id="metric-flags" style="color: #E65100;">0</span>
+            </button>
+          </div>
+
+          <div class="filter-card tk-filters">
+            <div class="tk-filter-row">
+              <input type="search" id="ticket-search" class="text-input tk-search" aria-label="Search tickets" placeholder="Search number, text or person  ( / )" oninput="debouncedFilterTickets()">
+              <div class="segmented-control" id="ticket-scope" role="group" aria-label="Show">
+                <button type="button" class="segment-btn active" data-scope="all" onclick="setTicketScope('all')">All</button>
+                <button type="button" class="segment-btn" data-scope="mine" onclick="setTicketScope('mine')">Assigned to me</button>
+                <button type="button" class="segment-btn" data-scope="created" onclick="setTicketScope('created')">Created by me</button>
+                <button type="button" class="segment-btn" data-scope="cc" onclick="setTicketScope('cc')">CC'd</button>
+              </div>
+              <span class="tk-spacer"></span>
+              <button type="button" class="btn-primary" id="btn-create-ticket" onclick="openCreateTicketDrawer()" title="New ticket (N)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                <span>Create Ticket</span>
+              </button>
+            </div>
+            <div class="tk-filter-row tk-filter-row-2">
+              <select id="ticket-filter-status" class="select-input" aria-label="Filter by status" onchange="filterTicketsTable()">
+                <option value="ACTIVE">Active (open + in progress)</option>
+                <option value="OVERDUE">Overdue</option>
+                <option value="ALL">All statuses</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+              <select id="ticket-filter-type" class="select-input" aria-label="Filter by ticket type" onchange="filterTicketsTable()">
+                <option value="ALL">All types</option>
+                <option value="Issue">Issues</option>
+                <option value="Task">Tasks</option>
+                <option value="Flags">Flags</option>
+              </select>
+              <select id="ticket-filter-priority" class="select-input" aria-label="Filter by priority" onchange="filterTicketsTable()">
+                <option value="ALL">All priorities</option>
+                <option value="HIGHPLUS">Urgent + High</option>
+                <option value="Urgent">Urgent</option>
+                <option value="High">High</option>
+                <option value="Normal">Normal</option>
+                <option value="Low">Low</option>
+              </select>
+              <select id="ticket-sort" class="select-input" aria-label="Sort tickets" onchange="filterTicketsTable()">
+                <option value="updated">Sort: recently updated</option>
+                <option value="priority">Sort: priority</option>
+                <option value="due">Sort: due date</option>
+                <option value="newest">Sort: newest</option>
+                <option value="oldest">Sort: oldest</option>
+              </select>
+              <button type="button" class="btn-secondary tk-clear" id="ticket-clear-filters" onclick="clearTicketFilters()" hidden>Clear filters</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="wfm-table tk-table">
+              <thead>
+                <tr>
+                  <th style="width: 104px;">Ticket</th>
+                  <th>Title</th>
+                  <th style="width: 96px;">Priority</th>
+                  <th style="width: 17%;">Assigned to</th>
+                  <th style="width: 118px;">Status</th>
+                  <th style="width: 128px;">Due</th>
+                  <th style="width: 96px; text-align: right;">Updated</th>
+                </tr>
+              </thead>
+              <tbody id="tickets-table-body">
+                <tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted);">Loading tickets...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tk-count" id="ticket-count" aria-live="polite"></div>
+        </div>
+
+        <!-- MODULE 3: PERSONAL ASSISTANT = My To-Do (ToDo.html) + AI Assistant (Assistant_HTML.html), private per user -->
+        <div id="view-assistant" class="page-view" style="display: none;">
+          <div class="filter-card pa-top">
+            <div>
+              <div style="font-weight: 800; font-size: 15px;">Personal Assistant</div>
+              <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px; font-weight: 600;">Your own tasks and an AI helper. Only you can see them.</div>
+            </div>
+            <div class="segmented-control pa-switch" role="group" aria-label="Show">
+              <button type="button" class="segment-btn active" data-pa-show="todo" aria-pressed="true">My To-Do</button>
+              <button type="button" class="segment-btn" data-pa-show="chat" aria-pressed="false">AI Assistant</button>
+            </div>
+          </div>
+          <div class="pa-grid" id="pa-grid" data-show="todo">
+            <?!= include_('ToDo') ?>
+            <!-- Same safety net as Reporting below: if the Assistant_HTML file holds the wrong content -->
+            <!-- (for example the Assistant.gs code), it is replaced by an explanation. -->
+            <div id="include-assistant" style="display: contents;">
+            <?!= include_('Assistant_HTML') ?>
+            </div>
+          </div>
+          <script>
+            (function () {
+              var wrap = document.getElementById('include-assistant');
+              if (wrap && !document.getElementById('pa-chat')) {
+                window.ASSISTANT_INCLUDE_BROKEN = true;
+                wrap.innerHTML = '<section id="pa-chat" class="pa-panel"><div class="notice notice-warn" style="margin: 16px;">' +
+                  'The AI Assistant is not installed correctly. In Apps Script, the HTML file "Assistant_HTML" must contain the ' +
+                  'Assistant_HTML.html code (it starts with "&lt;!--"), not the Assistant.gs code. Ask an Admin to fix it.</div></section>';
+              }
+            })();
+          </script>
+        </div>
+
+        <!-- MODULE 4: REPORTING (standalone file Reporting_HTML.html; server side Reporting.gs) -->
+        <!-- Named Reporting_HTML, not Reporting, because Apps Script does not allow an .html file -->
+        <!-- and a .gs file (Reporting.gs) to share the same base name in one project. -->
+        <!-- The wrapper takes no space (display: contents). If the file holds the wrong content, the -->
+        <!-- check below hides it so it cannot spill onto other pages, and opening Reporting explains why. -->
+        <div id="include-reporting" style="display: contents;">
+        <?!= include_('Reporting_HTML') ?>
+        </div>
+        <script>
+          (function () {
+            var wrap = document.getElementById('include-reporting');
+            if (wrap && !document.getElementById('view-reporting')) {
+              wrap.style.display = 'none';
+              window.REPORTING_INCLUDE_BROKEN = true;
+              var v = document.createElement('div');
+              v.id = 'view-reporting';
+              v.className = 'page-view';
+              v.style.display = 'none';
+              v.innerHTML = '<div class="notice notice-warn" role="alert"><strong>Reporting is not installed correctly.</strong> ' +
+                'In the Apps Script editor, the HTML file named <strong>Reporting_HTML</strong> must contain the code from ' +
+                'Reporting_HTML.html (it starts with &lt;!--). It currently holds something else, most likely the Reporting.gs code. ' +
+                'Paste the right code, save, and deploy a new version.</div>';
+              wrap.parentNode.insertBefore(v, wrap.nextSibling);
+            }
+          })();
+        </script>
+
+        <!-- DASHBOARDS: Dashboards_HTML.html = sidebar section + router (include it first); every Dash_*_HTML.html file is one -->
+        <!-- dashboard page that registers itself. To add a dashboard, add its include on a new line below Dash_Voyce_HTML. -->
+        <div id="include-dashboards" style="display: contents;">
+        <?!= include_('Dashboards_HTML') ?>
+        <?!= include_('Dash_Voyce_HTML') ?>
+        <?!= include_('Dash_Adherence_HTML') ?>
+        <?!= include_('Dash_Mvcc_HTML') ?>
+        </div>
+        <script>
+          (function () {
+            // Same safety net as Reporting: a file with the wrong content must not break the rest of the app.
+            if (!window.WFM_Dashboards || !document.getElementById('view-dash-voyce')) {
+              window.DASHBOARDS_INCLUDE_BROKEN = true;
+              var nav = document.getElementById('nav-dashboards');
+              if (nav) nav.hidden = true;
+              var wrapD = document.getElementById('include-dashboards');
+              if (wrapD) wrapD.style.display = 'none';   // wrong content (e.g. .gs code pasted) must not show on other pages
+            }
+          })();
+        </script>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- TO-DO COMMENT DRAWER (Unified Composer with Ctrl+V) -->
+  <div class="drawer-overlay" id="todo-drawer-overlay" onclick="requestCloseDrawer('todo')"></div>
+  <div class="drawer" id="todo-comment-drawer">
+    <div class="drawer-header">
+      <h3 id="todo-drawer-task-name">Task Comment</h3>
+      <button class="drawer-close" onclick="requestCloseDrawer('todo')" aria-label="Close">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div id="todo-drawer-task-meta" style="background:var(--surface-hover); padding:12px; border-radius:var(--radius-sm); font-size:12px; color:var(--text-secondary); border: 1px solid var(--border-subtle);"></div>
+
+      <div class="form-group">
+        <label>Operational Note & Attachments:</label>
+        <div class="unified-composer" id="todo-composer">
+          <textarea id="todo-comment-text" class="composer-textarea" aria-autocomplete="list" aria-controls="todo-mention-suggest" aria-expanded="false" placeholder="Type handover notes. Use @ to mention a teammate. Ctrl+V pastes screenshots or spreadsheets..."></textarea>
+          <div id="todo-mention-suggest" class="mention-box" role="listbox" aria-label="Teammates to mention" hidden></div>
+          <div class="attachment-shelf" id="todo-staged-shelf" style="display:none;"></div>
+          <div class="composer-toolbar">
+            <button type="button" class="btn-attach-trigger" id="btn-todo-attach-file" onclick="document.getElementById('todo-file-input').click()">
+              📎 Attach File
+            </button>
+            <input type="file" id="todo-file-input" style="display:none;" multiple onchange="handleFileInputChange(event, 'todo')">
+            <span>Paste (Ctrl+V) files directly &bull; 8 MB per file, 20 MB total</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="control-toggle-row" id="todo-mention-row">
+        <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+          <span style="font-weight:700; font-size:12px;">Email people I mention</span>
+          <span class="mention-hint" id="todo-mention-hint" aria-live="polite">Type @ then a name. New mentions get an email from you with a link to this task.</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="todo-toggle-notify" checked aria-label="Email people I mention">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="todo-existing-attachments" style="display:none;">
+        <label style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Attached Files:</label>
+        <div id="todo-existing-pills" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-secondary" onclick="requestCloseDrawer('todo')">Cancel</button>
+      <button class="btn-primary" id="btn-save-todo-comment" onclick="saveTodoComment()">Save Comment</button>
+    </div>
+  </div>
+
+  <!-- SHIFT CLOSURE DIALOG -->
+  <div class="drawer-overlay" id="close-shift-overlay" onclick="closeCloseShiftModal()"></div>
+  <div class="drawer" id="close-shift-drawer">
+    <div class="drawer-header">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:16px;">🏁</span>
+        <h3>End Shift & Lock Tasks</h3>
+      </div>
+      <button class="drawer-close" onclick="closeCloseShiftModal()">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="notice notice-ok">
+        <strong>Validation Passed:</strong> All tasks for this shift are completed or cancelled.
+      </div>
+
+      <div id="close-shift-summary-box" style="background:var(--surface-hover); border:1px solid var(--border-subtle); border-radius:var(--radius-sm); padding:14px; font-size:12px; display:flex; flex-direction:column; gap:6px;"></div>
+
+      <div class="form-group">
+        <label for="close-shift-notes">Shift Handover Summary & Remarks (Optional / Recommended):</label>
+        <textarea id="close-shift-notes" class="composer-textarea" style="height:120px; border:1px solid var(--border-medium); border-radius:var(--radius-sm); padding:10px;" placeholder="Document overall shift notes, queue variances, or reasons for cancelled tasks..."></textarea>
+      </div>
+
+      <div class="notice notice-warn">
+        ⚠️ <strong>Notice:</strong> Once locked, RTM members cannot change task statuses, reassign ownership, or modify comments. Only Managers/Admins can reopen this shift.
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-secondary" onclick="closeCloseShiftModal()">Cancel</button>
+      <button class="btn-primary" id="btn-confirm-close-shift" onclick="executeShiftClosure()" style="background:#059669;">
+        <span>Confirm & Lock Shift</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- VIEW HANDOVER LOG MODAL -->
+  <div class="drawer-overlay" id="view-handover-overlay" onclick="closeViewHandoverModal()"></div>
+  <div class="drawer" id="view-handover-drawer">
+    <div class="drawer-header">
+      <h3>Shift Closure & Handover Log</h3>
+      <button class="drawer-close" onclick="closeViewHandoverModal()">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div id="view-handover-meta" style="background:var(--surface-hover); padding:14px; border-radius:var(--radius-sm); font-size:12px; border:1px solid var(--border-subtle); line-height:1.6;"></div>
+      <div class="form-group">
+        <label>Handover Notes / Audit Remarks:</label>
+        <div id="view-handover-notes-text" style="background:var(--surface); border:1px solid var(--border-medium); border-radius:var(--radius-sm); padding:14px; font-size:13px; line-height:1.5; white-space:pre-wrap; min-height:100px;"></div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-secondary" onclick="closeViewHandoverModal()">Close</button>
+    </div>
+  </div>
+
+  <!-- CREATE TICKET DRAWER (logic: Tickets_HTML.html) -->
+  <div class="drawer-overlay" id="create-ticket-overlay" onclick="requestCloseDrawer('create')"></div>
+  <div class="drawer" id="create-ticket-drawer" aria-labelledby="create-ticket-title">
+    <div class="drawer-header">
+      <h3 id="create-ticket-title">New ticket</h3>
+      <button class="drawer-close" onclick="requestCloseDrawer('create')" aria-label="Close">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="form-group">
+        <label>Type *</label>
+        <div class="segmented-control tk-seg" role="group" aria-label="Ticket type">
+          <button type="button" class="segment-btn active" id="create-type-issue" onclick="setCreateTicketType('Issue')">⚠️ Issue</button>
+          <button type="button" class="segment-btn" id="create-type-task" onclick="setCreateTicketType('Task')">📋 Task</button>
+          <button type="button" class="segment-btn" id="create-type-flags" onclick="setCreateTicketType('Flags')">🚩 Flags</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="create-description">Description &amp; attachments *</label>
+        <div class="unified-composer" id="create-composer">
+          <textarea id="create-description" class="composer-textarea" placeholder="The first line becomes the ticket title. Describe the issue or task. Ctrl+V pastes screenshots or spreadsheets."></textarea>
+          <div class="attachment-shelf" id="create-staged-shelf" style="display:none;"></div>
+          <div class="composer-toolbar">
+            <button type="button" class="btn-attach-trigger" onclick="document.getElementById('create-file-input').click()">📎 Attach File</button>
+            <input type="file" id="create-file-input" style="display:none;" multiple onchange="handleFileInputChange(event, 'create')">
+            <span>8 MB per file, 20 MB total</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tk-grid-2">
+        <div class="form-group">
+          <label>Priority</label>
+          <div class="segmented-control tk-seg" id="create-priority" role="group" aria-label="Priority">
+            <button type="button" class="segment-btn" data-priority="Low" onclick="setCreatePriority('Low')">Low</button>
+            <button type="button" class="segment-btn active" data-priority="Normal" onclick="setCreatePriority('Normal')">Normal</button>
+            <button type="button" class="segment-btn" data-priority="High" onclick="setCreatePriority('High')">High</button>
+            <button type="button" class="segment-btn" data-priority="Urgent" onclick="setCreatePriority('Urgent')">Urgent</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="create-due">Due date (optional)</label>
+          <input type="date" id="create-due" class="text-input">
+        </div>
+      </div>
+
+      <div class="control-toggle-row">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-weight:600; font-size:12px;">🌐 Make public (all users)</span>
+          <span style="font-size:11px; color:var(--text-muted);" id="public-toggle-label">Off &bull; Only the people on the ticket can see it</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="create-toggle-public" onchange="handlePublicToggleChange()" aria-label="Make public">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group" id="create-assignee-group">
+        <label>Assigned to (owners) *</label>
+        <div class="chip-container" id="create-assignee-chips"></div>
+        <select id="create-assigned-select" class="select-input" aria-label="Add an assignee" onchange="addAssignee(this.value); this.value='';">
+          <option value="">+ Add team member...</option>
+        </select>
+        <div class="quick-select-bar">
+          <span style="font-size:11px; color:var(--text-muted); font-weight:600;">Quick select:</span>
+          <button type="button" class="btn-pill-quick" onclick="quickSelectRole('RTM')">+ 👥 RTM Team</button>
+          <button type="button" class="btn-pill-quick" onclick="quickSelectRole('Manager')">+ 👔 Managers</button>
+          <button type="button" class="btn-pill-quick" onclick="quickSelectSelf()">+ 👤 Myself</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>CC (visibility only)</label>
+        <div class="chip-container" id="create-cc-chips"></div>
+        <select id="create-cc-select" class="select-input" aria-label="Add a CC recipient" onchange="addCcRecipient(this.value); this.value='';">
+          <option value="">+ Add team member...</option>
+        </select>
+      </div>
+
+      <div class="control-toggle-row">
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-weight:600; font-size:12px;">✉️ Send email notification</span>
+          <span style="font-size:11px; color:var(--text-muted);" id="send-toggle-label">On &bull; The assignees and CCs get an email from you</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="create-toggle-send" checked onchange="updateSendToggleText()" aria-label="Send email notification">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="create-assigned-by">Created by</label>
+        <input type="text" id="create-assigned-by" class="text-input" disabled style="background:var(--border-subtle); cursor:not-allowed;">
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn-secondary" onclick="requestCloseDrawer('create')">Cancel</button>
+      <button class="btn-primary" id="btn-submit-ticket" onclick="submitNewTicket()">
+        <span>Create Ticket</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- TICKET DETAILS DRAWER (logic: Tickets_HTML.html) -->
+  <div class="drawer-overlay" id="detail-ticket-overlay" onclick="requestCloseDrawer('detail')"></div>
+  <div class="drawer" id="detail-ticket-drawer" aria-labelledby="detail-title">
+    <div class="drawer-header">
+      <div class="tk-detail-head">
+        <div class="tk-detail-tags">
+          <span class="badge" id="detail-type-badge">TYPE</span>
+          <span class="tk-no" id="detail-no"></span>
+          <span id="detail-public-indicator" class="badge-public" hidden>PUBLIC</span>
+        </div>
+        <h3 id="detail-title">Ticket</h3>
+      </div>
+      <div class="tk-head-actions">
+        <button type="button" class="btn-secondary" id="detail-copy-link" onclick="copyTicketLink()" title="Copy a link to this ticket">🔗 Copy link</button>
+        <button class="drawer-close" onclick="requestCloseDrawer('detail')" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div class="drawer-body">
+      <div id="detail-relation-banner" class="relation-banner"></div>
+
+      <div class="form-group">
+        <label>Status</label>
+        <div class="segmented-control tk-seg" id="detail-status-actions" role="group" aria-label="Status"></div>
+        <span class="tk-hint" id="detail-status-hint"></span>
+      </div>
+
+      <div class="tk-grid-3">
+        <div class="form-group">
+          <label for="detail-priority">Priority</label>
+          <select id="detail-priority" class="select-input"></select>
+        </div>
+        <div class="form-group">
+          <label for="detail-due">Due date</label>
+          <input type="date" id="detail-due" class="text-input">
+        </div>
+        <div class="form-group">
+          <label for="detail-type">Type</label>
+          <select id="detail-type" class="select-input"></select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Assigned to</label>
+        <div class="chip-container" id="detail-assignees"></div>
+        <select id="detail-assignee-add" class="select-input" aria-label="Add an assignee" hidden></select>
+      </div>
+
+      <div class="form-group">
+        <label>CC (visibility only)</label>
+        <div class="chip-container" id="detail-cc"></div>
+        <select id="detail-cc-add" class="select-input" aria-label="Add a CC recipient" hidden></select>
+      </div>
+
+      <div id="detail-public-toggle-container" class="control-toggle-row" hidden>
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-weight:600; font-size:12px;">🌐 Public</span>
+          <span style="font-size:11px; color:var(--text-muted);">Visible to the whole team</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="detail-toggle-public" aria-label="Public">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="detail-description">Description</label>
+        <textarea id="detail-description" class="text-input tk-desc"></textarea>
+        <span class="tk-hint" id="detail-desc-hint"></span>
+      </div>
+
+      <div id="detail-existing-attachments" hidden>
+        <label style="font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Files</label>
+        <div id="detail-existing-pills" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>
+      </div>
+
+      <div class="tk-meta" id="detail-meta"></div>
+
+      <section class="tk-activity" aria-label="Activity and comments">
+        <div class="tk-activity-head">Activity &amp; comments</div>
+        <div id="detail-activity" class="tk-timeline" aria-live="polite"></div>
+        <div class="tk-readonly-note" id="detail-readonly-note" hidden>You can read this ticket. Your role cannot comment or change it.</div>
+        <div class="unified-composer" id="ticket-comment-composer">
+          <textarea id="ticket-comment-text" class="composer-textarea" aria-label="Comment" placeholder="Write a comment. Ctrl+V pastes screenshots. Ctrl+Enter posts."></textarea>
+          <div class="attachment-shelf" id="detail-staged-shelf" style="display:none;"></div>
+          <div class="composer-toolbar">
+            <button type="button" class="btn-attach-trigger" onclick="document.getElementById('detail-file-input').click()">📎 Attach</button>
+            <input type="file" id="detail-file-input" style="display:none;" multiple onchange="handleFileInputChange(event, 'detail')">
+            <button type="button" class="btn-primary tk-post" id="btn-post-comment" onclick="postTicketComment()">Post comment</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="drawer-footer">
+      <div class="tk-footer-left">
+        <label class="tk-notify"><input type="checkbox" id="ticket-notify" checked> Email people about my changes</label>
+        <span class="tk-dirty" id="detail-dirty-note" hidden>Unsaved changes</span>
+      </div>
+      <button class="btn-secondary" onclick="requestCloseDrawer('detail')">Close</button>
+      <button class="btn-primary" id="btn-save-ticket-detail" onclick="saveTicketDetailUpdates()" disabled>Save changes</button>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <script>
+    // Values arrive as safely escaped JSON from doGet() (page, ticketKey, and the optional to-do deep link).
+    const BOOT_PARAMS = <?!= bootJson ?>;
+
+    const AppState = {
+      activeModule: 'todo',
+      user: { email: '', role: '' },
+      authorizedUsers: [],
+      webAppUrl: '',
+      currentDate: '',
+      serverToday: '',
+      currentShift: 'Morning',
+      tasks: [],
+      currentShiftClosure: null,
+      activeTodoTaskIndex: null,
+      tickets: [],
+      ticketScope: 'all',
+      activeTicketKey: null,
+      pendingDeepLinkKey: null,
+      createTicketType: 'Issue',
+      createTicketAssignees: [],
+      createTicketCC: [],
+      stagedFiles: {
+        create: [],
+        detail: [],
+        todo: []
+      },
+      pendingReads: 0,
+      // Day bundle cache: all three shifts of a date arrive in one call, so switching shift is instant
+      dayCache: {},
+      dayCacheOrder: [],
+      dayRequestToken: 0,
+      todoDirty: false,
+      ticketsDirty: false,
+      inflightWrites: 0,
+      lastInteraction: 0,
+      pendingTodoOpen: null,
+      todoOriginalComment: '',
+      executesAsUser: true,
+      features: {},
+      // Smart Delta Polling tracking
+      lastSyncTimeTodo: 0,
+      lastSyncTimeTickets: 0,
+      pollingTimer: null,
+      isPolling: false
+    };
+
+    function safeGetTheme() {
+      try { return window.localStorage ? localStorage.getItem('wfm-ops-theme') : null; } catch (e) { return null; }
+    }
+
+    function safeSetTheme(val) {
+      try { if (window.localStorage) localStorage.setItem('wfm-ops-theme', val); } catch (e) {}
+    }
+
+    function initTheme() {
+      const savedTheme = safeGetTheme();
+      let dark = savedTheme === 'dark';
+      if (!savedTheme) {
+        try { dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); } catch (e) {}
+      }
+      if (dark) {
+        document.body.classList.add('dark-mode');
+        const icon = document.getElementById('theme-icon');
+        const text = document.getElementById('theme-text');
+        if (icon) icon.innerText = '☀️';
+        if (text) text.innerText = 'Light';
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.body.classList.toggle('dark-mode');
+      safeSetTheme(isDark ? 'dark' : 'light');
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      if (icon) icon.innerText = isDark ? '☀️' : '🌙';
+      if (text) text.innerText = isDark ? 'Light' : 'Dark';
+    }
+
+    function bootstrapApp() {
+      initTheme();
+      bindComposerPasteEvents();
+      bindKeyboardShortcuts();
+      bindMobileDismissals();
+      bindInteractionTracking();
+      bindNavKeyboard();
+      bindRipple();
+      bindMentionAutocomplete();
+      bindAdaptiveEffects();
+      setSyncState(true, 'Connecting to database...');
+
+      google.script.run
+        .withSuccessHandler(handleAppInitSuccess)
+        .withFailureHandler(handleAppInitFailure)
+        .getInitialAppData();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrapApp);
+    } else {
+      bootstrapApp();
+    }
+
+    function handleAppInitSuccess(data) {
+      setSyncState(false, 'Synced');
+
+      if (!data || !data.authorized) {
+        document.getElementById('denied-user-email').innerText = (data && data.userEmail) ? data.userEmail : 'Unregistered Account';
+        document.getElementById('access-denied-screen').style.display = 'flex';
+        return;
+      }
+
+      AppState.user = data.user;
+      AppState.authorizedUsers = data.authorizedUsers || [];
+      AppState.currentDate = data.today || toLocalDateString();
+      AppState.serverToday = data.today || toLocalDateString();
+      AppState.webAppUrl = data.webAppUrl || '';
+      AppState.lastSyncTimeTodo = Number(data.initialTodoSyncTime || 0);
+      AppState.lastSyncTimeTickets = Number(data.initialTicketSyncTime || 0);
+
+      document.getElementById('user-email-display').innerText = AppState.user.email;
+      const roleBadge = document.getElementById('user-role-badge');
+      roleBadge.innerText = AppState.user.role;
+      roleBadge.className = `role-badge role-${AppState.user.role}`;
+      document.getElementById('user-avatar').innerText = AppState.user.email.substring(0, 2).toUpperCase();
+
+      const isElevated = (AppState.user.role === 'Manager' || AppState.user.role === 'Admin');
+      const exportContainer = document.getElementById('export-dropdown-container');
+      if (exportContainer) {
+        exportContainer.style.display = isElevated ? 'inline-block' : 'none';
+      }
+
+      AppState.executesAsUser = data.executesAsUser !== false;
+      AppState.features = data.features || {};
+      AppState.permissions = data.permissions || { complete: true, missing: [], url: '' };
+      renderPermissionBanner();
+
+      // Deep link from an @mention email: open that exact task on that date and shift.
+      if (BOOT_PARAMS.todoTask && BOOT_PARAMS.todoDate && BOOT_PARAMS.todoShift) {
+        AppState.currentDate = BOOT_PARAMS.todoDate;
+        AppState.currentShift = BOOT_PARAMS.todoShift;
+        AppState.pendingTodoOpen = BOOT_PARAMS.todoTask;
+      }
+
+      document.getElementById('filter-date').value = AppState.currentDate;
+      syncShiftButtons();
+      populateUserDropdowns();
+
+      if (!AppState.executesAsUser && isElevatedRole()) {
+        showToast('Deployment notice: the app is not running as the signed-in user, so emails leave from the owner and My To-Do is off. Run checkSetup() in the script editor.', 'error');
+      }
+
+      // Operations: read-only role that uses Tickets, Personal Assistant and Dashboards (To-Do and Reporting are hidden).
+      const isOperations = (AppState.user.role === 'Operations');
+      if (isOperations) {
+        ['nav-todo', 'nav-reporting'].forEach(id => { const n = document.getElementById(id); if (n) n.style.display = 'none'; });
+      }
+      const operationsHome = () => (window.WFM_Dashboards && window.WFM_Dashboards.first()) || 'tickets';
+
+      if (BOOT_PARAMS.page === 'tickets') {
+        AppState.pendingDeepLinkKey = BOOT_PARAMS.ticketKey || null;
+        switchModule('tickets');
+      } else if (BOOT_PARAMS.page === 'mytodo' || BOOT_PARAMS.page === 'assistant') {
+        switchModule('assistant');
+      } else if (BOOT_PARAMS.page === 'reporting' && !isOperations) {
+        switchModule('reporting');
+      } else if (String(BOOT_PARAMS.page || '').indexOf('dash-') === 0) {
+        switchModule(BOOT_PARAMS.page);
+      } else if (isOperations) {
+        switchModule(operationsHome());
+      } else {
+        loadTasks();
+      }
+
+      // Launch background delta polling (every 15 seconds)
+      startRealtimePolling();
+    }
+
+    function handleAppInitFailure(err) {
+      setSyncState(false, 'Connection Error');
+      showToast('Backend Error: ' + (err.message || err));
+      const tbody = document.getElementById('todo-table-body');
+      if (tbody) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center; padding: 40px; color: #E11D48;">
+              <strong>Failed to connect to Google Sheets.</strong><br>
+              <span style="font-size:12px; color:var(--text-muted);">${escapeHtml(err.message || String(err))}</span><br><br>
+              <button class="btn-primary" onclick="location.reload()">Retry Connection</button>
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    // ==========================================
+    // SMART DELTA POLLING (Background Sync)
+    // ==========================================
+
+    function startRealtimePolling() {
+      if (AppState.pollingTimer) clearInterval(AppState.pollingTimer);
+      AppState.pollingTimer = setInterval(pollForUpdates, window.WFM_API ? 20000 : 15000);
+    }
+
+    function pollForUpdates() {
+      if (document.hidden) return;                       // background tabs do not poll
+      if (AppState.isPolling || AppState.pendingReads > 0) return;
+
+      AppState.isPolling = true;
+      google.script.run
+        .withSuccessHandler(res => {
+          AppState.isPolling = false;
+          if (!res) return;
+
+          // A change is remembered in a "dirty" flag until it has really been fetched.
+          // (Previously the clock advanced even when the refresh was skipped, so the change was lost.)
+          if (res.todoChanged) {
+            AppState.lastSyncTimeTodo = res.serverTodoTime;
+            clearDayCache();
+            AppState.todoDirty = true;
+          } else if (res.serverTodoTime) {
+            AppState.lastSyncTimeTodo = Math.max(AppState.lastSyncTimeTodo, res.serverTodoTime);
+          }
+          if (res.ticketsChanged) {
+            AppState.lastSyncTimeTickets = res.serverTicketTime;
+            AppState.ticketsDirty = true;
+          } else if (res.serverTicketTime) {
+            AppState.lastSyncTimeTickets = Math.max(AppState.lastSyncTimeTickets, res.serverTicketTime);
+          }
+
+          refreshDirtyViews();
+        })
+        .withFailureHandler(() => {
+          AppState.isPolling = false;
+        })
+        .checkSystemSync(AppState.lastSyncTimeTodo, AppState.lastSyncTimeTickets);
+    }
+
+    function silentReloadTasks() {
+      fetchDay(AppState.currentDate, true);
+    }
+
+    function silentReloadTickets() {
+      google.script.run
+        .withSuccessHandler(tickets => {
+          AppState.tickets = tickets;
+          updateTicketMetrics();
+          filterTicketsTable();
+          pulseLiveIndicator();
+        })
+        .getTickets();
+    }
+
+    function pulseLiveIndicator() {
+      const label = document.getElementById('sync-label');
+      label.classList.add('is-live');
+      label.innerText = '● Live updated';
+      setTimeout(() => {
+        label.classList.remove('is-live');
+        label.innerText = 'Synced';
+      }, 2500);
+    }
+
+    function populateUserDropdowns() {
+      const createAssignee = document.getElementById('create-assigned-select');
+      const createCc = document.getElementById('create-cc-select');
+
+      createAssignee.innerHTML = '<option value="">+ Add team member...</option>';
+      createCc.innerHTML = '<option value="">+ Add team member...</option>';
+
+      AppState.authorizedUsers.forEach(u => {
+        const isSelf = (u.email === AppState.user.email);
+        const label = isSelf ? `Myself (${u.email})` : `${u.email} (${u.role})`;
+        createAssignee.add(new Option(label, u.email));
+        createCc.add(new Option(label, u.email));
+      });
+
+      document.getElementById('create-assigned-by').value = `${AppState.user.email} (${AppState.user.role})`;
+    }
+
+    function switchModule(moduleName) {
+      if (moduleName === 'mytodo') moduleName = 'assistant';   // My To-Do now lives in Personal Assistant
+      AppState.activeModule = moduleName;
+
+      ['assistant', 'todo', 'tickets', 'reporting'].forEach(m => {
+        const nav = document.getElementById('nav-' + m);
+        if (nav) {
+          nav.classList.toggle('active', moduleName === m);
+          if (moduleName === m) nav.setAttribute('aria-current', 'page'); else nav.removeAttribute('aria-current');
+        }
+        const view = document.getElementById('view-' + m);
+        if (view) view.style.display = (moduleName === m) ? 'flex' : 'none';
+      });
+      // Dashboards (modules named 'dash-<id>') show and hide their own views.
+      if (window.WFM_Dashboards) window.WFM_Dashboards.sync(moduleName);
+
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar && sidebar.classList.contains('mobile-open')) {
+        sidebar.classList.remove('mobile-open');
+      }
+
+      const breadcrumb = document.getElementById('breadcrumb-title');
+      if (moduleName === 'todo') {
+        breadcrumb.innerText = 'RTM Handover';
+        if (AppState.tasks.length === 0 || AppState.todoDirty) loadTasks(AppState.todoDirty);
+      } else if (moduleName === 'assistant') {
+        breadcrumb.innerText = 'Personal Assistant';
+        if (window.MyTodo) window.MyTodo.show();
+        if (window.AiAssistant) window.AiAssistant.show();
+      } else if (moduleName === 'reporting') {
+        breadcrumb.innerText = 'Reporting';
+        if (window.Reporting) {
+          window.Reporting.show();
+        } else {
+          showToast(window.REPORTING_INCLUDE_BROKEN
+            ? 'Reporting is not installed correctly: in Apps Script, the HTML file "Reporting_HTML" must contain the Reporting_HTML.html code (it starts with "<!--"), not the Reporting.gs code.'
+            : 'Reporting could not start. Reload the page; if it keeps happening, ask an Admin to check the Reporting_HTML file.', 'error');
+        }
+      } else if (moduleName.indexOf('dash-') === 0) {
+        breadcrumb.innerText = window.WFM_Dashboards ? window.WFM_Dashboards.title(moduleName) : 'Dashboard';
+        if (!window.WFM_Dashboards) {
+          showToast('The dashboards are not installed correctly: check the HTML files "Dashboards_HTML" and "Dash_Voyce_HTML" in Apps Script.', 'error');
+        }
+      } else {
+        breadcrumb.innerText = 'Operational Tickets';
+        const ticketsStale = AppState.ticketsDirty || !AppState.ticketsLoaded;
+        AppState.ticketsDirty = false;
+        if (ticketsStale) loadTickets(); else { updateTicketMetrics(); filterTicketsTable(); }
+      }
+    }
+
+    // ==========================================
+    // UNIFIED COMPOSER & OS CLIPBOARD PASTE
+    // ==========================================
+
+    function bindComposerPasteEvents() {
+      const composerMap = [
+        { id: 'create-description', key: 'create' },
+        { id: 'ticket-comment-text', key: 'detail' },
+        { id: 'todo-comment-text', key: 'todo' }
+      ];
+
+      composerMap.forEach(item => {
+        const textarea = document.getElementById(item.id);
+        if (!textarea) return;
+
+        textarea.addEventListener('paste', (e) => {
+          const clipboardData = e.clipboardData || window.clipboardData;
+          if (!clipboardData) return;
+
+          const files = clipboardData.files;
+          const items = clipboardData.items;
+          const detected = [];
+
+          if (files && files.length > 0) {
+            for (let i = 0; i < files.length; i++) detected.push(files[i]);
+          } else if (items && items.length > 0) {
+            for (let i = 0; i < items.length; i++) {
+              if (items[i].kind === 'file') {
+                const f = items[i].getAsFile();
+                if (f) detected.push(f);
+              }
+            }
+          }
+
+          if (detected.length > 0) {
+            e.preventDefault();
+            stageDetectedFiles(detected, item.key);
+          }
+        });
+      });
+    }
+
+    function handleFileInputChange(e, composerKey) {
+      if (!e.target.files || e.target.files.length === 0) return;
+      stageDetectedFiles(Array.from(e.target.files), composerKey);
+      e.target.value = '';
+    }
+
+    function stageDetectedFiles(fileList, composerKey) {
+      const MAX_FILE_SIZE = 8 * 1024 * 1024;
+      const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+      const MAX_TOTAL_FILES = 5;
+
+      fileList.forEach(file => {
+        if (AppState.stagedFiles[composerKey].length >= MAX_TOTAL_FILES) {
+          showToast(`Maximum ${MAX_TOTAL_FILES} files per submission.`);
+          return;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+          showToast(`"${file.name}" is ${formatFileSize(file.size)}. Limit is 8 MB. Link via Drive instead.`, 'error');
+          return;
+        }
+
+        const stagedBytes = AppState.stagedFiles[composerKey]
+          .reduce((sum, f) => sum + (f.bytes || 0), 0);
+        if (stagedBytes + file.size > MAX_TOTAL_BYTES) {
+          showToast('Total attachment size would exceed 20 MB.', 'error');
+          return;
+        }
+
+        AppState.pendingReads++;
+        updateComposerBusyState();
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          AppState.stagedFiles[composerKey].push({
+            name: file.name || `Screenshot_${Date.now()}.png`,
+            mimeType: file.type || 'application/octet-stream',
+            size: formatFileSize(file.size),
+            bytes: file.size,
+            base64: reader.result.split(',')[1]
+          });
+          AppState.pendingReads--;
+          renderStagedShelf(composerKey);
+          updateComposerBusyState();
+        };
+        reader.onerror = () => {
+          AppState.pendingReads--;
+          updateComposerBusyState();
+          showToast(`Could not read "${file.name}".`, 'error');
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function updateComposerBusyState() {
+      const busy = AppState.pendingReads > 0;
+      [['btn-submit-ticket', 'Create Ticket'],
+       ['btn-save-todo-comment', 'Save Comment'],
+       ['btn-post-comment', 'Post comment']].forEach(([id, label]) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.disabled = busy;
+        btn.textContent = busy ? 'Reading attachments...' : label;
+      });
+    }
+
+    function removeStagedFile(composerKey, index) {
+      AppState.stagedFiles[composerKey].splice(index, 1);
+      renderStagedShelf(composerKey);
+    }
+
+    function renderStagedShelf(composerKey) {
+      const shelf = document.getElementById(`${composerKey}-staged-shelf`);
+      if (!shelf) return;
+
+      const files = AppState.stagedFiles[composerKey];
+      if (files.length === 0) {
+        shelf.style.display = 'none';
+        shelf.innerHTML = '';
+        return;
+      }
+
+      shelf.style.display = 'flex';
+      shelf.innerHTML = '';
+
+      files.forEach((f, idx) => {
+        const chip = document.createElement('div');
+        chip.className = 'staged-file-chip';
+        chip.innerHTML = `
+          <span>📎 ${escapeHtml(f.name)} (${escapeHtml(f.size)})</span>
+          <span class="file-del" onclick="removeStagedFile('${composerKey}', ${idx})">&times;</span>
+        `;
+        shelf.appendChild(chip);
+      });
+    }
+
+    // ==========================================
+    // ZERO-TAB DIRECT DOWNLOAD (SAFE HANDLER)
+    // ==========================================
+
+    function handleAttachmentBtnClick(btn) {
+      const fileId = btn.getAttribute('data-file-id');
+      const fileName = btn.getAttribute('data-file-name');
+      triggerDirectBlobDownload(fileId, fileName);
+    }
+
+    function triggerDirectBlobDownload(fileIdOrUrl, fallbackName) {
+      showToast('Downloading ' + fallbackName + '...');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (!res || !res.success) {
+            if (res && res.needsPermission) renderPermissionBanner(true);
+            showToast('Download error: ' + (res ? res.error : 'File not accessible'), 'error');
+            return;
+          }
+
+          const byteCharacters = atob(res.base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: res.mimeType || 'application/octet-stream' });
+
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = blobUrl;
+          a.download = res.name || fallbackName;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          }, 1000);
+
+          showToast('✓ Download complete: ' + (res.name || fallbackName));
+        })
+        .withFailureHandler(err => {
+          showToast('Download failed: ' + err.message, 'error');
+        })
+        .getAttachmentFileBlob(fileIdOrUrl);
+    }
+
+    // ==========================================
+    // MULTI-ASSIGNMENT & QUICK-SELECT PILLS
+    // ==========================================
+
+    function addAssignee(email) {
+      if (!email || email === 'All Users') return;
+      if (!AppState.createTicketAssignees.includes(email)) {
+        AppState.createTicketAssignees.push(email);
+        renderAssigneeChips();
+      }
+    }
+
+    function removeAssignee(email) {
+      AppState.createTicketAssignees = AppState.createTicketAssignees.filter(e => e !== email);
+      renderAssigneeChips();
+    }
+
+    function renderAssigneeChips() {
+      const container = document.getElementById('create-assignee-chips');
+      container.innerHTML = '';
+
+      if (AppState.createTicketAssignees.length === 0) {
+        container.innerHTML = '<span style="font-size:11px; color:var(--text-muted); padding:4px;">No assignees selected</span>';
+        return;
+      }
+
+      AppState.createTicketAssignees.forEach(email => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `<span>👤 ${escapeHtml(email)}</span>`;
+        const rm = document.createElement('span');
+        rm.className = 'chip-remove';
+        rm.setAttribute('role', 'button');
+        rm.setAttribute('tabindex', '0');
+        rm.setAttribute('aria-label', 'Remove ' + email);
+        rm.textContent = '\u00D7';
+        rm.onclick = () => removeAssignee(email);
+        rm.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); removeAssignee(email); } };
+        chip.appendChild(rm);
+        container.appendChild(chip);
+      });
+    }
+
+    function quickSelectRole(targetRole) {
+      const matching = AppState.authorizedUsers.filter(u => u.role === targetRole);
+      let count = 0;
+      matching.forEach(u => {
+        if (!AppState.createTicketAssignees.includes(u.email)) {
+          AppState.createTicketAssignees.push(u.email);
+          count++;
+        }
+      });
+      renderAssigneeChips();
+      showToast(`Added ${count} members with role: ${targetRole}`);
+    }
+
+    function quickSelectSelf() {
+      addAssignee(AppState.user.email);
+    }
+
+    function handlePublicToggleChange() {
+      const isPublic = document.getElementById('create-toggle-public').checked;
+      const label = document.getElementById('public-toggle-label');
+      const assigneeGroup = document.getElementById('create-assignee-group');
+
+      if (isPublic) {
+        label.innerText = 'On • Visible to all users (overriding mention restrictions)';
+        assigneeGroup.style.opacity = '0.5';
+        assigneeGroup.style.pointerEvents = 'none';
+      } else {
+        label.innerText = 'Off • Standard mention-based visibility';
+        assigneeGroup.style.opacity = '1';
+        assigneeGroup.style.pointerEvents = 'auto';
+      }
+    }
+
+    function addCcRecipient(email) {
+      if (!email) return;
+      if (AppState.createTicketAssignees.includes(email)) {
+        showToast('User is already assigned to this ticket');
+        return;
+      }
+      if (!AppState.createTicketCC.includes(email)) {
+        AppState.createTicketCC.push(email);
+        renderCcChips();
+      }
+    }
+
+    function removeCcRecipient(email) {
+      AppState.createTicketCC = AppState.createTicketCC.filter(e => e !== email);
+      renderCcChips();
+    }
+
+    function renderCcChips() {
+      const c = document.getElementById('create-cc-chips');
+      c.innerHTML = '';
+      if (AppState.createTicketCC.length === 0) {
+        c.innerHTML = '<span style="font-size:11px; color:var(--text-muted); padding:4px;">No CC recipients</span>';
+        return;
+      }
+      AppState.createTicketCC.forEach(email => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `<span>👁️ ${escapeHtml(email)}</span>`;
+        const rm = document.createElement('span');
+        rm.className = 'chip-remove';
+        rm.setAttribute('role', 'button');
+        rm.setAttribute('tabindex', '0');
+        rm.setAttribute('aria-label', 'Remove ' + email);
+        rm.textContent = '\u00D7';
+        rm.onclick = () => removeCcRecipient(email);
+        rm.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); removeCcRecipient(email); } };
+        chip.appendChild(rm);
+        c.appendChild(chip);
+      });
+    }
+
+    // ==========================================
+    // TO-DO MODULE & SHIFT CLOSURE
+    // ==========================================
+
+    function loadTasks(force) {
+      const date = AppState.currentDate;
+      if (!date) return;
+      if (force !== true && AppState.dayCache[date]) {
+        applyCurrentShift(true);          // instant: no server call
+        return;
+      }
+      if (force === true) delete AppState.dayCache[date];
+      renderTodoSkeleton();
+      fetchDay(date, false);
+    }
+
+    function renderShiftClosureControls() {
+      const container = document.getElementById('shift-closure-action-group');
+      const banner = document.getElementById('shift-locked-banner');
+      const bannerText = document.getElementById('shift-locked-banner-text');
+      if (!container) return;
+
+      container.innerHTML = '';
+      const closure = AppState.currentShiftClosure;
+      const isLocked = closure && closure.isLocked;
+      const isElevated = (AppState.user.role === 'Manager' || AppState.user.role === 'Admin');
+
+      if (isLocked) {
+        banner.style.display = 'flex';
+        bannerText.innerHTML = `<strong>Shift Locked:</strong> Formally closed by <u>${escapeHtml(closure.closedBy)}</u> at ${new Date(closure.closedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Modifications are locked.`;
+
+        container.innerHTML = `<span class="badge" style="background:#FFF3E0; color:#E65100; border-color:#FFCC80; padding:6px 12px;">🔒 Shift Closed</span>`;
+        if (isElevated) {
+          container.innerHTML += `<button class="btn-secondary" onclick="promptUnlockShift()" style="color:#E11D48; border-color:#FECDD3; height:34px;">🔓 Unlock Shift</button>`;
+        }
+      } else {
+        banner.style.display = 'none';
+
+        const tasks = AppState.tasks || [];
+        const pendingCount = tasks.filter(t => t.status === 'Pending').length;
+
+        if (tasks.length === 0) {
+          container.innerHTML = '';
+        } else if (pendingCount > 0) {
+          container.innerHTML = `
+            <button class="btn-secondary" disabled style="opacity:0.6; cursor:not-allowed; height:34px;" title="All tasks must be Completed or Cancelled to end the shift">
+              🔒 End Shift (${pendingCount} Pending)
+            </button>
+          `;
+        } else {
+          container.innerHTML = `
+            <button class="btn-primary" onclick="openCloseShiftModal()" style="background:#059669; border:none; box-shadow:0 2px 6px rgba(5,150,105,0.3); height:34px;">
+              🏁 End & Lock Shift
+            </button>
+          `;
+        }
+      }
+    }
+
+    function renderTodoTable(animate) {
+      const tbody = document.getElementById('todo-table-body');
+      const focused = document.activeElement;
+      const focusKey = (focused && focused.dataset) ? focused.dataset.focusKey : null;
+
+      tbody.innerHTML = '';
+      tbody.classList.toggle('animate-in', animate === true);
+
+      if (AppState.tasks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:32px; color:var(--text-muted);">No tasks defined for this shift.</td></tr>`;
+        updateTodoMetrics();
+        return;
+      }
+
+      const isLocked = AppState.currentShiftClosure && AppState.currentShiftClosure.isLocked;
+      const isElevated = isElevatedRole();
+      const disableEdits = isLocked && !isElevated;
+
+      AppState.tasks.forEach((task, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.setProperty('--i', Math.min(idx, 12));
+
+        const tdTask = document.createElement('td');
+        tdTask.style.fontWeight = '600';
+        tdTask.innerText = task.taskName;
+        tr.appendChild(tdTask);
+
+        const tdShift = document.createElement('td');
+        tdShift.innerHTML = `<span class="badge" style="background:var(--surface-hover); border-color:var(--border-medium); color:var(--text-secondary);">${escapeHtml(task.shift)}</span>`;
+        tr.appendChild(tdShift);
+
+        const tdAssigned = document.createElement('td');
+        tdAssigned.appendChild(createAssigneeControl(task, idx, !!disableEdits));
+        tr.appendChild(tdAssigned);
+
+        const tdReceived = document.createElement('td');
+        if (isElevated) {
+          const receivedSelect = createTodoUserControl(task, idx, 'receivedBy');
+          if (disableEdits) receivedSelect.disabled = true;
+          tdReceived.appendChild(receivedSelect);
+        } else {
+          tdReceived.appendChild(createReceivedByControl(task, idx, !!disableEdits));
+        }
+        tr.appendChild(tdReceived);
+
+        const tdStatus = document.createElement('td');
+        const selectStatus = document.createElement('select');
+        selectStatus.className = `select-input badge status-badge-${task.status}`;
+        selectStatus.dataset.focusKey = idx + ':status';
+        selectStatus.setAttribute('aria-label', 'Status of ' + task.taskName);
+        selectStatus.style.cursor = disableEdits ? 'not-allowed' : 'pointer';
+        ['Pending', 'Completed', 'Cancelled'].forEach(st => selectStatus.add(new Option(st, st)));
+        selectStatus.value = task.status;
+        if (disableEdits) selectStatus.disabled = true;
+        selectStatus.onchange = (e) => {
+          const newStatus = e.target.value;
+          selectStatus.className = `select-input badge status-badge-${newStatus}`;
+          executeTodoFieldUpdate(idx, 'status', newStatus);
+        };
+        tdStatus.appendChild(selectStatus);
+        tr.appendChild(tdStatus);
+
+        const tdComment = document.createElement('td');
+        const btnComment = document.createElement('button');
+        btnComment.className = 'btn-secondary';
+        btnComment.style.padding = '0 10px';
+        btnComment.style.height = '32px';
+        btnComment.dataset.focusKey = idx + ':comment';
+        const hasAttach = task.attachments && task.attachments.length > 0;
+        btnComment.innerText = task.comment ? (hasAttach ? '📝 Note 📎' : '📝 Note') : (hasAttach ? '📎 File' : (disableEdits ? '—' : '+ Add'));
+        const mentionsMe = commentMentionsMe(task.comment);
+        btnComment.setAttribute('aria-label', (mentionsMe ? 'Comment that mentions you, ' : 'Comment, ') + task.taskName);
+        if (mentionsMe) { btnComment.classList.add('has-mention'); btnComment.title = 'This comment mentions you'; }
+        btnComment.onclick = () => openTodoCommentDrawer(idx);
+        tdComment.appendChild(btnComment);
+        tr.appendChild(tdComment);
+
+        tbody.appendChild(tr);
+      });
+
+      if (focusKey) {
+        const again = tbody.querySelector('[data-focus-key="' + focusKey.replace(/"/g, '\\"') + '"]');
+        if (again && !again.disabled) { try { again.focus({ preventScroll: true }); } catch (e) {} }
+      }
+      updateTodoMetrics();
+    }
+
+    function createTodoUserControl(task, idx, fieldName) {
+      const isRTM = (AppState.user.role === 'RTM');
+      const currentUser = AppState.user.email;
+      const val = task[fieldName];
+
+      const select = document.createElement('select');
+      select.className = 'select-input';
+      select.dataset.focusKey = idx + ':' + fieldName;
+      select.setAttribute('aria-label', (fieldName === 'assignedTo' ? 'Assigned to' : 'Received by') + ', ' + task.taskName);
+      select.add(new Option('— Unassigned —', ''));
+
+      if (isRTM) {
+        select.add(new Option('Myself', currentUser));
+        if (val && val !== currentUser) {
+          select.add(new Option(val, val));
+          select.disabled = true;
+        }
+      } else {
+        AppState.authorizedUsers.forEach(u => {
+          select.add(new Option(u.email === currentUser ? `Myself (${u.email})` : u.email, u.email));
+        });
+        if (val && !AppState.authorizedUsers.some(u => u.email === val)) {
+          select.add(new Option(val + ' (no longer in Roles)', val));
+        }
+      }
+
+      select.value = val;
+      select.onchange = (e) => executeTodoFieldUpdate(idx, fieldName, e.target.value);
+      return select;
+    }
+
+    function executeTodoFieldUpdate(taskIdx, fieldName, value) {
+      const task = AppState.tasks[taskIdx];
+      const prev = task[fieldName];
+      const prevAssignees = task.assignees;
+      task[fieldName] = value;
+      // assignedTo and receivedBy render as buttons/chips (not a native <select>), so the row must be
+      // redrawn to show the new state; status/comment use elements that already show their own value.
+      const needsRedraw = (fieldName === 'assignedTo' || fieldName === 'receivedBy');
+      if (fieldName === 'assignedTo') task.assignees = parseEmailList(value);
+      if (needsRedraw) renderTodoTable(false);
+      AppState.inflightWrites++;
+      setSyncState(true, 'Saving...');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          AppState.inflightWrites--;
+          task.rowIndex = res.rowIndex;
+          if (typeof res.value !== 'undefined') task[fieldName] = res.value;
+          if (fieldName === 'assignedTo' && typeof res.value === 'string') {
+            task.assignedTo = res.value;
+            task.assignees = parseEmailList(res.value);
+          }
+          if (needsRedraw) renderTodoTable(false);
+          setSyncState(false, 'Synced');
+          updateTodoMetrics();
+          renderShiftClosureControls();
+        })
+        .withFailureHandler(err => {
+          AppState.inflightWrites--;
+          task[fieldName] = prev;
+          if (fieldName === 'assignedTo') task.assignees = prevAssignees;
+          if (needsRedraw) renderTodoTable(false);
+          setSyncState(false, 'Error');
+          showToast('Update failed: ' + err.message, 'error');
+        })
+        .updateTaskField(task.date, task.shift, task.taskName, fieldName, value);
+    }
+
+    function setShift(shift) {
+      AppState.currentShift = shift;
+      syncShiftButtons();
+      loadTasks();                        // served from the day cache when the date is already loaded
+    }
+
+    function onDateChanged() {
+      const value = document.getElementById('filter-date').value;
+      if (!value) return;
+      AppState.currentDate = value;
+      loadTasks();
+    }
+
+    function changeDateOffset(days) {
+      const d = new Date(AppState.currentDate + 'T00:00:00');
+      d.setDate(d.getDate() + days);
+      AppState.currentDate = toLocalDateString(d);
+      document.getElementById('filter-date').value = AppState.currentDate;
+      loadTasks();
+    }
+
+    function setToday() {
+      const today = AppState.serverToday || toLocalDateString();
+      if (AppState.currentDate !== today) {
+        AppState.currentDate = today;
+        document.getElementById('filter-date').value = today;
+        loadTasks();
+      }
+    }
+
+    function openTodoCommentDrawer(idx) {
+      AppState.activeTodoTaskIndex = idx;
+      AppState.stagedFiles.todo = [];
+      renderStagedShelf('todo');
+
+      const t = AppState.tasks[idx];
+      document.getElementById('todo-drawer-task-name').innerText = t.taskName;
+      document.getElementById('todo-drawer-task-meta').innerText = `Date: ${t.date} | Shift: ${t.shift}`;
+      document.getElementById('todo-comment-text').value = t.comment || '';
+      AppState.todoOriginalComment = t.comment || '';
+      document.getElementById('todo-toggle-notify').checked = true;
+      closeMentionSuggest();
+      updateMentionHint();
+
+      const isLocked = AppState.currentShiftClosure && AppState.currentShiftClosure.isLocked;
+      const isElevated = (AppState.user.role === 'Manager' || AppState.user.role === 'Admin');
+      const isReadOnly = isLocked && !isElevated;
+
+      document.getElementById('todo-comment-text').disabled = isReadOnly;
+      document.getElementById('btn-save-todo-comment').style.display = isReadOnly ? 'none' : 'inline-block';
+      document.getElementById('btn-todo-attach-file').style.display = isReadOnly ? 'none' : 'inline-flex';
+
+      const existBox = document.getElementById('todo-existing-attachments');
+      const pillsBox = document.getElementById('todo-existing-pills');
+      if (t.attachments && t.attachments.length > 0) {
+        existBox.style.display = 'block';
+        pillsBox.innerHTML = t.attachments.map(att => {
+          const fileId = att.id || att.url;
+          return `
+            <button type="button" class="attachment-pill" data-file-id="${escapeHtml(fileId)}" data-file-name="${escapeHtml(att.name)}" onclick="handleAttachmentBtnClick(this)">
+              💾 Download ${escapeHtml(att.name)} (${escapeHtml(att.size || 'File')})
+            </button>
+          `;
+        }).join('');
+      } else {
+        existBox.style.display = 'none';
+        pillsBox.innerHTML = '';
+      }
+
+      document.getElementById('todo-drawer-overlay').style.display = 'block';
+      document.getElementById('todo-comment-drawer').classList.add('open');
+      snapshotDrawer('todo');
+      focusDrawer('todo-comment-drawer');
+    }
+
+    function closeTodoCommentDrawer() {
+      document.getElementById('todo-drawer-overlay').style.display = 'none';
+      document.getElementById('todo-comment-drawer').classList.remove('open');
+      AppState.activeTodoTaskIndex = null;
+      AppState.stagedFiles.todo = [];
+      restoreFocus();
+    }
+
+    function saveTodoComment() {
+      if (AppState.activeTodoTaskIndex === null) return;
+      const idx = AppState.activeTodoTaskIndex;
+      const task = AppState.tasks[idx];
+      const text = document.getElementById('todo-comment-text').value.trim();
+      const rawFiles = AppState.stagedFiles.todo;
+      const notify = document.getElementById('todo-toggle-notify').checked;
+
+      const btn = document.getElementById('btn-save-todo-comment');
+      btn.disabled = true;
+      btn.innerText = 'Saving note & files...';
+      setSyncState(true, 'Uploading attachments...');
+      AppState.inflightWrites++;
+
+      google.script.run
+        .withSuccessHandler(res => {
+          AppState.inflightWrites--;
+          btn.disabled = false;
+          btn.innerText = 'Save Comment';
+          setSyncState(false, 'Synced');
+          task.comment = text;
+          if (res.attachments && res.attachments.length > 0) {
+            task.attachments = (task.attachments || []).concat(res.attachments);
+          }
+          closeTodoCommentDrawer();
+          renderTodoTable(false);
+
+          const m = res.mentions || {};
+          if (m.notified && m.notified.length) {
+            showToast('Comment saved. Emailed: ' + m.notified.map(nameOf).join(', ') + '.');
+          } else if (m.error) {
+            showToast('Comment saved, but the mention email was not sent: ' + m.error, 'error');
+          } else {
+            showToast('Comment and attachments saved.');
+          }
+        })
+        .withFailureHandler(err => {
+          AppState.inflightWrites--;
+          btn.disabled = false;
+          btn.innerText = 'Save Comment';
+          setSyncState(false, 'Error');
+          showToast('Save failed: ' + err.message, 'error');
+        })
+        .updateTodoCommentWithFiles(task.date, task.shift, task.taskName, text, rawFiles, { notifyMentions: notify });
+    }
+
+    // ==========================================
+    // SHIFT CLOSURE WORKFLOW
+    // ==========================================
+
+    function openCloseShiftModal() {
+      const tasks = AppState.tasks || [];
+      const completed = tasks.filter(t => t.status === 'Completed').length;
+      const cancelled = tasks.filter(t => t.status === 'Cancelled').length;
+
+      document.getElementById('close-shift-summary-box').innerHTML = `
+        <span><strong>Target:</strong> ${AppState.currentDate} (${AppState.currentShift} Shift)</span>
+        <span><strong>Total Tasks:</strong> ${tasks.length}</span>
+        <span><strong>Completed:</strong> ${completed} | <strong>Cancelled:</strong> ${cancelled}</span>
+      `;
+
+      document.getElementById('close-shift-notes').value = '';
+      document.getElementById('close-shift-overlay').style.display = 'block';
+      document.getElementById('close-shift-drawer').classList.add('open');
+    }
+
+    function closeCloseShiftModal() {
+      document.getElementById('close-shift-overlay').style.display = 'none';
+      document.getElementById('close-shift-drawer').classList.remove('open');
+    }
+
+    function executeShiftClosure() {
+      const notes = document.getElementById('close-shift-notes').value.trim();
+      const btn = document.getElementById('btn-confirm-close-shift');
+
+      btn.disabled = true;
+      btn.innerHTML = `<span>Locking shift...</span>`;
+      setSyncState(true, 'Closing and locking shift...');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          btn.innerHTML = `<span>Confirm & Lock Shift</span>`;
+          setSyncState(false, 'Synced');
+          closeCloseShiftModal();
+          AppState.currentShiftClosure = res.closure;
+          const shiftData = currentShiftData();
+          if (shiftData) shiftData.closure = res.closure;
+          renderShiftClosureControls();
+          renderTodoTable(false);
+          showToast('✓ Shift formally ended and locked successfully.');
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          btn.innerHTML = `<span>Confirm & Lock Shift</span>`;
+          setSyncState(false, 'Error');
+          showToast('Shift closure failed: ' + err.message, 'error');
+        })
+        .closeShift(AppState.currentDate, AppState.currentShift, notes);
+    }
+
+    function promptUnlockShift() {
+      const reason = prompt('Enter the justification for unlocking this shift:');
+      if (reason === null) return;
+      if (!reason.trim()) {
+        showToast('Unlock cancelled: A reason is required.', 'error');
+        return;
+      }
+
+      setSyncState(true, 'Unlocking shift...');
+      google.script.run
+        .withSuccessHandler(() => {
+          setSyncState(false, 'Synced');
+          showToast('Shift has been unlocked.');
+          clearDayCache();
+          loadTasks(true);
+        })
+        .withFailureHandler(err => {
+          setSyncState(false, 'Error');
+          showToast('Unlock failed: ' + err.message, 'error');
+        })
+        .reopenShift(AppState.currentDate, AppState.currentShift, reason.trim());
+    }
+
+    function viewClosureHandoverModal() {
+      const closure = AppState.currentShiftClosure;
+      if (!closure) return;
+
+      document.getElementById('view-handover-meta').innerHTML = `
+        <strong>Date & Shift:</strong> ${AppState.currentDate} (${AppState.currentShift})<br>
+        <strong>Closed By:</strong> ${escapeHtml(closure.closedBy)}<br>
+        <strong>Closed At:</strong> ${new Date(closure.closedAt).toLocaleString()}<br>
+        <strong>Completed:</strong> ${closure.completedCount} | <strong>Cancelled:</strong> ${closure.cancelledCount}
+      `;
+
+      document.getElementById('view-handover-notes-text').innerText = closure.notes || 'No handover remarks were provided.';
+      document.getElementById('view-handover-overlay').style.display = 'block';
+      document.getElementById('view-handover-drawer').classList.add('open');
+    }
+
+    function closeViewHandoverModal() {
+      document.getElementById('view-handover-overlay').style.display = 'none';
+      document.getElementById('view-handover-drawer').classList.remove('open');
+    }
+
+    // ==========================================
+    // TICKETS MODULE: see Tickets_HTML.html (included at the end of this page)
+    // ==========================================
+
+    // ==========================================
+    // EXPORT TO CSV
+    // ==========================================
+
+    function toggleExportMenu(e) {
+      e.stopPropagation();
+      document.getElementById('export-dropdown-menu').classList.toggle('open');
+    }
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('export-dropdown-menu');
+      const trigger = document.getElementById('btn-export-trigger');
+      if (menu && menu.classList.contains('open')) {
+        if (!menu.contains(e.target) && !trigger.contains(e.target)) {
+          menu.classList.remove('open');
+        }
+      }
+    });
+
+    function triggerRawCsvExport(sourceType) {
+      const menu = document.getElementById('export-dropdown-menu');
+      if (menu) menu.classList.remove('open');
+
+      const btn = document.getElementById('btn-export-trigger');
+      const label = document.getElementById('export-btn-text');
+
+      btn.disabled = true;
+      label.innerText = 'Exporting...';
+      setSyncState(true, 'Generating raw CSV export...');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          label.innerText = 'Export CSV';
+          setSyncState(false, 'Synced');
+
+          if (res && res.csvData) {
+            downloadCsvFile(res.csvData, res.filename);
+            showToast('✓ Raw CSV downloaded: ' + res.filename);
+          } else {
+            showToast('Export error: No data returned.', 'error');
+          }
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          label.innerText = 'Export CSV';
+          setSyncState(false, 'Error');
+          showToast('Export failed: ' + err.message, 'error');
+        })
+        .exportRawSheetToCsv(sourceType);
+    }
+
+    function downloadCsvFile(csvContent, filename) {
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    // ==========================================
+    // UTILITIES
+    // ==========================================
+
+    function setSyncState(isSyncing, text) {
+      document.getElementById('sync-spinner').style.display = isSyncing ? 'inline-block' : 'none';
+      document.getElementById('sync-label').innerText = text;
+    }
+
+    // Google's own "You do not have permission to call DriveApp..." is not something a person can act on.
+    const PERMISSION_ERROR_RE = /do not have permission to call|Required permissions:/i;
+
+    function renderPermissionBanner(force) {
+      const p = AppState.permissions || {};
+      const banner = document.getElementById('perm-banner');
+      if (!banner) return;
+      if (p.complete !== false && !force) { banner.style.display = 'none'; return; }
+      const names = (p.missing && p.missing.length) ? p.missing : ['Google Drive'];
+      document.getElementById('perm-banner-title').innerText = names.length > 1
+        ? 'Some Google permissions are missing for your account'
+        : 'One Google permission is missing for your account';
+      document.getElementById('perm-banner-text').innerText =
+        'When you signed in, ' + names.join(', ') + ' was not ticked on Google\'s permission screen, so some features ' +
+        '(attachments, Excel uploads, the AI Assistant) cannot work for you. Click Grant permissions, tick every box, then reload.';
+      const grant = document.getElementById('perm-banner-grant');
+      grant.style.display = p.url ? '' : 'none';
+      grant.onclick = () => { window.open(p.url, '_blank', 'noopener'); };
+      if (!p.url) {
+        document.getElementById('perm-banner-text').innerText +=
+          ' If there is no button: open myaccount.google.com/connections, remove this app, then open the app again.';
+      }
+      banner.style.display = 'flex';
+    }
+
+    function showToast(msg, type) {
+      if (PERMISSION_ERROR_RE.test(String(msg))) {
+        msg = 'Your Google permission for this app does not include Google Drive, so files cannot be opened or attached for you yet. See the yellow message at the top of the app.';
+        type = 'error';
+        renderPermissionBanner(true);
+      }
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = 'toast' + (type === 'error' ? ' toast-error' : '');
+
+      const text = document.createElement('span');
+      text.innerText = msg;
+      t.appendChild(text);
+
+      if (type === 'error') {
+        const close = document.createElement('button');
+        close.className = 'toast-close';
+        close.setAttribute('aria-label', 'Dismiss');
+        close.innerText = '\u00D7';
+        close.onclick = () => toastFade(t);
+        t.appendChild(close);
+      } else {
+        setTimeout(() => toastFade(t), 3500);
+      }
+
+      c.appendChild(t);
+    }
+
+    function toastFade(elem) {
+      elem.style.opacity = '0';
+      setTimeout(() => elem.remove(), 300);
+    }
+
+    function toLocalDateString(d) {
+      const dt = d || new Date();
+      const month = String(dt.getMonth() + 1).padStart(2, '0');
+      const day = String(dt.getDate()).padStart(2, '0');
+      return dt.getFullYear() + '-' + month + '-' + day;
+    }
+
+    function emailListIncludes(listStr, email) {
+      if (!listStr || !email) return false;
+      const needle = String(email).toLowerCase().trim();
+      return String(listStr).toLowerCase().split(',')
+        .map(s => s.trim())
+        .indexOf(needle) !== -1;
+    }
+
+    function isAssignedToMe(ticket) {
+      const assigned = String(ticket.assignedTo || '').toLowerCase().trim();
+      return assigned === 'all users' ||
+             emailListIncludes(ticket.assignedTo, AppState.user.email);
+    }
+
+    // ==========================================
+    // DRAWER GUARDS & ACCESSIBILITY
+    // ==========================================
+
+    const drawerSnapshots = { todo: '', create: '', detail: '' };
+
+    const DRAWER_FIELDS = {
+      todo:   { field: 'todo-comment-text',  close: () => closeTodoCommentDrawer() },
+      create: { field: 'create-description', close: () => closeCreateTicketDrawer() },
+      detail: { field: 'detail-description', close: () => closeTicketDetailDrawer() }
+    };
+
+    function snapshotDrawer(key) {
+      const cfg = DRAWER_FIELDS[key];
+      const el = cfg && document.getElementById(cfg.field);
+      drawerSnapshots[key] = el ? el.value : '';
+    }
+
+    function requestCloseDrawer(key) {
+      const cfg = DRAWER_FIELDS[key];
+      if (!cfg) return;
+
+      const el = document.getElementById(cfg.field);
+      const textChanged = cfg.isDirty ? cfg.isDirty() : (el && el.value !== drawerSnapshots[key]);
+      const hasStagedFiles = (AppState.stagedFiles[key] || []).length > 0;
+
+      if ((textChanged || hasStagedFiles) &&
+          !confirm('You have unsaved changes. Close anyway and discard them?')) {
+        return;
+      }
+      cfg.close();
+    }
+
+    function bindKeyboardShortcuts() {
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (document.getElementById('close-shift-drawer').classList.contains('open')) closeCloseShiftModal();
+        else if (document.getElementById('view-handover-drawer').classList.contains('open')) closeViewHandoverModal();
+        else if (document.getElementById('todo-comment-drawer').classList.contains('open')) requestCloseDrawer('todo');
+        else if (document.getElementById('create-ticket-drawer').classList.contains('open')) requestCloseDrawer('create');
+        else if (document.getElementById('detail-ticket-drawer').classList.contains('open')) requestCloseDrawer('detail');
+        else document.getElementById('export-dropdown-menu').classList.remove('open');
+      });
+    }
+
+    function bindMobileDismissals() {
+      document.addEventListener('click', (e) => {
+        const sidebar = document.querySelector('.sidebar');
+        const toggleBtn = document.querySelector('.btn-sidebar-toggle');
+        if (sidebar && sidebar.classList.contains('mobile-open')) {
+          if (!sidebar.contains(e.target) && (!toggleBtn || !toggleBtn.contains(e.target))) {
+            sidebar.classList.remove('mobile-open');
+          }
+        }
+      });
+    }
+
+    let lastFocusedElement = null;
+
+    function focusDrawer(drawerId) {
+      lastFocusedElement = document.activeElement;
+      const drawer = document.getElementById(drawerId);
+      drawer.setAttribute('role', 'dialog');
+      drawer.setAttribute('aria-modal', 'true');
+      const target = drawer.querySelector('textarea, select, input:not([disabled]), button');
+      if (target) target.focus();
+    }
+
+    function restoreFocus() {
+      if (lastFocusedElement && lastFocusedElement.focus) lastFocusedElement.focus();
+      lastFocusedElement = null;
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.toggle('mobile-open');
+    }
+
+    // ==========================================
+    // TO-DO METRICS & TIMERS
+    // ==========================================
+
+    function updateTodoMetrics() {
+      const tasks = AppState.tasks || [];
+      const total = tasks.length;
+      const done = tasks.filter(t => t.status === 'Completed').length;
+      const cancelled = tasks.filter(t => t.status === 'Cancelled').length;
+      const pending = total - done - cancelled;
+      const unassigned = tasks.filter(t => !t.assignedTo).length;
+      const me = AppState.user.email;
+      const mine = tasks.filter(t => (t.assignees || parseEmailList(t.assignedTo)).indexOf(me) !== -1).length;
+      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+      set('todo-metric-progress', total > 0 ? (done + '/' + total) : '\u2014');
+      set('todo-metric-done', done);
+      set('todo-metric-pending', pending);
+      set('todo-metric-unassigned', unassigned);
+      set('todo-metric-mine', mine);
+
+      const bar = document.getElementById('todo-progress-bar');
+      if (bar) bar.style.width = percent + '%';
+    }
+
+    let ticketFilterTimer = null;
+    function debouncedFilterTickets() {
+      clearTimeout(ticketFilterTimer);
+      ticketFilterTimer = setTimeout(filterTicketsTable, 150);
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      else return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function formatRelativeTime(isoStr) {
+      try {
+        const diff = (new Date() - new Date(isoStr)) / 1000;
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return new Date(isoStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      } catch (e) {
+        return isoStr;
+      }
+    }
+
+    // ==========================================
+    // DAY BUNDLE CACHE: instant shift and date switching
+    // ==========================================
+
+    const DAY_CACHE_MAX = 7;
+
+    function isElevatedRole() {
+      return AppState.user.role === 'Manager' || AppState.user.role === 'Admin';
+    }
+
+    function rememberDay(bundle) {
+      AppState.dayCache[bundle.date] = bundle;
+      AppState.dayCacheOrder = AppState.dayCacheOrder.filter(d => d !== bundle.date);
+      AppState.dayCacheOrder.push(bundle.date);
+      while (AppState.dayCacheOrder.length > DAY_CACHE_MAX) {
+        delete AppState.dayCache[AppState.dayCacheOrder.shift()];
+      }
+    }
+
+    function clearDayCache() {
+      AppState.dayCache = {};
+      AppState.dayCacheOrder = [];
+    }
+
+    function currentShiftData() {
+      const bundle = AppState.dayCache[AppState.currentDate];
+      return bundle ? bundle.shifts[AppState.currentShift] : null;
+    }
+
+    function applyCurrentShift(animate) {
+      const data = currentShiftData();
+      AppState.tasks = data ? data.tasks : [];
+      AppState.currentShiftClosure = data ? (data.closure || null) : null;
+      renderTodoTable(animate === true);
+      renderShiftClosureControls();
+      openPendingDeepLink();
+    }
+
+    function fetchDay(date, silent) {
+      const token = ++AppState.dayRequestToken;
+      if (!silent) setSyncState(true, 'Loading tasks...');
+
+      google.script.run
+        .withSuccessHandler(bundle => {
+          if (!bundle || !bundle.shifts) { if (!silent) setSyncState(false, 'Error'); return; }
+          rememberDay(bundle);
+          AppState.lastSyncTimeTodo = Math.max(AppState.lastSyncTimeTodo, Number(bundle.epoch || 0));
+          AppState.todoDirty = false;
+          if (date === AppState.currentDate && token === AppState.dayRequestToken) {
+            applyCurrentShift(!silent);
+            if (silent) pulseLiveIndicator(); else setSyncState(false, 'Synced');
+          } else if (!silent) {
+            setSyncState(false, 'Synced');
+          }
+        })
+        .withFailureHandler(err => {
+          if (!silent) {
+            setSyncState(false, 'Error');
+            showToast('Failed to fetch tasks: ' + err.message, 'error');
+          }
+        })
+        .getDayBundle(date);
+    }
+
+    function renderTodoSkeleton() {
+      const tbody = document.getElementById('todo-table-body');
+      tbody.classList.remove('animate-in');
+      let rows = '';
+      for (let i = 0; i < 6; i++) {
+        rows += '<tr>' + [70, 40, 60, 55, 45, 30].map(w => `<td><div class="skeleton-cell" style="width:${w}%"></div></td>`).join('') + '</tr>';
+      }
+      tbody.innerHTML = rows;
+    }
+
+    function syncShiftButtons() {
+      document.querySelectorAll('#view-todo .segment-btn').forEach(b => {
+        const on = b.dataset.shift === AppState.currentShift;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+
+    function openPendingDeepLink() {
+      if (!AppState.pendingTodoOpen) return;
+      const name = AppState.pendingTodoOpen;
+      AppState.pendingTodoOpen = null;
+      const idx = AppState.tasks.findIndex(t => t.taskName === name);
+      if (idx >= 0) openTodoCommentDrawer(idx);
+      else showToast('That task is not on this checklist any more.');
+    }
+
+    // Should a background refresh wait? True while someone is typing, has a drawer open, or a save is in flight.
+    function isTodoBusy() {
+      const drawerOpen = ['todo-comment-drawer', 'close-shift-drawer'].some(id => {
+        const el = document.getElementById(id);
+        return el && el.classList.contains('open');
+      });
+      const ae = document.activeElement;
+      const tag = ae && ae.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA';
+      const usingSelect = tag === 'SELECT' && (Date.now() - AppState.lastInteraction < 4000);
+      return drawerOpen || typing || usingSelect || AppState.pendingReads > 0 || AppState.inflightWrites > 0;
+    }
+
+    function refreshDirtyViews() {
+      if (AppState.todoDirty && AppState.activeModule === 'todo' && !isTodoBusy()) {
+        silentReloadTasks();
+      }
+      if (AppState.ticketsDirty && AppState.activeModule === 'tickets') {
+        const busy = ['detail-ticket-drawer', 'create-ticket-drawer'].some(id => document.getElementById(id).classList.contains('open')) ||
+          (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName));
+        if (!busy) { AppState.ticketsDirty = false; silentReloadTickets(); }
+      }
+    }
+
+    function bindInteractionTracking() {
+      const stamp = () => { AppState.lastInteraction = Date.now(); };
+      document.addEventListener('pointerdown', stamp, true);
+      document.addEventListener('keydown', stamp, true);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) pollForUpdates(); });
+      // When a drawer or field is released, apply any update that was waiting.
+      document.addEventListener('focusout', () => setTimeout(refreshDirtyViews, 400));
+    }
+
+    function bindNavKeyboard() {
+      document.querySelectorAll('.nav-item[role="button"]').forEach(li => {
+        li.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); li.click(); }
+        });
+      });
+    }
+
+    function bindRipple() {
+      document.addEventListener('click', (e) => {
+        const target = e.target.closest && e.target.closest('.btn-primary, .btn-secondary, .btn-header-action, .segment-btn, .btn-pill-quick, .btn-attach-trigger');
+        if (!target || target.disabled) return;
+        try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (err) {}
+        const rect = target.getBoundingClientRect();
+        const size = Math.max(rect.width, rect.height);
+        const dot = document.createElement('span');
+        dot.className = 'ripple';
+        dot.setAttribute('aria-hidden', 'true');
+        dot.style.width = dot.style.height = size + 'px';
+        dot.style.left = (e.clientX - rect.left - size / 2) + 'px';
+        dot.style.top = (e.clientY - rect.top - size / 2) + 'px';
+        target.appendChild(dot);
+        setTimeout(() => dot.remove(), 650);
+      });
+    }
+
+    // ==========================================
+    // ADAPTIVE EFFECTS: keep the app fast on weak PCs
+    // ==========================================
+
+    // A device that cannot sustain ~25 fps gets the calm version (no animated mesh, no blur).
+    const AppEffects = {
+      isSlow: (deltas) => {
+        if (!deltas || deltas.length < 10) return false;
+        const sorted = deltas.slice().sort((a, b) => a - b);
+        return sorted[Math.floor(sorted.length / 2)] > 40;   // median frame time in ms
+      }
+    };
+
+    function bindAdaptiveEffects() {
+      let saved = null;
+      try { saved = window.localStorage ? localStorage.getItem('wfm-ops-fx') : null; } catch (e) {}
+      if (saved === 'lite') { document.body.classList.add('lite-fx'); return; }
+      if (saved === 'full') return;                       // never re-test a device that already passed
+      setTimeout(() => {
+        if (document.hidden) return;
+        const deltas = [];
+        let last = performance.now();
+        const tick = (now) => {
+          deltas.push(now - last); last = now;
+          if (deltas.length < 45) { requestAnimationFrame(tick); return; }
+          const slow = AppEffects.isSlow(deltas.slice(3));
+          if (slow) document.body.classList.add('lite-fx');
+          try { if (window.localStorage) localStorage.setItem('wfm-ops-fx', slow ? 'lite' : 'full'); } catch (e) {}
+        };
+        requestAnimationFrame(tick);
+      }, 3000);
+    }
+
+    // ==========================================
+    // MULTI-ASSIGN (Assigned To)
+    // ==========================================
+
+    function parseEmailList(value) {
+      const seen = {};
+      return String(value || '').split(/[,;\n]/).map(s => s.trim().toLowerCase()).filter(e => {
+        if (!e || seen[e]) return false;
+        seen[e] = true;
+        return true;
+      });
+    }
+
+    function nameOf(email) { return String(email).split('@')[0]; }
+
+    function initialsOf(email) {
+      const parts = nameOf(email).split(/[._-]+/).filter(Boolean);
+      return ((parts[0] || '?').charAt(0) + (parts[1] ? parts[1].charAt(0) : '')).toUpperCase();
+    }
+
+    function createAssigneeControl(task, idx, disabled) {
+      const me = AppState.user.email;
+      const elevated = isElevatedRole();
+      const list = Array.isArray(task.assignees) ? task.assignees : parseEmailList(task.assignedTo);
+
+      const wrap = document.createElement('div');
+      wrap.className = 'assignee-wrap';
+      const chips = document.createElement('div');
+      chips.className = 'assignee-chips';
+      chips.setAttribute('role', 'list');
+      chips.setAttribute('aria-label', 'Assigned to');
+
+      if (!list.length) {
+        const none = document.createElement('span');
+        none.className = 'assignee-empty';
+        none.setAttribute('role', 'listitem');   // it sits inside role="list"
+        none.textContent = 'Unassigned';
+        chips.appendChild(none);
+      }
+
+      list.forEach(email => {
+        const chip = document.createElement('span');
+        chip.className = 'assignee-chip' + (email === me ? ' is-me' : '');
+        chip.setAttribute('role', 'listitem');
+        chip.title = email;
+        chip.innerHTML = `<span class="assignee-avatar" aria-hidden="true">${escapeHtml(initialsOf(email))}</span>` +
+          `<span class="assignee-name">${escapeHtml(email === me ? 'You' : nameOf(email))}</span>`;
+        if (!disabled && (elevated || email === me)) {
+          const x = document.createElement('button');
+          x.type = 'button';
+          x.className = 'assignee-x';
+          x.textContent = '\u00D7';
+          x.dataset.focusKey = idx + ':assignee-x-' + email;
+          x.setAttribute('aria-label', 'Remove ' + email + ' from ' + task.taskName);
+          x.onclick = () => commitAssignees(idx, list.filter(e => e !== email));
+          chip.appendChild(x);
+        }
+        chips.appendChild(chip);
+      });
+      wrap.appendChild(chips);
+
+      if (!disabled) {
+        if (!elevated) {
+          // RTM: can only add or remove themselves
+          const joined = list.indexOf(me) !== -1;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn-pill-quick';
+          btn.dataset.focusKey = idx + ':assignee-toggle';
+          btn.textContent = joined ? 'Leave' : (list.length ? 'Join' : 'Take');
+          btn.setAttribute('aria-label', (joined ? 'Leave ' : (list.length ? 'Join ' : 'Take ')) + task.taskName);
+          btn.onclick = () => commitAssignees(idx, joined ? list.filter(e => e !== me) : list.concat(me));
+          wrap.appendChild(btn);
+        } else {
+          // Manager / Admin: anyone
+          const sel = document.createElement('select');
+          sel.className = 'select-input assignee-add';
+          sel.dataset.focusKey = idx + ':assignee-add';
+          sel.setAttribute('aria-label', 'Add an assignee to ' + task.taskName);
+          sel.add(new Option('+ Add person', ''));
+          AppState.authorizedUsers.forEach(u => {
+            if (list.indexOf(u.email) !== -1) return;
+            sel.add(new Option(u.email === me ? 'Myself (' + u.email + ')' : u.email, u.email));
+          });
+          sel.onchange = (e) => { if (e.target.value) commitAssignees(idx, list.concat(e.target.value)); };
+          wrap.appendChild(sel);
+        }
+      }
+      return wrap;
+    }
+
+    function commitAssignees(idx, list) {
+      executeTodoFieldUpdate(idx, 'assignedTo', list.join(', '));
+    }
+
+    // One-click Received By for an RTM: the server allows them only to set it to themselves, clear it,
+    // or leave it unchanged (see receivedBy in updateTaskField), so this is a toggle, not a picker.
+    function createReceivedByControl(task, idx, disabled) {
+      const me = AppState.user.email;
+      const val = task.receivedBy;
+      const wrap = document.createElement('div');
+      wrap.className = 'assignee-wrap';
+
+      if (!val) {
+        if (disabled) {
+          const none = document.createElement('span');
+          none.className = 'assignee-empty';
+          none.textContent = 'Unassigned';
+          wrap.appendChild(none);
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn-pill-quick';
+          btn.dataset.focusKey = idx + ':receivedby-toggle';
+          btn.textContent = 'Receive';
+          btn.setAttribute('aria-label', 'Mark that you received ' + task.taskName);
+          btn.onclick = () => executeTodoFieldUpdate(idx, 'receivedBy', me);
+          wrap.appendChild(btn);
+        }
+        return wrap;
+      }
+
+      const chips = document.createElement('div');
+      chips.className = 'assignee-chips';
+      const chip = document.createElement('span');
+      chip.className = 'assignee-chip' + (val === me ? ' is-me' : '');
+      chip.title = val;
+      chip.innerHTML = `<span class="assignee-avatar" aria-hidden="true">${escapeHtml(initialsOf(val))}</span>` +
+        `<span class="assignee-name">${escapeHtml(val === me ? 'You' : nameOf(val))}</span>`;
+      if (!disabled && val === me) {
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'assignee-x';
+        x.textContent = '\u00D7';
+        x.dataset.focusKey = idx + ':receivedby-x';
+        x.setAttribute('aria-label', 'Undo receiving ' + task.taskName);
+        x.onclick = () => executeTodoFieldUpdate(idx, 'receivedBy', '');
+        chip.appendChild(x);
+      }
+      chips.appendChild(chip);
+      wrap.appendChild(chips);
+      return wrap;
+    }
+
+    // ==========================================
+    // @MENTIONS in to-do comments
+    // ==========================================
+
+    const MENTION_RE = /(?:^|[^A-Za-z0-9._%+\-])@([A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,})/g;
+    const Mentions = { items: [], active: 0, range: null };
+
+    function extractMentionsClient(text) {
+      const known = {};
+      AppState.authorizedUsers.forEach(u => { known[u.email] = true; });
+      const out = [];
+      const seen = {};
+      const re = new RegExp(MENTION_RE.source, 'g');
+      let m;
+      while ((m = re.exec(String(text || ''))) !== null) {
+        const email = m[1].toLowerCase();
+        if (!seen[email] && known[email]) { seen[email] = true; out.push(email); }
+      }
+      return out;
+    }
+
+    function commentMentionsMe(comment) {
+      if (!comment || comment.indexOf('@') === -1) return false;
+      return extractMentionsClient(comment).indexOf(AppState.user.email) !== -1;
+    }
+
+    function updateMentionHint() {
+      const hint = document.getElementById('todo-mention-hint');
+      if (!hint) return;
+      const text = document.getElementById('todo-comment-text').value;
+      const before = extractMentionsClient(AppState.todoOriginalComment);
+      const fresh = extractMentionsClient(text).filter(e => before.indexOf(e) === -1 && e !== AppState.user.email);
+      hint.innerHTML = fresh.length
+        ? 'Will email: <strong>' + fresh.map(e => escapeHtml(nameOf(e))).join(', ') + '</strong> when you save.'
+        : 'Type @ then a name. New mentions get an email from you with a link to this task.';
+    }
+
+    function closeMentionSuggest() {
+      const box = document.getElementById('todo-mention-suggest');
+      const ta = document.getElementById('todo-comment-text');
+      if (box) { box.hidden = true; box.innerHTML = ''; }
+      if (ta) { ta.setAttribute('aria-expanded', 'false'); ta.removeAttribute('aria-activedescendant'); }
+      Mentions.items = [];
+      Mentions.range = null;
+    }
+
+    function renderMentionSuggest() {
+      const box = document.getElementById('todo-mention-suggest');
+      const ta = document.getElementById('todo-comment-text');
+      box.innerHTML = '';
+      Mentions.items.forEach((u, i) => {
+        const opt = document.createElement('div');
+        opt.className = 'mention-item';
+        opt.id = 'mention-opt-' + i;
+        opt.setAttribute('role', 'option');
+        opt.setAttribute('aria-selected', i === Mentions.active ? 'true' : 'false');
+        opt.innerHTML = `<span class="assignee-avatar" aria-hidden="true">${escapeHtml(initialsOf(u.email))}</span><span>${escapeHtml(nameOf(u.email))} <small>${escapeHtml(u.email)} (${escapeHtml(u.role)})</small></span>`;
+        opt.onmousedown = (e) => { e.preventDefault(); chooseMention(i); };
+        box.appendChild(opt);
+      });
+      box.hidden = false;
+      ta.setAttribute('aria-expanded', 'true');
+      ta.setAttribute('aria-activedescendant', 'mention-opt-' + Mentions.active);
+    }
+
+    function updateMentionSuggest() {
+      const ta = document.getElementById('todo-comment-text');
+      if (!ta || ta.disabled) return closeMentionSuggest();
+      const before = ta.value.slice(0, ta.selectionStart);
+      const m = /(?:^|[\s(])@([A-Za-z0-9._%+\-]*)$/.exec(before);
+      if (!m) return closeMentionSuggest();
+      const query = m[1].toLowerCase();
+      const me = AppState.user.email;
+      const items = AppState.authorizedUsers.filter(u => u.email !== me && u.email.toLowerCase().indexOf(query) !== -1).slice(0, 6);
+      if (!items.length) return closeMentionSuggest();
+      Mentions.items = items;
+      Mentions.active = 0;
+      Mentions.range = { start: ta.selectionStart - query.length - 1, end: ta.selectionStart };
+      renderMentionSuggest();
+    }
+
+    function chooseMention(i) {
+      const ta = document.getElementById('todo-comment-text');
+      const user = Mentions.items[i];
+      if (!user || !Mentions.range) return;
+      const insert = '@' + user.email + ' ';
+      ta.value = ta.value.slice(0, Mentions.range.start) + insert + ta.value.slice(Mentions.range.end);
+      const caret = Mentions.range.start + insert.length;
+      ta.setSelectionRange(caret, caret);
+      closeMentionSuggest();
+      updateMentionHint();
+      ta.focus();
+    }
+
+    function bindMentionAutocomplete() {
+      const ta = document.getElementById('todo-comment-text');
+      if (!ta) return;
+      ta.addEventListener('input', () => { updateMentionSuggest(); updateMentionHint(); });
+      ta.addEventListener('click', updateMentionSuggest);
+      ta.addEventListener('blur', () => setTimeout(closeMentionSuggest, 120));
+      ta.addEventListener('keydown', (e) => {
+        if (!Mentions.items.length) return;
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const n = Mentions.items.length;
+          Mentions.active = (Mentions.active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+          renderMentionSuggest();
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault();
+          chooseMention(Mentions.active);
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();       // close the list only, not the whole drawer
+          closeMentionSuggest();
+        }
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+  <?!= include_('Tickets_HTML') ?>
+</body>
+</html>

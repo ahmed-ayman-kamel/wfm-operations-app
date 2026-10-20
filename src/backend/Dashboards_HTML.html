@@ -1,0 +1,134 @@
+<!--
+  Dashboards_HTML.html — NEW FILE. The "Dashboards" section of the sidebar and the router for every dashboard page.
+  - Asks the server which dashboards this person may open (getDashboardMenu in Dashboards.gs) and lists them
+    under a collapsible "Dashboards" heading in the sidebar (replaces the disabled "Dashboard – Soon" item).
+  - Each dashboard page registers itself: (window.WFM_DASH_QUEUE = window.WFM_DASH_QUEUE || []).push({ id, title, viewId, icon, onShow, onHide, onRole })
+    Its sidebar item opens module 'dash-<id>' through the app's normal switchModule().
+  - Adding a dashboard = one entry in Dashboards.gs + one page file that registers itself. Nothing here changes.
+  Include this file BEFORE the dashboard pages (Index.html does).
+-->
+<style>
+  .nav-section { margin-top: 6px; }
+  .nav-section-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; margin: 0; border: 0; background: none;
+    font: inherit; font-size: 12px; font-weight: 700; color: var(--text-muted, #64748b); cursor: pointer; border-radius: var(--radius-sm, 8px); text-align: left; }
+  .nav-section-head:hover { color: var(--text-primary, #0f172a); background: var(--surface-hover, rgba(15, 23, 42, .05)); }
+  .nav-section-head:focus-visible { outline: 2px solid var(--primary-blue, #0077e6); outline-offset: 1px; }
+  .nav-section-head .nav-section-count { margin-left: auto; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--border-subtle, rgba(15, 23, 42, .08)); }
+  .nav-section-head .nav-section-chev { transition: transform .2s ease; flex: none; }
+  .nav-section[data-collapsed="true"] .nav-section-chev { transform: rotate(-90deg); }
+  .nav-section-items { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .22s ease; }
+  .nav-section[data-collapsed="true"] .nav-section-items { grid-template-rows: 0fr; }
+  .nav-section-items > div { overflow: hidden; min-height: 0; }
+  .nav-section .nav-item.nav-sub { padding-left: 22px; }
+  .nav-section .nav-sub-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .nav-section .nav-sub-text small { font-size: 10.5px; font-weight: 500; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (prefers-reduced-motion: reduce) { .nav-section-items, .nav-section-head .nav-section-chev { transition: none; } }
+</style>
+<script>
+(function () {
+  'use strict';
+  var defs = {}, order = [], menu = null, role = '', current = null;
+  function q(id) { return document.getElementById(id); }
+  function svgIcon(d) {
+    var NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), p = document.createElementNS(NS, 'path');
+    s.setAttribute('width', '18'); s.setAttribute('height', '18'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor'); s.setAttribute('stroke-width', '2'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
+    s.setAttribute('aria-hidden', 'true'); p.setAttribute('d', d || 'M3 3h18v18H3zM3 9h18M9 21V9'); s.appendChild(p); return s;
+  }
+  function collapsedPref(v) { try { if (v === undefined) return localStorage.getItem('wfm.nav.dashboards') === '1'; localStorage.setItem('wfm.nav.dashboards', v ? '1' : '0'); } catch (e) { return false; } }
+
+  function renderNav() {
+    var host = q('nav-dashboards');
+    if (!host) return;
+    while (host.firstChild) host.removeChild(host.firstChild);
+    var items = (menu ? menu.items : []).filter(function (m) { return defs[m.id]; });
+    if (!menu || !items.length) { host.hidden = true; return; }   // not known yet, or nothing this role may open: no section
+    host.hidden = false;
+    host.className = 'nav-section';
+    host.setAttribute('data-collapsed', String(collapsedPref() && !(current && current.indexOf('dash-') === 0)));
+    var head = document.createElement('button');
+    head.type = 'button'; head.className = 'nav-section-head'; head.setAttribute('aria-expanded', String(host.getAttribute('data-collapsed') !== 'true'));
+    head.setAttribute('aria-controls', 'nav-dashboards-items');
+    head.appendChild(svgIcon('M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z'));
+    var label = document.createElement('span'); label.textContent = 'Dashboards'; head.appendChild(label);
+    var count = document.createElement('span'); count.className = 'nav-section-count'; count.textContent = String(items.length); head.appendChild(count);
+    var chev = svgIcon('M6 9l6 6 6-6'); chev.setAttribute('class', 'nav-section-chev'); chev.setAttribute('width', '14'); chev.setAttribute('height', '14'); head.appendChild(chev);
+    head.addEventListener('click', function () {
+      var c = host.getAttribute('data-collapsed') !== 'true';
+      host.setAttribute('data-collapsed', String(c)); head.setAttribute('aria-expanded', String(!c)); collapsedPref(c);
+    });
+    host.appendChild(head);
+    var wrap = document.createElement('div'); wrap.className = 'nav-section-items'; wrap.id = 'nav-dashboards-items';
+    var inner = document.createElement('div'); wrap.appendChild(inner);
+    items.forEach(function (m) {
+      var d = defs[m.id], it = document.createElement('div');
+      it.className = 'nav-item nav-sub' + (current === 'dash-' + m.id ? ' active' : '');
+      it.id = 'nav-dash-' + m.id; it.setAttribute('role', 'button'); it.tabIndex = 0; it.title = m.subtitle || m.title;
+      if (current === 'dash-' + m.id) it.setAttribute('aria-current', 'page');
+      it.appendChild(svgIcon(d.icon));
+      var t = document.createElement('span'); t.className = 'nav-sub-text';
+      var t1 = document.createElement('span'); t1.textContent = m.title; t.appendChild(t1);
+      if (m.subtitle) { var t2 = document.createElement('small'); t2.textContent = m.subtitle; t.appendChild(t2); }
+      it.appendChild(t);
+      it.addEventListener('click', function () { if (typeof switchModule === 'function') switchModule('dash-' + m.id); });
+      it.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); it.click(); } });
+      inner.appendChild(it);
+    });
+    host.appendChild(wrap);
+  }
+
+  var API = {
+    /** Called by each dashboard page file. */
+    register: function (def) {
+      if (!def || !def.id || defs[def.id]) return;
+      defs[def.id] = def; order.push(def.id);
+      if (role && def.onRole) try { def.onRole(role); } catch (e) {}
+      renderNav();
+    },
+    drain: function () { var qd = window.WFM_DASH_QUEUE || []; while (qd.length) API.register(qd.shift()); },
+    isDashboard: function (module) { return typeof module === 'string' && module.indexOf('dash-') === 0; },
+    title: function (module) { var d = defs[String(module).slice(5)]; return d ? d.title : 'Dashboard'; },
+    first: function () { var ids = (menu ? menu.items.map(function (m) { return m.id; }) : order).filter(function (id) { return defs[id]; }); return ids.length ? 'dash-' + ids[0] : null; },
+    role: function () { return role; },
+    /** Called by switchModule() for every module change: shows the right dashboard view, hides the others. */
+    sync: function (module) {
+      current = module;
+      var isDash = API.isDashboard(module), id = isDash ? module.slice(5) : null;
+      if (isDash && !defs[id]) {
+        // Unknown dashboard (old link, or the page file is missing): go to the normal start page instead of a blank screen.
+        var appRole = (window.AppState && AppState.user && AppState.user.role) || role;
+        setTimeout(function () { if (typeof switchModule === 'function') switchModule(appRole === 'Operations' ? 'tickets' : 'todo'); }, 0);
+        return;
+      }
+      order.forEach(function (k) {
+        var d = defs[k], on = (k === id), view = q(d.viewId), nav = q('nav-dash-' + k);
+        if (view) view.style.display = on ? 'flex' : 'none';
+        if (nav) { nav.classList.toggle('active', on); if (on) nav.setAttribute('aria-current', 'page'); else nav.removeAttribute('aria-current'); }
+        try { if (on && d.onShow) d.onShow(); else if (!on && d._shown && d.onHide) d.onHide(); } catch (e) { if (window.console) console.error(e); }
+        d._shown = on;
+      });
+      if (isDash) {
+        var host = q('nav-dashboards');
+        if (host && host.getAttribute('data-collapsed') === 'true') { host.setAttribute('data-collapsed', 'false'); var h = host.querySelector('.nav-section-head'); if (h) h.setAttribute('aria-expanded', 'true'); }
+      }
+    }
+  };
+  window.WFM_Dashboards = API;
+  API.drain();
+
+  // Start-up: which dashboards may this person open?
+  function askMenu(attempt) {
+    if (!(window.google && google.script && google.script.run)) return;
+    google.script.run
+      .withSuccessHandler(function (res) {
+        menu = res && res.ok ? res : { items: [], role: '' }; role = menu.role || '';
+        order.forEach(function (k) { var d = defs[k]; if (d.onRole) try { d.onRole(role); } catch (e) {} });
+        renderNav();
+      })
+      .withFailureHandler(function () { if ((attempt || 0) < 2) setTimeout(function () { askMenu((attempt || 0) + 1); }, 1500 * ((attempt || 0) + 1)); else { menu = { items: [], role: '' }; renderNav(); } })
+      .getDashboardMenu();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { renderNav(); askMenu(0); });
+  else { renderNav(); askMenu(0); }
+})();
+</script>

@@ -1,0 +1,142 @@
+<script>
+/*
+ * ApiShim — makes the same pages work in the new secure setup without changing any page code.
+ *
+ * When the page is served by the "WFM App - Front" project, the front puts window.WFM_API in the page
+ * ({ url, token, initialData }). Then every google.script.run call for app data goes straight from the
+ * browser to the backend with the person's Google-signed identity token (the fast route). Personal
+ * To-Do and sending email stay in the front project, because they must run as the signed-in person.
+ *
+ * Without window.WFM_API (the old deployment), this file does nothing.
+ */
+(function () {
+  var CFG = window.WFM_API;
+  if (!CFG || !CFG.url || !window.google || !google.script || !google.script.run) return;
+
+  var real = google.script.run;
+  // Functions that live in the front project (they run as the signed-in person there).
+  var FRONT_ONLY = {
+    getMyTodos: 1, saveMyTodo: 1, deleteMyTodo: 1, clearMyCompletedTodos: 1, restoreMyTodos: 1,
+    getIdToken: 1, sendSignedMail: 1
+  };
+  var token = String(CFG.token || '');
+  var prefetched = CFG.initialData || null;
+  var refreshing = null;
+
+  function tokenExpiryMs(t) {
+    try {
+      var part = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (part.length % 4) part += '=';
+      return Number(JSON.parse(atob(part)).exp) * 1000;
+    } catch (e) { return 0; }
+  }
+
+  function callFront(name, args) {
+    return new Promise(function (ok, fail) {
+      var r = real.withSuccessHandler(ok).withFailureHandler(fail);
+      r[name].apply(r, args || []);
+    });
+  }
+
+  // Tokens last about an hour; a fresh one is fetched from the front 5 minutes before expiry.
+  function freshToken(force) {
+    if (!force && tokenExpiryMs(token) - Date.now() > 5 * 60 * 1000) return Promise.resolve(token);
+    if (!refreshing) {
+      refreshing = callFront('getIdToken').then(
+        function (t) { token = String(t || ''); refreshing = null; return token; },
+        function (e) { refreshing = null; throw e; });
+    }
+    return refreshing;
+  }
+
+  function post(name, args) {
+    return fetch(CFG.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // a "simple" request: no CORS preflight
+      body: JSON.stringify({ token: token, action: name, args: args })
+    }).then(function (res) {
+      return res.text().then(function (text) {
+        try { return JSON.parse(text); }
+        catch (e) { throw new Error('The app server did not answer correctly (HTTP ' + res.status + '). Please try again.'); }
+      });
+    }, function (err) {
+      throw new Error('NetworkError: the connection to the app failed (' + ((err && err.message) || 'Failed to fetch') + ').');
+    });
+  }
+
+  function sendMail(mail) {
+    var toast = function (msg) { if (typeof showToast === 'function') showToast(msg, 'error'); else console.warn(msg); };
+    if (mail.error) { toast(mail.error); return; }
+    callFront('sendSignedMail', [mail.payload, mail.sig]).then(function (r) {
+      if (r && r.failed) toast(r.error || 'Some notification emails could not be sent. Your change was saved.');
+    }, function (e) {
+      toast('Notification email could not be sent: ' + ((e && e.message) || e) + ' Your change was saved.');
+    });
+  }
+
+  function callBackend(name, args) {
+    return freshToken(false)
+      .then(function () { return post(name, args); })
+      .then(function (body) {
+        if (body && !body.ok && /^Identity (expired|could not be verified)/.test(body.error || '')) {
+          return freshToken(true).then(function () { return post(name, args); });   // one retry with a new token
+        }
+        return body;
+      })
+      .then(function (body) {
+        if (body && body.mail) sendMail(body.mail);
+        if (!body || !body.ok) throw new Error((body && body.error) || 'Server error.');
+        return body.result;
+      });
+  }
+
+  function dispatch(name, args) {
+    if (FRONT_ONLY[name]) return callFront(name, args);
+    if (name === 'getInitialAppData' && prefetched) {          // already delivered with the page
+      var data = prefetched; prefetched = null;
+      return Promise.resolve(data);
+    }
+    if (name === 'askAssistant' && args[1] && args[1].includeTodos === true) {
+      // My To-Do lives in the front: read it there, then send it with the question.
+      return callFront('getMyTodos', []).then(function (todos) {
+        var opts = Object.assign({}, args[1], { todos: todos || [] });
+        return callBackend(name, [args[0], opts]);
+      }, function () { return callBackend(name, args); });
+    }
+    return callBackend(name, args);
+  }
+
+  // Same shape as google.script.run: withSuccessHandler / withFailureHandler / withUserObject + any function name.
+  function makeRunner(onOk, onFail, userObj) {
+    return new Proxy({}, {
+      get: function (target, prop) {
+        if (prop === 'withSuccessHandler') return function (f) { return makeRunner(f, onFail, userObj); };
+        if (prop === 'withFailureHandler') return function (f) { return makeRunner(onOk, f, userObj); };
+        if (prop === 'withUserObject') return function (o) { return makeRunner(onOk, onFail, o); };
+        if (typeof prop !== 'string' || prop === 'then' || prop === 'toJSON') return undefined;
+        return function () {
+          var args = Array.prototype.slice.call(arguments);
+          while (args.length && args[args.length - 1] === undefined) args.pop();
+          dispatch(prop, args).then(function (result) {
+            if (onOk) onOk(result, userObj);
+          }, function (err) {
+            var e = (err instanceof Error) ? err : new Error(String((err && err.message) || err));
+            if (onFail) onFail(e, userObj); else console.error('[WFM API] ' + prop + ': ' + e.message);
+          });
+        };
+      }
+    });
+  }
+
+  var shim = makeRunner(null, null, undefined);
+  try { google.script.run = shim; } catch (e) {}
+  if (google.script.run !== shim) {
+    try { Object.defineProperty(google.script, 'run', { value: shim, configurable: true, writable: true }); } catch (e) {}
+  }
+  CFG.fastRoute = (google.script.run === shim);
+  CFG.call = dispatch;   // for testing in the console: WFM_API.call('whoami', [])
+  console.log('[WFM API] ' + (CFG.fastRoute
+    ? 'fast route active: data goes straight to the backend.'
+    : 'fast route unavailable: using the front project route (slower).'));
+})();
+</script>

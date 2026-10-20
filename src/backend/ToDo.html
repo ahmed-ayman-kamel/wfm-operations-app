@@ -1,0 +1,520 @@
+<!--
+  ToDo.html : "My To-Do", the personal task list. Since the Personal Assistant update it is one of the
+  two panels of the Personal Assistant page (the other is the AI Assistant, Assistant_HTML.html).
+  Included by Index.html with <?!= include_('ToDo') ?> inside #view-assistant. Self-contained: its own markup, styles and script.
+  Storage: google.script.run -> getMyTodos / saveMyTodo / deleteMyTodo / clearMyCompletedTodos.
+  Tasks are private to the signed-in user (see PersonalTodo.gs). Nothing here touches the shared sheets.
+-->
+<section id="view-mytodo" class="pa-panel" aria-labelledby="mt-heading">
+  <div class="mt-wrap">
+
+    <div class="mt-head">
+      <div>
+        <h2 class="mt-title" id="mt-heading">My To-Do</h2>
+        <p class="mt-private">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Only you can see this list
+        </p>
+      </div>
+      <div class="mt-progress" aria-live="polite">
+        <div class="mt-progress-info"><span>Done</span><span id="mt-progress-text">0 of 0</span></div>
+        <div class="mt-track"><div class="mt-fill" id="mt-progress-bar"></div></div>
+      </div>
+    </div>
+
+    <form id="mt-form" class="mt-form" autocomplete="off">
+      <div class="mt-row">
+        <input id="mt-title" class="text-input mt-input" type="text" maxlength="200" placeholder="What needs to be done?" aria-label="New task" required>
+        <button type="submit" class="btn-primary" id="mt-add-btn">Add task</button>
+      </div>
+      <textarea id="mt-notes" class="mt-notes" rows="2" maxlength="1000" placeholder="Notes (optional)" aria-label="Notes"></textarea>
+      <div class="mt-row mt-meta">
+        <select id="mt-priority" class="select-input" aria-label="Priority">
+          <option value="low">Low priority</option>
+          <option value="medium" selected>Medium priority</option>
+          <option value="high">High priority</option>
+        </select>
+        <select id="mt-category" class="select-input" aria-label="Category">
+          <option selected>Work</option><option>Follow-up</option><option>Personal</option><option>Shopping</option><option>Fitness</option>
+        </select>
+        <input id="mt-due" class="text-input" type="date" aria-label="Due date">
+      </div>
+    </form>
+
+    <div class="mt-controls">
+      <div class="segmented-control" role="group" aria-label="Filter tasks">
+        <button type="button" class="segment-btn active" data-mt-filter="all" aria-pressed="true">All <span class="mt-count" id="mt-count-all"></span></button>
+        <button type="button" class="segment-btn" data-mt-filter="active" aria-pressed="false">Active <span class="mt-count" id="mt-count-active"></span></button>
+        <button type="button" class="segment-btn" data-mt-filter="completed" aria-pressed="false">Done <span class="mt-count" id="mt-count-completed"></span></button>
+      </div>
+      <div class="mt-row">
+        <input id="mt-search" class="text-input" type="search" placeholder="Search tasks" aria-label="Search tasks" style="width: 170px;">
+        <select id="mt-sort" class="select-input" aria-label="Order">
+          <option value="smart" selected>Most urgent first</option>
+          <option value="newest">Newest first</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="mt-undo" id="mt-undo" role="status" hidden>
+      <span id="mt-undo-text"></span>
+      <button type="button" class="btn-secondary" id="mt-undo-btn">Undo</button>
+    </div>
+
+    <ul id="mt-list" class="mt-list" aria-live="polite"></ul>
+
+    <div class="mt-footer">
+      <span id="mt-left">0 tasks left</span>
+      <span class="mt-row" style="gap:8px;">
+        <button type="button" class="btn-secondary" id="mt-export" title="Save all your tasks to a file">Export my tasks</button>
+        <button type="button" class="btn-secondary" id="mt-import" title="Add tasks from a file you exported">Import tasks</button>
+        <input type="file" id="mt-import-file" accept=".json,application/json" hidden>
+        <button type="button" class="btn-secondary" id="mt-clear">Clear completed</button>
+      </span>
+    </div>
+  </div>
+
+  <style>
+    #view-mytodo .mt-wrap { width: 100%; display: flex; flex-direction: column; gap: 14px; }
+    #view-mytodo .mt-count { font-size: 11px; opacity: 0.75; font-variant-numeric: tabular-nums; }
+    #view-mytodo .mt-due { padding: 2px 9px; border-radius: 999px; font-weight: 700; border: 1px solid transparent; }
+    #view-mytodo .mt-due.overdue { background: var(--status-cancelled-bg); color: var(--status-cancelled-text); border-color: var(--status-cancelled-border); }
+    #view-mytodo .mt-due.today { background: var(--status-pending-bg); color: var(--status-pending-text); border-color: var(--status-pending-border); }
+    #view-mytodo .mt-due.soon { background: var(--primary-blue-light); color: var(--primary-blue); border-color: var(--primary-blue-border); }
+    #view-mytodo .mt-undo { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 14px; border-radius: var(--radius-sm); background: var(--surface-strong); border: 1px solid var(--border-medium); font-size: 12.5px; font-weight: 700; box-shadow: var(--shadow-sm); }
+    #view-mytodo .mt-undo[hidden] { display: none; }
+    #view-mytodo .mt-undo .btn-secondary { height: 30px; padding: 0 12px; }
+    #view-mytodo .mt-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; }
+    #view-mytodo .mt-title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    #view-mytodo .mt-private { display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--text-muted); font-size: 12px; font-weight: 600; }
+    #view-mytodo .mt-progress { min-width: 180px; flex: 0 1 240px; }
+    #view-mytodo .mt-progress-info { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+    #view-mytodo .mt-track { height: 8px; border-radius: 999px; background: var(--border-subtle); overflow: hidden; }
+    #view-mytodo .mt-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #7C5CFF, #22D3EE 60%, #34D399); box-shadow: 0 0 14px rgba(34, 211, 238, 0.5); transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+
+    #view-mytodo .mt-form { background: var(--surface-strong); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm); }
+    #view-mytodo .mt-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    #view-mytodo .mt-input { flex: 1; min-width: 200px; height: 40px; font-size: 14px; font-weight: 600; }
+    #view-mytodo .mt-notes { width: 100%; resize: vertical; min-height: 48px; border-radius: var(--radius-sm); border: 1px solid var(--border-medium); background: var(--surface); color: var(--text-primary); padding: 9px 11px; font-size: 13px; outline: none; }
+    #view-mytodo .mt-meta .select-input, #view-mytodo .mt-meta .text-input { height: 34px; }
+
+    #view-mytodo .mt-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #view-mytodo .mt-list { list-style: none; display: flex; flex-direction: column; gap: 10px; min-height: 90px; }
+    #view-mytodo .mt-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px; background: var(--surface-strong); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); animation: riseIn 0.28s ease both; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    #view-mytodo .mt-item:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    #view-mytodo .mt-item.done .mt-item-title { text-decoration: line-through; color: var(--text-muted); }
+    #view-mytodo .mt-item.pending-save { opacity: 0.65; }
+    #view-mytodo .mt-left { display: flex; gap: 12px; align-items: flex-start; min-width: 0; flex: 1; }
+    #view-mytodo .mt-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border-medium); background: transparent; cursor: pointer; flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; color: transparent; transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease, color 0.2s ease; }
+    #view-mytodo .mt-check:hover { border-color: var(--primary-blue); }
+    #view-mytodo .mt-check:active { transform: scale(0.88); }
+    #view-mytodo .mt-item.done .mt-check { background: linear-gradient(135deg, #7C5CFF, #22D3EE); border-color: transparent; color: #FFFFFF; }
+    #view-mytodo .mt-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    #view-mytodo .mt-item-title { font-size: 14px; font-weight: 700; word-break: break-word; }
+    #view-mytodo .mt-tags { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
+    #view-mytodo .mt-pri { padding: 2px 9px; border-radius: 999px; font-weight: 700; border: 1px solid transparent; }
+    #view-mytodo .mt-pri.low { background: var(--status-completed-bg); color: var(--status-completed-text); border-color: var(--status-completed-border); }
+    #view-mytodo .mt-pri.medium { background: var(--status-pending-bg); color: var(--status-pending-text); border-color: var(--status-pending-border); }
+    #view-mytodo .mt-pri.high { background: var(--status-cancelled-bg); color: var(--status-cancelled-text); border-color: var(--status-cancelled-border); }
+    #view-mytodo details.mt-details summary { cursor: pointer; color: var(--primary-blue); font-size: 12px; font-weight: 700; list-style: none; width: fit-content; }
+    #view-mytodo details.mt-details summary::-webkit-details-marker { display: none; }
+    #view-mytodo details.mt-details p { margin-top: 6px; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--surface-hover); border: 1px solid var(--border-subtle); white-space: pre-wrap; word-break: break-word; font-size: 12.5px; line-height: 1.5; }
+    #view-mytodo .mt-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    #view-mytodo .mt-icon { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-medium); background: var(--surface); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease; }
+    #view-mytodo .mt-icon:hover { background: var(--surface-hover); color: var(--primary-blue); }
+    #view-mytodo .mt-icon.danger:hover { color: var(--status-cancelled-text); }
+    #view-mytodo .mt-icon:active { transform: scale(0.92); }
+    #view-mytodo .mt-edit { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    #view-mytodo .mt-empty { text-align: center; padding: 34px 16px; color: var(--text-muted); font-weight: 600; border: 1px dashed var(--border-medium); border-radius: var(--radius-md); }
+    #view-mytodo .mt-error { text-align: center; padding: 26px 16px; color: var(--status-cancelled-text); font-weight: 700; border: 1px solid var(--status-cancelled-border); background: var(--status-cancelled-bg); border-radius: var(--radius-md); }
+    #view-mytodo .mt-footer { display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-weight: 600; font-size: 12.5px; }
+    @media (max-width: 600px) { #view-mytodo .mt-item { padding: 12px; } #view-mytodo .mt-progress { flex-basis: 100%; } }
+  </style>
+
+  <script>
+    (function () {
+      var state = { tasks: [], filter: 'all', query: '', sort: 'smart', editingId: null, loaded: false, loading: false, failed: '', undo: null };
+      var PRI_RANK = { high: 0, medium: 1, low: 2 };
+      var $ = function (id) { return document.getElementById(id); };
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
+      }
+      function toast(msg, type) { if (typeof showToast === 'function') showToast(msg, type); }
+      function newId() { return 't' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+      function fmtDue(d) {
+        if (!d) return '';
+        var p = d.split('-');
+        return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      }
+      function localToday() {
+        var n = new Date(), pad = function (x) { return (x < 10 ? '0' : '') + x; };
+        return n.getFullYear() + '-' + pad(n.getMonth() + 1) + '-' + pad(n.getDate());
+      }
+      function dayDiff(d) {  // due date minus today, in whole days (both yyyy-MM-dd)
+        if (!d) return null;
+        var a = d.split('-'), b = localToday().split('-');
+        return Math.round((Date.UTC(+a[0], +a[1] - 1, +a[2]) - Date.UTC(+b[0], +b[1] - 1, +b[2])) / 86400000);
+      }
+      function dueTag(t) {
+        if (!t.dueDate) return '';
+        var n = dayDiff(t.dueDate), label = 'Due ' + fmtDue(t.dueDate);
+        if (t.completed) return '<span>' + esc(label) + '</span>';
+        if (n < 0) return '<span class="mt-due overdue">Overdue \u00B7 ' + esc(fmtDue(t.dueDate)) + '</span>';
+        if (n === 0) return '<span class="mt-due today">Due today</span>';
+        if (n === 1) return '<span class="mt-due soon">Due tomorrow</span>';
+        return '<span>' + esc(label) + '</span>';
+      }
+      // Most urgent first: open tasks before done ones; overdue, then by due date (no date last),
+      // then priority, then newest. "Newest first" keeps the original order.
+      function compareSmart(a, b) {
+        if (!!a.completed !== !!b.completed) return a.completed ? 1 : -1;
+        if (!a.completed) {
+          var da = a.dueDate || '9999-12-31', db = b.dueDate || '9999-12-31';
+          if (da !== db) return da < db ? -1 : 1;
+          var pa = PRI_RANK[a.priority] === undefined ? 1 : PRI_RANK[a.priority], pb = PRI_RANK[b.priority] === undefined ? 1 : PRI_RANK[b.priority];
+          if (pa !== pb) return pa - pb;
+        }
+        return a.createdAt < b.createdAt ? 1 : (a.createdAt > b.createdAt ? -1 : 0);
+      }
+
+      var ICON = {
+        check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>',
+        edit: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+        trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>',
+        save: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>',
+        x: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+      };
+
+      function setBusy(b) { $('mt-title').disabled = b; $('mt-add-btn').disabled = b; }
+
+      function load() {
+        if (state.loading) return;
+        state.loading = true;
+        setBusy(true);
+        $('mt-list').innerHTML = '<li class="mt-empty" data-loading="1">Loading your tasks...</li>';
+        google.script.run
+          .withSuccessHandler(function (rows) {
+            state.loading = false; state.loaded = true; state.failed = '';
+            state.tasks = Array.isArray(rows) ? rows : [];
+            setBusy(false);
+            render();
+          })
+          .withFailureHandler(function (err) {
+            state.loading = false; state.failed = (err && err.message) || String(err);
+            setBusy(false);   // was missing: the "new task" box stayed disabled after a failed load
+            render();
+          })
+          .getMyTodos();
+      }
+
+      function visible() {
+        var q = state.query.toLowerCase();
+        var rows = state.tasks.filter(function (t) {
+          var okFilter = state.filter === 'all' || (state.filter === 'active' ? !t.completed : t.completed);
+          var okQuery = !q || (t.title + ' ' + t.category + ' ' + (t.notes || '')).toLowerCase().indexOf(q) !== -1;
+          return okFilter && okQuery;
+        });
+        if (state.sort === 'smart') rows = rows.slice().sort(compareSmart);
+        return rows;
+      }
+
+      function itemHtml(t) {
+        if (t.id === state.editingId) {
+          return '<form class="mt-edit" data-edit="' + esc(t.id) + '">' +
+            '<div class="mt-row"><input class="text-input mt-input" name="title" maxlength="200" required value="' + esc(t.title) + '" aria-label="Task title">' +
+            '<button type="submit" class="mt-icon" aria-label="Save changes">' + ICON.save + '</button>' +
+            '<button type="button" class="mt-icon danger" data-act="cancel" aria-label="Cancel editing">' + ICON.x + '</button></div>' +
+            '<textarea class="mt-notes" name="notes" rows="2" maxlength="1000" aria-label="Notes">' + esc(t.notes || '') + '</textarea>' +
+            '<div class="mt-row mt-meta">' +
+              '<select class="select-input" name="priority" aria-label="Priority">' +
+                ['low', 'medium', 'high'].map(function (p) { return '<option value="' + p + '"' + (t.priority === p ? ' selected' : '') + '>' + p.charAt(0).toUpperCase() + p.slice(1) + ' priority</option>'; }).join('') +
+              '</select>' +
+              '<select class="select-input" name="category" aria-label="Category">' +
+                ['Work', 'Follow-up', 'Personal', 'Shopping', 'Fitness'].map(function (c) { return '<option' + (t.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') +
+              '</select>' +
+              '<input class="text-input" type="date" name="dueDate" value="' + esc(t.dueDate || '') + '" aria-label="Due date">' +
+            '</div></form>';
+        }
+        return '<div class="mt-left">' +
+          '<button type="button" class="mt-check" role="checkbox" aria-checked="' + (t.completed ? 'true' : 'false') + '" data-act="toggle" aria-label="' + (t.completed ? 'Mark as not done: ' : 'Mark as done: ') + esc(t.title) + '">' + ICON.check + '</button>' +
+          '<div class="mt-body"><span class="mt-item-title">' + esc(t.title) + '</span>' +
+            '<div class="mt-tags"><span class="mt-pri ' + esc(t.priority) + '">' + esc(t.priority) + '</span><span>' + esc(t.category) + '</span>' + dueTag(t) + '</div>' +
+            (t.notes ? '<details class="mt-details"><summary>Details</summary><p>' + esc(t.notes) + '</p></details>' : '') +
+          '</div></div>' +
+          '<div class="mt-actions">' +
+            '<button type="button" class="mt-icon" data-act="edit" aria-label="Edit task: ' + esc(t.title) + '">' + ICON.edit + '</button>' +
+            '<button type="button" class="mt-icon danger" data-act="delete" aria-label="Delete task: ' + esc(t.title) + '">' + ICON.trash + '</button>' +
+          '</div>';
+      }
+
+      function render() {
+        var list = $('mt-list');
+        if (state.failed) {
+          list.innerHTML = '<li class="mt-error">' + esc(state.failed) + '<br><button type="button" class="btn-secondary" id="mt-retry" style="margin-top:12px;">Try again</button></li>';
+          $('mt-retry').onclick = load;
+          return;
+        }
+        var rows = visible();
+        if (!rows.length) {
+          list.innerHTML = '<li class="mt-empty">' + (state.tasks.length ? 'No tasks match this view.' : 'Nothing here yet. Add your first task above.') + '</li>';
+        } else {
+          list.innerHTML = rows.map(function (t) {
+            return '<li class="mt-item' + (t.completed ? ' done' : '') + (t._saving ? ' pending-save' : '') + '" data-id="' + esc(t.id) + '">' + itemHtml(t) + '</li>';
+          }).join('');
+        }
+        var total = state.tasks.length;
+        var done = state.tasks.filter(function (t) { return t.completed; }).length;
+        $('mt-count-all').textContent = total;
+        $('mt-count-active').textContent = total - done;
+        $('mt-count-completed').textContent = done;
+        $('mt-progress-text').textContent = done + ' of ' + total;
+        $('mt-progress-bar').style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+        var left = total - done;
+        $('mt-left').textContent = left + (left === 1 ? ' task left' : ' tasks left');
+      }
+
+      function find(id) { return state.tasks.filter(function (t) { return t.id === id; })[0]; }
+
+      // Server writes go out ONE AT A TIME, in the order the person made them. The screen updates at
+      // once as before; only the saving is queued. This rules out races such as a delete overtaking
+      // the save of the same task (the task would come back after a reload) or an Undo arriving
+      // before the delete it reverses.
+      var writes = [], writing = false;
+      function enqueue(run) { writes.push(run); pump(); }
+      function pump() {
+        if (writing || !writes.length) return;
+        writing = true;
+        var run = writes.shift(), finished = false;
+        run(function done() { if (finished) return; finished = true; writing = false; pump(); });
+      }
+
+      function persist(task, onFail) {
+        task._saving = (task._saving || 0) + 1;
+        var payload = { id: task.id, title: task.title, notes: task.notes, priority: task.priority, category: task.category, dueDate: task.dueDate, completed: !!task.completed };
+        enqueue(function (done) {
+          google.script.run
+            .withSuccessHandler(function (saved) {
+              var t = find(task.id);
+              // Take the server's copy only when no newer change of this task is still waiting,
+              // so a quick on/off toggle never flickers back.
+              if (t && !--t._saving) { Object.assign(t, saved); delete t._saving; }
+              render(); done();
+            })
+            .withFailureHandler(function (err) {
+              toast('Could not save: ' + ((err && err.message) || err), 'error');
+              if (onFail) onFail();
+              var t = find(task.id); if (t && !--t._saving) delete t._saving;
+              render(); done();
+            })
+            .saveMyTodo(payload);
+        });
+      }
+
+      $('mt-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var title = $('mt-title').value.trim();
+        if (!title) return;
+        var task = {
+          id: newId(), title: title, notes: $('mt-notes').value.trim(), priority: $('mt-priority').value,
+          category: $('mt-category').value, dueDate: $('mt-due').value, completed: false, createdAt: new Date().toISOString()
+        };
+        state.tasks.unshift(task);
+        $('mt-title').value = ''; $('mt-notes').value = ''; $('mt-due').value = '';
+        render();
+        persist(task, function () { state.tasks = state.tasks.filter(function (t) { return t.id !== task.id; }); });
+        $('mt-title').focus();
+      });
+
+      $('mt-list').addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        var li = btn.closest('.mt-item'); if (!li) return;
+        var id = li.getAttribute('data-id'), t = find(id); if (!t) return;
+        var act = btn.getAttribute('data-act');
+        if (act === 'toggle') {
+          t.completed = !t.completed; render();
+          persist(t, function () { t.completed = !t.completed; });
+        } else if (act === 'edit') {
+          state.editingId = id; render();
+          var first = document.querySelector('#mt-list [name="title"]'); if (first) first.focus();
+        } else if (act === 'cancel') {
+          state.editingId = null; render();
+        } else if (act === 'delete') {
+          state.tasks = state.tasks.filter(function (x) { return x.id !== id; }); render();
+          var name = t.title.length > 40 ? t.title.slice(0, 39) + '\u2026' : t.title;
+          offerUndo([t], 'Deleted "' + name + '".');
+          enqueue(function (done) {
+            google.script.run
+              .withSuccessHandler(function () { done(); })
+              .withFailureHandler(function (err) {
+                if (!find(t.id)) state.tasks.push(t);
+                if (state.undo && state.undo.tasks.indexOf(t) !== -1) hideUndo();
+                render(); done();
+                toast('Could not delete: ' + ((err && err.message) || err), 'error');
+              })
+              .deleteMyTodo(id);
+          });
+        }
+      });
+
+      $('mt-list').addEventListener('submit', function (e) {
+        var form = e.target.closest('[data-edit]'); if (!form) return;
+        e.preventDefault();
+        var t = find(form.getAttribute('data-edit')); if (!t) return;
+        var before = { title: t.title, notes: t.notes, priority: t.priority, category: t.category, dueDate: t.dueDate };
+        var f = form.elements;
+        t.title = f.title.value.trim() || t.title; t.notes = f.notes.value.trim(); t.priority = f.priority.value; t.category = f.category.value; t.dueDate = f.dueDate.value;
+        state.editingId = null; render();
+        persist(t, function () { Object.assign(t, before); });
+      });
+
+      document.querySelectorAll('[data-mt-filter]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          state.filter = b.getAttribute('data-mt-filter');
+          document.querySelectorAll('[data-mt-filter]').forEach(function (x) {
+            var on = x === b; x.classList.toggle('active', on); x.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          render();
+        });
+      });
+      $('mt-search').addEventListener('input', function (e) { state.query = e.target.value; render(); });
+
+      $('mt-clear').addEventListener('click', function () {
+        var removed = state.tasks.filter(function (t) { return t.completed; });
+        if (!removed.length) return;
+        state.tasks = state.tasks.filter(function (t) { return !t.completed; }); render();
+        offerUndo(removed, removed.length + (removed.length === 1 ? ' completed task cleared.' : ' completed tasks cleared.'));
+        var ids = removed.map(function (t) { return t.id; });   // only what the screen removed
+        enqueue(function (done) {
+          google.script.run
+            .withSuccessHandler(function () { done(); })
+            .withFailureHandler(function (err) {
+              state.tasks = state.tasks.concat(removed.filter(function (t) { return !find(t.id); }));
+              if (state.undo && state.undo.tasks === removed) hideUndo();
+              render(); done();
+              toast('Could not clear: ' + ((err && err.message) || err), 'error');
+            })
+            .clearMyCompletedTodos(ids);
+        });
+      });
+
+      // Undo for delete and "Clear completed": the bar shows at once. Undo puts the tasks back on
+      // screen and queues ONE restore call (same ids, same creation time), which the queue sends only
+      // after the delete it reverses.
+      function offerUndo(tasks, text) {
+        clearTimeout(state.undo && state.undo.timer);
+        state.undo = { tasks: tasks, timer: setTimeout(hideUndo, 8000) };
+        $('mt-undo-text').textContent = text;
+        $('mt-undo').hidden = false;
+      }
+      function hideUndo() {
+        if (state.undo) clearTimeout(state.undo.timer);
+        state.undo = null;
+        $('mt-undo').hidden = true;
+      }
+      $('mt-undo-btn').addEventListener('click', function () {
+        if (!state.undo) return;
+        var back = state.undo.tasks;
+        hideUndo();
+        back = back.filter(function (t) { return !find(t.id); });
+        if (!back.length) return;
+        back.forEach(function (t) { delete t._saving; state.tasks.push(t); });
+        render();
+        var payload = back.map(function (t) {
+          return { id: t.id, title: t.title, notes: t.notes, priority: t.priority, category: t.category, dueDate: t.dueDate, completed: !!t.completed, createdAt: t.createdAt };
+        });
+        enqueue(function (done) {
+          google.script.run
+            .withSuccessHandler(function () { done(); })
+            .withFailureHandler(function (err) {
+              var gone = back.map(function (t) { return t.id; });
+              state.tasks = state.tasks.filter(function (x) { return gone.indexOf(x.id) === -1; });
+              render(); done();
+              toast('Could not undo: ' + ((err && err.message) || err), 'error');
+            })
+            .restoreMyTodos(payload);
+        });
+      });
+      $('mt-sort').addEventListener('change', function (e) { state.sort = e.target.value; render(); });
+
+      // ---------- Export / Import (moves your private tasks between the old and the new app) ----------
+      /*PARSE_START*/
+      function parseImportText(text) {
+        var data;
+        try { data = JSON.parse(String(text || '')); } catch (e) { throw new Error('This file is not a My To-Do export.'); }
+        var rows = Array.isArray(data) ? data : (data && Array.isArray(data.tasks) ? data.tasks : null);
+        if (!rows) throw new Error('This file is not a My To-Do export.');
+        if (rows.length > 300) throw new Error('Too many tasks in the file (the limit is 300).');
+        var out = [];
+        rows.forEach(function (t) {
+          if (!t || typeof t !== 'object') return;
+          var title = String(t.title == null ? '' : t.title).trim();
+          var id = String(t.id == null ? '' : t.id);
+          if (!title || !/^[A-Za-z0-9\-]{8,40}$/.test(id)) return;
+          out.push({
+            id: id, title: title.substring(0, 200), notes: String(t.notes == null ? '' : t.notes).substring(0, 1000),
+            priority: ['low', 'medium', 'high'].indexOf(t.priority) === -1 ? 'medium' : t.priority,
+            category: ['Personal', 'Work', 'Shopping', 'Fitness', 'Follow-up'].indexOf(t.category) === -1 ? 'Personal' : t.category,
+            dueDate: /^\d{4}-\d{2}-\d{2}$/.test(String(t.dueDate || '')) ? String(t.dueDate) : '',
+            completed: t.completed === true,
+            createdAt: String(t.createdAt || '')
+          });
+        });
+        return out;
+      }
+      /*PARSE_END*/
+
+      $('mt-export').addEventListener('click', function () {
+        if (!state.loaded) { toast('Your tasks are still loading. Try again in a moment.', 'error'); return; }
+        var tasks = state.tasks.map(function (t) {
+          return { id: t.id, title: t.title, notes: t.notes || '', priority: t.priority, category: t.category, dueDate: t.dueDate || '', completed: !!t.completed, createdAt: t.createdAt };
+        });
+        if (!tasks.length) { toast('You have no tasks to export.', 'error'); return; }
+        var blob = new Blob([JSON.stringify({ app: 'wfm-ops-my-todo', version: 1, exportedAt: new Date().toISOString(), tasks: tasks }, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'my-todo-' + localToday() + '.json';
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+        toast('Saved ' + tasks.length + ' task' + (tasks.length === 1 ? '' : 's') + '. In the new app open My To-Do and click "Import tasks".');
+      });
+
+      $('mt-import').addEventListener('click', function () { $('mt-import-file').click(); });
+      $('mt-import-file').addEventListener('change', function (e) {
+        var file = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) { toast('This file is too big to be a My To-Do export.', 'error'); return; }
+        var reader = new FileReader();
+        reader.onerror = function () { toast('The file could not be read.', 'error'); };
+        reader.onload = function () {
+          var tasks;
+          try { tasks = parseImportText(reader.result); } catch (err) { toast(err.message, 'error'); return; }
+          if (!tasks.length) { toast('No tasks found in this file.', 'error'); return; }
+          enqueue(function (done) {
+            google.script.run
+              .withSuccessHandler(function (added) {
+                added = Array.isArray(added) ? added : [];
+                added.forEach(function (t) { if (!find(t.id)) state.tasks.push(t); });
+                state.loaded = true;
+                render(); done();
+                var skipped = tasks.length - added.length;
+                toast('Imported ' + added.length + ' task' + (added.length === 1 ? '' : 's') + (skipped > 0 ? ' (' + skipped + ' already here)' : '') + '.');
+              })
+              .withFailureHandler(function (err) { done(); toast('Could not import: ' + ((err && err.message) || err), 'error'); })
+              .restoreMyTodos(tasks);
+          });
+        };
+        reader.readAsText(file);
+      });
+
+      window.MyTodo = {
+        show: function () { if (!state.loaded) load(); },
+        reload: load
+      };
+    })();
+  </script>
+</section>

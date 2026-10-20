@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>WFM NICE Connector</title>
+<style>
+ body{font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:14px 16px;width:330px;color:#111c2e}
+ h1{font-size:15px;margin:0} .v{color:#748092;font-size:12px} h2{font-size:12.5px;margin:14px 0 6px;color:#475467}
+ li{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eef1f5;word-break:break-all;font-size:12px}
+ ul{list-style:none;margin:0;padding:0} button{font:inherit;font-size:12px;border:1px solid #d0d7e2;background:#fff;border-radius:6px;padding:3px 8px;cursor:pointer;flex:none}
+ a{color:#0a6fd8} .ok{color:#0d7a54;font-weight:600} .bad{color:#be3426;font-weight:600} .t{color:#748092} p{color:#475467;margin:8px 0 0}
+</style></head><body>
+<h1>WFM NICE Connector <span class="v" id="ver"></span></h1>
+<p>Runs NICE WebStation reports for the WFM Operations App with your own NICE session, only when you press <b>Start automation</b>.</p>
+<h2>Apps allowed to use it</h2><ul id="list"></ul>
+<h2>Recent runs</h2><ul id="hist"></ul>
+<p><a href="https://your-tenant.nicecloudsvc.com/wfm/supervisor/reports-view" target="_blank">Open NICE WebStation</a> (sign in here once a day if NICE asks).</p>
+<script src="popup.js"></script></body></html>
