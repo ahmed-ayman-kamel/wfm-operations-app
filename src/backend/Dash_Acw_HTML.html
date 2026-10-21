@@ -1,0 +1,1357 @@
+<!--
+  Dash_Acw_HTML.html — NEW FILE. The ACW Performance dashboard page (included by Index.html, next to Dash_Mvcc_HTML).
+  Built from Dash_Acw.src.html + Tailwind (compiled and scoped to #acwd-root; see build.js). Same design system and the same
+  features as the Adherence, Voyce and MVCC dashboards: filters, period presets, compare, overview, workbook tables, drill-down
+  drawer, data health, CSV export and Start automation.
+  Server: getAcwDashboardData(), getAcwDashboardStamp() (Dash_Acw.gs); acwBackfillSisense(), acwStartNice(), acwSaveNice(),
+  acwReportRunFailure() (Acw.gs). NICE is reached only through the "WFM NICE Connector" extension.
+  Tables reproduce the workbook "ACW_Report" level sheets (LOB, SDACMs, Supervisor, Language, Agent; the Account level is the
+  Grand Total and the Overview): Assigned, Accepted, ABN, Actual ACW, Target, Achieved AVG ACW, Variance, Final Status, Overall %.
+  Every figure is a ratio of sums (Achieved AVG ACW = Σ ACW minutes × 60 ÷ Σ Accepted calls), exactly like the workbook.
+  Agents without accepted calls show "No calls" (the workbook showed "_" and Achieved).
+  All text that comes from data is written with textContent (never innerHTML).
+-->
+<div id="view-dash-acw" class="page-view" style="display:none">
+<style>#acwd-root{--ac-canvas:244 246 250;--ac-surface:255 255 255;--ac-raised:250 251 253;--ac-ink:17 28 46;--ac-ink2:71 84 103;--ac-muted:116 128 146;--ac-rule:226 231 238;--ac-accent:10 111 216;--ac-accent-ink:255 255 255;--ac-good:13 122 84;--ac-good-bg:225 244 235;--ac-bad:190 52 38;--ac-bad-bg:252 233 229;--ac-warn:201 128 0;--ac-s1:10 111 216;--ac-s2:235 104 52;--ac-s3:124 77 214;--ac-shadow-card:0 1px 2px rgba(16,24,40,.04),0 6px 20px -8px rgba(16,24,40,.1);--ac-shadow-pop:0 2px 6px rgba(16,24,40,.06),0 18px 44px -12px rgba(16,24,40,.28);color-scheme:light}body.dark-mode #acwd-root{--ac-canvas:13 18 28;--ac-surface:22 28 40;--ac-raised:27 34 48;--ac-ink:234 239 246;--ac-ink2:176 188 205;--ac-muted:128 141 160;--ac-rule:42 52 70;--ac-accent:92 162 246;--ac-accent-ink:8 20 38;--ac-good:76 206 148;--ac-good-bg:17 57 43;--ac-bad:247 132 112;--ac-bad-bg:68 29 25;--ac-warn:245 182 66;--ac-s1:57 135 229;--ac-s2:217 89 38;--ac-s3:160 130 245;--ac-shadow-card:0 1px 0 hsla(0,0%,100%,.03) inset,0 10px 28px -12px rgba(0,0,0,.7);--ac-shadow-pop:0 1px 0 hsla(0,0%,100%,.04) inset,0 22px 50px -14px rgba(0,0,0,.8);color-scheme:dark}#acwd-root,#acwd-root *,#acwd-root :after,#acwd-root :before{box-sizing:border-box}#acwd-root{display:block;width:100%;max-width:100%;min-width:0;flex:1 1 auto;color:rgb(var(--ac-ink));font-family:inherit;line-height:1.45;-webkit-font-smoothing:antialiased;font-feature-settings:"cv11","ss01"}#acwd-root :where(button,input,select){font:inherit;color:inherit;margin:0;text-transform:none;letter-spacing:inherit}#acwd-root :where(input,select){border:0;outline-offset:0}#acwd-root :where(button){background:none;border:0;padding:0;cursor:pointer;box-shadow:none;min-height:0;width:auto}#acwd-root :where(h1,h2,h3,h4,p,ul,ol,dl,dd,figure){margin:0;padding:0}#acwd-root :where(table){border-collapse:separate;border-spacing:0;width:100%;margin:0;background:none;box-shadow:none}#acwd-root :where(th,td){padding:0;border:0;background:none;text-transform:none;letter-spacing:normal;font-weight:inherit;font-size:inherit;color:inherit;vertical-align:middle}#acwd-root :where(svg text){font-family:inherit}#acwd-root [hidden]{display:none!important}#acwd-root,#acwd-root *,#acwd-root ::before,#acwd-root ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgba(59,130,246,.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }#acwd-root .ac-card{border-radius:18px;--tw-bg-opacity:1;--tw-shadow:var(--ac-shadow-card);--tw-shadow-colored:var(--ac-shadow-card);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);--tw-ring-color:rgb(var(--ac-rule)/0.7)}#acwd-root .ac-btn,#acwd-root .ac-card{background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}#acwd-root .ac-btn{display:inline-flex;height:2.25rem;align-items:center;gap:.5rem;border-radius:.5rem;--tw-bg-opacity:1;padding-left:.875rem;padding-right:.875rem;font-size:13px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#acwd-root .ac-btn:hover{--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1));--tw-ring-color:rgb(var(--ac-ink2)/0.3)}#acwd-root .ac-btn:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ac-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-btn:active{--tw-scale-x:.98;--tw-scale-y:.98;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}#acwd-root .ac-btn:disabled{pointer-events:none;opacity:.5}#acwd-root .ac-btn-primary{display:inline-flex;height:2.25rem;align-items:center;gap:.5rem;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ac-accent)/var(--tw-bg-opacity,1));padding-left:.875rem;padding-right:.875rem;font-size:13px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ac-accent-ink)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#acwd-root .ac-btn-primary:hover{--tw-brightness:brightness(1.1);filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}#acwd-root .ac-btn-primary:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ac-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-btn-primary:active{--tw-scale-x:.98;--tw-scale-y:.98;transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}#acwd-root .ac-btn-primary:disabled{pointer-events:none;opacity:.6}#acwd-root .ac-field{display:inline-flex;height:2.25rem;align-items:center;gap:.375rem;white-space:nowrap;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));padding-left:.75rem;padding-right:.625rem;font-size:13px;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#acwd-root .ac-field:hover{--tw-ring-color:rgb(var(--ac-ink2)/0.4)}#acwd-root .ac-field:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ac-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-field-on{background-color:rgb(var(--ac-accent)/.07);--tw-ring-color:rgb(var(--ac-accent)/0.6)}#acwd-root .ac-seg{display:inline-flex;max-width:100%;overflow-x:auto;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1));padding:.125rem;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1));scrollbar-width:none}#acwd-root .ac-seg-btn{height:2rem;flex:none;border-radius:.375rem;padding-left:.75rem;padding-right:.75rem;font-size:12.5px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ac-ink2)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,-webkit-backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke,opacity,box-shadow,transform,filter,backdrop-filter,-webkit-backdrop-filter;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s;transition-timing-function:cubic-bezier(.2,.7,.2,1)}#acwd-root .ac-seg-btn:hover{--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1))}#acwd-root .ac-seg-btn:focus-visible{--tw-shadow:0 0 0 3px rgb(var(--ac-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-seg-on{--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));--tw-shadow:0 1px 2px rgb(16 24 40/.08),0 0 0 1px rgb(var(--ac-rule));--tw-shadow-colored:0 1px 2px var(--tw-shadow-color),0 0 0 1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}#acwd-root .ac-tab{position:relative;height:2.75rem;white-space:nowrap;padding-left:.25rem;padding-right:.25rem;font-size:13.5px;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ac-muted)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .ac-tab:hover{--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1))}#acwd-root .ac-tab:focus-visible{--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-tab-on{--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1))}#acwd-root .ac-tab-on:after{position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:9999px;content:var(--tw-content);--tw-bg-opacity:1;background-color:rgb(var(--ac-accent)/var(--tw-bg-opacity,1))}#acwd-root .ac-pop{position:fixed;z-index:60;min-width:260px;max-width:340px;animation:ac-pop .14s ease-out both;border-radius:.75rem;--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));padding:.5rem;--tw-shadow:var(--ac-shadow-pop);--tw-shadow-colored:var(--ac-shadow-pop);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1))}#acwd-root .ac-opt{display:flex;width:100%;align-items:center;gap:.625rem;border-radius:.5rem;padding:.5rem .625rem;text-align:left;font-size:13px;--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .ac-opt:hover{--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1))}#acwd-root .ac-opt:focus-visible{--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1));outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-input{height:2.25rem;width:100%;border-radius:.5rem;--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1));padding-left:.75rem;padding-right:.75rem;font-size:13px;--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1))}#acwd-root .ac-input::-moz-placeholder{--tw-text-opacity:1;color:rgb(var(--ac-muted)/var(--tw-text-opacity,1))}#acwd-root .ac-input::placeholder{--tw-text-opacity:1;color:rgb(var(--ac-muted)/var(--tw-text-opacity,1))}#acwd-root .ac-input:focus{--tw-shadow:0 0 0 3px rgb(var(--ac-accent)/.28);--tw-shadow-colored:0 0 0 3px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);outline:2px solid transparent;outline-offset:2px;--tw-ring-color:rgb(var(--ac-accent)/0.6)}#acwd-root .ac-chip{display:inline-flex;height:1.75rem;align-items:center;gap:.375rem;border-radius:9999px;background-color:rgb(var(--ac-accent)/.1);padding-left:.625rem;padding-right:.25rem;font-size:12px;--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-color:rgb(var(--ac-accent)/0.25)}@keyframes ac-shimmer{0%{background-position:-400px 0}to{background-position:400px 0}}#acwd-root .ac-skel{animation:ac-shimmer 1.3s linear infinite;border-radius:.375rem;background-image:linear-gradient(90deg,rgb(var(--ac-rule)/.55) 0,rgb(var(--ac-rule)/.95) 120px,rgb(var(--ac-rule)/.55) 240px);background-size:800px 100%}#acwd-root .ac-tbl-wrap{position:relative;max-height:68vh;overflow:auto;overscroll-behavior:contain;border-bottom-right-radius:18px;border-bottom-left-radius:18px}#acwd-root .ac-th{position:sticky;top:0;z-index:2;min-width:92px;white-space:normal;border-bottom-width:1px;--tw-border-opacity:1;border-color:rgb(var(--ac-rule)/var(--tw-border-opacity,1));--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1));padding:.625rem .75rem;text-align:right;vertical-align:bottom;font-size:11.5px;font-weight:600;line-height:1.25;--tw-text-opacity:1;color:rgb(var(--ac-ink2)/var(--tw-text-opacity,1))}#acwd-root .ac-th-first{left:0;z-index:3;min-width:190px;text-align:left}#acwd-root .ac-td{height:2.5rem;white-space:nowrap;border-bottom-width:1px;border-color:rgb(var(--ac-rule)/.7);padding-left:.75rem;padding-right:.75rem;text-align:right;font-size:13px;--tw-numeric-spacing:tabular-nums;font-variant-numeric:var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction);--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.1s}#acwd-root .ac-td-first{position:sticky;left:0;z-index:1;--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));text-align:left;font-weight:500}#acwd-root .ac-row:hover>td{--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1))}#acwd-root .ac-row-total>td{border-top-width:1px;--tw-border-opacity:1;border-color:rgb(var(--ac-rule)/var(--tw-border-opacity,1));--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1));font-weight:700}#acwd-root .ac-row-grand>td{position:sticky;bottom:0;z-index:1;--tw-shadow:0 -1px 0 rgb(var(--ac-rule));--tw-shadow-colored:0 -1px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}#acwd-root .ac-row-grand>td.ac-td-first{z-index:2}#acwd-root .ac-good{background-color:rgb(var(--ac-good-bg)/.7);--tw-text-opacity:1;color:rgb(var(--ac-good)/var(--tw-text-opacity,1))}#acwd-root .ac-bad{background-color:rgb(var(--ac-bad-bg)/.7);--tw-text-opacity:1;color:rgb(var(--ac-bad)/var(--tw-text-opacity,1))}#acwd-root .ac-draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:ac-draw .9s cubic-bezier(.2,.7,.2,1) .1s forwards}@keyframes ac-draw{to{stroke-dashoffset:0}}#acwd-root .ac-grow{transform-box:fill-box;transform-origin:left center;animation:ac-grow .7s cubic-bezier(.2,.7,.2,1) both}#acwd-root .ac-rise{transform-box:fill-box;transform-origin:center bottom;animation:ac-rise .7s cubic-bezier(.2,.7,.2,1) both}@keyframes ac-grow{0%{transform:scaleX(0)}to{transform:none}}@keyframes ac-rise{0%{transform:scaleY(0)}to{transform:none}}#acwd-root .ac-drawer-wrap{position:fixed;inset:0;z-index:70}#acwd-root .ac-drawer-back{inset:0;background-color:rgb(8 14 24/.38);--tw-backdrop-blur:blur(1px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);animation:ac-fade .2s ease-out both}#acwd-root .ac-drawer,#acwd-root .ac-drawer-back{position:absolute}#acwd-root .ac-drawer{right:0;top:0;display:flex;height:100%;width:100%;max-width:600px;flex-direction:column;--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));--tw-shadow:var(--ac-shadow-pop);--tw-shadow-colored:var(--ac-shadow-pop);box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow);--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1));animation:ac-slide .28s cubic-bezier(.2,.7,.2,1) both}#acwd-root .ac-drawer-out .ac-drawer{animation:ac-slide-out .19s ease-in both}#acwd-root .ac-drawer-out .ac-drawer-back{animation:ac-fade-out .19s ease-in both}@keyframes ac-slide{0%{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}@keyframes ac-slide-out{to{transform:translateX(40px);opacity:0}}@keyframes ac-fade{0%{opacity:0}to{opacity:1}}@keyframes ac-fade-out{to{opacity:0}}#acwd-root .ac-dr-row{display:flex;width:100%;align-items:center;gap:.75rem;border-top-width:1px;border-color:rgb(var(--ac-rule)/.7);--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));padding:.5rem .75rem;font-size:13px;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .ac-dr-row:hover{--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1))}#acwd-root .ac-dr-row:focus-visible{--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1));outline:2px solid transparent;outline-offset:2px}#acwd-root .ac-cellbar{position:relative;display:inline-block;height:.375rem;width:4rem;flex:none;overflow:visible;border-radius:9999px;--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-inset:inset;--tw-ring-color:rgb(var(--ac-rule)/0.6)}#acwd-root .ac-link{cursor:pointer;font-weight:600;--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1));text-decoration-line:underline;text-decoration-color:rgb(var(--ac-rule)/1);text-decoration-thickness:2px;text-underline-offset:3px;transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .ac-link:hover{--tw-text-opacity:1;color:rgb(var(--ac-accent)/var(--tw-text-opacity,1));text-decoration-color:rgb(var(--ac-accent)/1)}#acwd-root .ac-step-dot{display:grid;height:1.5rem;width:1.5rem;flex:none;place-items:center;border-radius:9999px;--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1));--tw-text-opacity:1;color:rgb(var(--ac-muted)/var(--tw-text-opacity,1));--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000);--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1))}#acwd-root .pointer-events-none{pointer-events:none}#acwd-root .visible{visibility:visible}#acwd-root .static{position:static}#acwd-root .absolute{position:absolute}#acwd-root .relative{position:relative}#acwd-root .sticky{position:sticky}#acwd-root .-inset-y-0\.5{top:-.125rem;bottom:-.125rem}#acwd-root .-inset-y-1\.5{top:-.375rem;bottom:-.375rem}#acwd-root .inset-y-0{top:0;bottom:0}#acwd-root .left-0{left:0}#acwd-root .left-2\.5{left:.625rem}#acwd-root .right-0{right:0}#acwd-root .z-20{z-index:20}#acwd-root .col-span-2{grid-column:span 2/span 2}#acwd-root .mx-1{margin-left:.25rem;margin-right:.25rem}#acwd-root .mx-4{margin-left:1rem;margin-right:1rem}#acwd-root .mx-5{margin-left:1.25rem;margin-right:1.25rem}#acwd-root .mb-1\.5{margin-bottom:.375rem}#acwd-root .mb-3{margin-bottom:.75rem}#acwd-root .mb-4{margin-bottom:1rem}#acwd-root .mb-5{margin-bottom:1.25rem}#acwd-root .mb-px{margin-bottom:1px}#acwd-root .ml-0\.5{margin-left:.125rem}#acwd-root .ml-1{margin-left:.25rem}#acwd-root .ml-1\.5{margin-left:.375rem}#acwd-root .ml-auto{margin-left:auto}#acwd-root .mt-0\.5{margin-top:.125rem}#acwd-root .mt-1{margin-top:.25rem}#acwd-root .mt-1\.5{margin-top:.375rem}#acwd-root .mt-2{margin-top:.5rem}#acwd-root .mt-2\.5{margin-top:.625rem}#acwd-root .mt-3{margin-top:.75rem}#acwd-root .mt-4{margin-top:1rem}#acwd-root .mt-5{margin-top:1.25rem}#acwd-root .mt-6{margin-top:1.5rem}#acwd-root .block{display:block}#acwd-root .inline-block{display:inline-block}#acwd-root .flex{display:flex}#acwd-root .inline-flex{display:inline-flex}#acwd-root .table{display:table}#acwd-root .grid{display:grid}#acwd-root .hidden{display:none}#acwd-root .h-1{height:.25rem}#acwd-root .h-11{height:2.75rem}#acwd-root .h-12{height:3rem}#acwd-root .h-2{height:.5rem}#acwd-root .h-2\.5{height:.625rem}#acwd-root .h-3{height:.75rem}#acwd-root .h-4{height:1rem}#acwd-root .h-5{height:1.25rem}#acwd-root .h-6{height:1.5rem}#acwd-root .h-8{height:2rem}#acwd-root .h-9{height:2.25rem}#acwd-root .h-\[260px\]{height:260px}#acwd-root .h-\[3px\]{height:3px}#acwd-root .h-full{height:100%}#acwd-root .max-h-\[260px\]{max-height:260px}#acwd-root .max-h-\[280px\]{max-height:280px}#acwd-root .max-h-\[320px\]{max-height:320px}#acwd-root .w-0\.5{width:.125rem}#acwd-root .w-11{width:2.75rem}#acwd-root .w-14{width:3.5rem}#acwd-root .w-16{width:4rem}#acwd-root .w-2{width:.5rem}#acwd-root .w-2\.5{width:.625rem}#acwd-root .w-20{width:5rem}#acwd-root .w-24{width:6rem}#acwd-root .w-28{width:7rem}#acwd-root .w-3{width:.75rem}#acwd-root .w-32{width:8rem}#acwd-root .w-4{width:1rem}#acwd-root .w-40{width:10rem}#acwd-root .w-5{width:1.25rem}#acwd-root .w-8{width:2rem}#acwd-root .w-\[130px\]{width:130px}#acwd-root .w-\[200px\]{width:200px}#acwd-root .w-\[340px\]{width:340px}#acwd-root .w-full{width:100%}#acwd-root .w-px{width:1px}#acwd-root .min-w-0{min-width:0}#acwd-root .min-w-\[180px\]{min-width:180px}#acwd-root .min-w-full{min-width:100%}#acwd-root .max-w-\[160px\]{max-width:160px}#acwd-root .max-w-\[300px\]{max-width:300px}#acwd-root .max-w-full{max-width:100%}#acwd-root .max-w-md{max-width:28rem}#acwd-root .flex-1{flex:1 1 0%}#acwd-root .flex-none{flex:none}#acwd-root .-translate-x-1\/2{--tw-translate-x:-50%}#acwd-root .-translate-x-1\/2,#acwd-root .rotate-180{transform:translate(var(--tw-translate-x),var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}#acwd-root .rotate-180{--tw-rotate:180deg}@keyframes ac-in{0%{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}#acwd-root .animate-ac-in{animation:ac-in .32s cubic-bezier(.2,.7,.2,1) both}@keyframes ac-pop{0%{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}#acwd-root .animate-ac-pop{animation:ac-pop .14s ease-out both}@keyframes ping{75%,to{transform:scale(2);opacity:0}}#acwd-root .animate-ping{animation:ping 1s cubic-bezier(0,0,.2,1) infinite}@keyframes spin{to{transform:rotate(1turn)}}#acwd-root .animate-spin{animation:spin 1s linear infinite}#acwd-root .cursor-pointer{cursor:pointer}#acwd-root .resize{resize:both}#acwd-root .list-disc{list-style-type:disc}#acwd-root .grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}#acwd-root .grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}#acwd-root .grid-cols-\[max-content_1fr\]{grid-template-columns:max-content 1fr}#acwd-root .flex-wrap{flex-wrap:wrap}#acwd-root .place-items-center{place-items:center}#acwd-root .items-start{align-items:flex-start}#acwd-root .items-end{align-items:flex-end}#acwd-root .items-center{align-items:center}#acwd-root .items-baseline{align-items:baseline}#acwd-root .justify-end{justify-content:flex-end}#acwd-root .justify-center{justify-content:center}#acwd-root .justify-between{justify-content:space-between}#acwd-root .gap-0\.5{gap:.125rem}#acwd-root .gap-1{gap:.25rem}#acwd-root .gap-1\.5{gap:.375rem}#acwd-root .gap-2{gap:.5rem}#acwd-root .gap-2\.5{gap:.625rem}#acwd-root .gap-3{gap:.75rem}#acwd-root .gap-4{gap:1rem}#acwd-root .gap-6{gap:1.5rem}#acwd-root .gap-px{gap:1px}#acwd-root .gap-x-3{-moz-column-gap:.75rem;column-gap:.75rem}#acwd-root .gap-x-5{-moz-column-gap:1.25rem;column-gap:1.25rem}#acwd-root .gap-x-6{-moz-column-gap:1.5rem;column-gap:1.5rem}#acwd-root .gap-y-1{row-gap:.25rem}#acwd-root .gap-y-2{row-gap:.5rem}#acwd-root .gap-y-2\.5{row-gap:.625rem}#acwd-root .gap-y-3{row-gap:.75rem}#acwd-root .overflow-auto{overflow:auto}#acwd-root .overflow-hidden{overflow:hidden}#acwd-root .overflow-x-auto{overflow-x:auto}#acwd-root .overflow-y-auto{overflow-y:auto}#acwd-root .overscroll-contain{overscroll-behavior:contain}#acwd-root .truncate{overflow:hidden;white-space:nowrap}#acwd-root .text-ellipsis,#acwd-root .truncate{text-overflow:ellipsis}#acwd-root .rounded{border-radius:.25rem}#acwd-root .rounded-\[5px\]{border-radius:5px}#acwd-root .rounded-full{border-radius:9999px}#acwd-root .rounded-lg{border-radius:.5rem}#acwd-root .rounded-md{border-radius:.375rem}#acwd-root .rounded-none{border-radius:0}#acwd-root .rounded-sm{border-radius:.125rem}#acwd-root .rounded-xl{border-radius:.75rem}#acwd-root .rounded-xl2{border-radius:18px}#acwd-root .rounded-t-xl2{border-top-left-radius:18px;border-top-right-radius:18px}#acwd-root .border-2{border-width:2px}#acwd-root .border-b{border-bottom-width:1px}#acwd-root .border-t{border-top-width:1px}#acwd-root .border-t-2{border-top-width:2px}#acwd-root .border-t-\[1\.5px\]{border-top-width:1.5px}#acwd-root .border-dashed{border-style:dashed}#acwd-root .border-dotted{border-style:dotted}#acwd-root .border-accent{--tw-border-opacity:1;border-color:rgb(var(--ac-accent)/var(--tw-border-opacity,1))}#acwd-root .border-good{--tw-border-opacity:1;border-color:rgb(var(--ac-good)/var(--tw-border-opacity,1))}#acwd-root .border-ink2{--tw-border-opacity:1;border-color:rgb(var(--ac-ink2)/var(--tw-border-opacity,1))}#acwd-root .border-rule{--tw-border-opacity:1;border-color:rgb(var(--ac-rule)/var(--tw-border-opacity,1))}#acwd-root .border-rule\/70{border-color:rgb(var(--ac-rule)/.7)}#acwd-root .border-t-transparent{border-top-color:transparent}#acwd-root .bg-accent{--tw-bg-opacity:1;background-color:rgb(var(--ac-accent)/var(--tw-bg-opacity,1))}#acwd-root .bg-accent\/10{background-color:rgb(var(--ac-accent)/.1)}#acwd-root .bg-bad{--tw-bg-opacity:1;background-color:rgb(var(--ac-bad)/var(--tw-bg-opacity,1))}#acwd-root .bg-bad-bg{--tw-bg-opacity:1;background-color:rgb(var(--ac-bad-bg)/var(--tw-bg-opacity,1))}#acwd-root .bg-bad\/70{background-color:rgb(var(--ac-bad)/.7)}#acwd-root .bg-canvas{--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1))}#acwd-root .bg-good{--tw-bg-opacity:1;background-color:rgb(var(--ac-good)/var(--tw-bg-opacity,1))}#acwd-root .bg-good-bg{--tw-bg-opacity:1;background-color:rgb(var(--ac-good-bg)/var(--tw-bg-opacity,1))}#acwd-root .bg-good\/75{background-color:rgb(var(--ac-good)/.75)}#acwd-root .bg-ink{--tw-bg-opacity:1;background-color:rgb(var(--ac-ink)/var(--tw-bg-opacity,1))}#acwd-root .bg-ink2\/30{background-color:rgb(var(--ac-ink2)/.3)}#acwd-root .bg-raised{--tw-bg-opacity:1;background-color:rgb(var(--ac-raised)/var(--tw-bg-opacity,1))}#acwd-root .bg-rule{--tw-bg-opacity:1;background-color:rgb(var(--ac-rule)/var(--tw-bg-opacity,1))}#acwd-root .bg-rule\/70{background-color:rgb(var(--ac-rule)/.7)}#acwd-root .bg-surface{--tw-bg-opacity:1;background-color:rgb(var(--ac-surface)/var(--tw-bg-opacity,1))}#acwd-root .bg-warn{--tw-bg-opacity:1;background-color:rgb(var(--ac-warn)/var(--tw-bg-opacity,1))}#acwd-root .p-5{padding:1.25rem}#acwd-root .px-0{padding-left:0;padding-right:0}#acwd-root .px-1{padding-left:.25rem;padding-right:.25rem}#acwd-root .px-1\.5{padding-left:.375rem;padding-right:.375rem}#acwd-root .px-2{padding-left:.5rem;padding-right:.5rem}#acwd-root .px-2\.5{padding-left:.625rem;padding-right:.625rem}#acwd-root .px-3{padding-left:.75rem;padding-right:.75rem}#acwd-root .px-4{padding-left:1rem;padding-right:1rem}#acwd-root .px-5{padding-left:1.25rem;padding-right:1.25rem}#acwd-root .px-6{padding-left:1.5rem;padding-right:1.5rem}#acwd-root .py-0\.5{padding-top:.125rem;padding-bottom:.125rem}#acwd-root .py-10{padding-top:2.5rem;padding-bottom:2.5rem}#acwd-root .py-16{padding-top:4rem;padding-bottom:4rem}#acwd-root .py-2{padding-top:.5rem;padding-bottom:.5rem}#acwd-root .py-2\.5{padding-top:.625rem;padding-bottom:.625rem}#acwd-root .py-3{padding-top:.75rem;padding-bottom:.75rem}#acwd-root .py-6{padding-top:1.5rem;padding-bottom:1.5rem}#acwd-root .py-px{padding-top:1px;padding-bottom:1px}#acwd-root .pb-1{padding-bottom:.25rem}#acwd-root .pb-1\.5{padding-bottom:.375rem}#acwd-root .pb-10{padding-bottom:2.5rem}#acwd-root .pb-2{padding-bottom:.5rem}#acwd-root .pb-3{padding-bottom:.75rem}#acwd-root .pb-4{padding-bottom:1rem}#acwd-root .pb-5{padding-bottom:1.25rem}#acwd-root .pl-4{padding-left:1rem}#acwd-root .pl-8{padding-left:2rem}#acwd-root .pl-9{padding-left:2.25rem}#acwd-root .pt-1{padding-top:.25rem}#acwd-root .pt-2{padding-top:.5rem}#acwd-root .pt-2\.5{padding-top:.625rem}#acwd-root .pt-3{padding-top:.75rem}#acwd-root .pt-4{padding-top:1rem}#acwd-root .pt-5{padding-top:1.25rem}#acwd-root .text-left{text-align:left}#acwd-root .text-center{text-align:center}#acwd-root .text-right{text-align:right}#acwd-root .text-\[10\.5px\]{font-size:10.5px}#acwd-root .text-\[11\.5px\]{font-size:11.5px}#acwd-root .text-\[11px\]{font-size:11px}#acwd-root .text-\[12\.5px\]{font-size:12.5px}#acwd-root .text-\[12px\]{font-size:12px}#acwd-root .text-\[13\.5px\]{font-size:13.5px}#acwd-root .text-\[13px\]{font-size:13px}#acwd-root .text-\[15px\]{font-size:15px}#acwd-root .text-\[18px\]{font-size:18px}#acwd-root .text-\[20px\]{font-size:20px}#acwd-root .text-\[22px\]{font-size:22px}#acwd-root .text-\[26px\]{font-size:26px}#acwd-root .text-\[34px\]{font-size:34px}#acwd-root .text-\[56px\]{font-size:56px}#acwd-root .font-bold{font-weight:700}#acwd-root .font-extrabold{font-weight:800}#acwd-root .font-medium{font-weight:500}#acwd-root .font-semibold{font-weight:600}#acwd-root .uppercase{text-transform:uppercase}#acwd-root .tabular-nums{--tw-numeric-spacing:tabular-nums;font-variant-numeric:var(--tw-ordinal) var(--tw-slashed-zero) var(--tw-numeric-figure) var(--tw-numeric-spacing) var(--tw-numeric-fraction)}#acwd-root .leading-none{line-height:1}#acwd-root .leading-relaxed{line-height:1.625}#acwd-root .leading-snug{line-height:1.375}#acwd-root .leading-tight{line-height:1.25}#acwd-root .tracking-\[-0\.02em\]{letter-spacing:-.02em}#acwd-root .tracking-\[-0\.03em\]{letter-spacing:-.03em}#acwd-root .tracking-\[-0\.04em\]{letter-spacing:-.04em}#acwd-root .tracking-\[\.06em\]{letter-spacing:.06em}#acwd-root .text-accent{--tw-text-opacity:1;color:rgb(var(--ac-accent)/var(--tw-text-opacity,1))}#acwd-root .text-accent-ink{--tw-text-opacity:1;color:rgb(var(--ac-accent-ink)/var(--tw-text-opacity,1))}#acwd-root .text-bad{--tw-text-opacity:1;color:rgb(var(--ac-bad)/var(--tw-text-opacity,1))}#acwd-root .text-good{--tw-text-opacity:1;color:rgb(var(--ac-good)/var(--tw-text-opacity,1))}#acwd-root .text-inherit{color:inherit}#acwd-root .text-ink{--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1))}#acwd-root .text-ink2{--tw-text-opacity:1;color:rgb(var(--ac-ink2)/var(--tw-text-opacity,1))}#acwd-root .text-muted{--tw-text-opacity:1;color:rgb(var(--ac-muted)/var(--tw-text-opacity,1))}#acwd-root .text-warn{--tw-text-opacity:1;color:rgb(var(--ac-warn)/var(--tw-text-opacity,1))}#acwd-root .accent-\[rgb\(var\(--ac-accent\)\)\]{accent-color:rgb(var(--ac-accent))}#acwd-root .opacity-0{opacity:0}#acwd-root .opacity-60{opacity:.6}#acwd-root .shadow-card{--tw-shadow:var(--ac-shadow-card);--tw-shadow-colored:var(--ac-shadow-card)}#acwd-root .shadow-card,#acwd-root .shadow-pop{box-shadow:var(--tw-ring-offset-shadow,0 0 #0000),var(--tw-ring-shadow,0 0 #0000),var(--tw-shadow)}#acwd-root .shadow-pop{--tw-shadow:var(--ac-shadow-pop);--tw-shadow-colored:var(--ac-shadow-pop)}#acwd-root .outline-none{outline:2px solid transparent;outline-offset:2px}#acwd-root .ring-1{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow),var(--tw-ring-shadow),var(--tw-shadow,0 0 #0000)}#acwd-root .ring-accent{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-accent)/var(--tw-ring-opacity,1))}#acwd-root .ring-accent\/25{--tw-ring-color:rgb(var(--ac-accent)/0.25)}#acwd-root .ring-bad{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-bad)/var(--tw-ring-opacity,1))}#acwd-root .ring-bad\/30{--tw-ring-color:rgb(var(--ac-bad)/0.3)}#acwd-root .ring-good{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-good)/var(--tw-ring-opacity,1))}#acwd-root .ring-ink2\/40{--tw-ring-color:rgb(var(--ac-ink2)/0.4)}#acwd-root .ring-rule{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-rule)/var(--tw-ring-opacity,1))}#acwd-root .ring-rule\/70{--tw-ring-color:rgb(var(--ac-rule)/0.7)}#acwd-root .ring-warn{--tw-ring-opacity:1;--tw-ring-color:rgb(var(--ac-warn)/var(--tw-ring-opacity,1))}#acwd-root .ring-warn\/40{--tw-ring-color:rgb(var(--ac-warn)/0.4)}#acwd-root .blur{--tw-blur:blur(8px)}#acwd-root .blur,#acwd-root .filter{filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}#acwd-root .transition-\[width\]{transition-property:width;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .transition-colors{transition-property:color,background-color,border-color,text-decoration-color,fill,stroke;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(.4,0,.2,1);transition-duration:.15s}#acwd-root .duration-200{transition-duration:.2s}#acwd-root .duration-700{transition-duration:.7s}#acwd-root .ease-soft{transition-timing-function:cubic-bezier(.2,.7,.2,1)}#acwd-root .\[scrollbar-width\:none\]{scrollbar-width:none}@media (prefers-reduced-motion:reduce){#acwd-root *,#acwd-root :after,#acwd-root :before{animation-duration:1ms!important;animation-delay:0ms!important;animation-iteration-count:1!important;transition-duration:1ms!important}}@media (forced-colors:active){#acwd-root .ac-bad,#acwd-root .ac-good{forced-color-adjust:none}}@media print{#acwd-root .ac-tbl-wrap{max-height:none;overflow:visible}}#acwd-root .empty\:hidden:empty{display:none}#acwd-root .hover\:bg-accent\/15:hover{background-color:rgb(var(--ac-accent)/.15)}#acwd-root .hover\:bg-canvas:hover{--tw-bg-opacity:1;background-color:rgb(var(--ac-canvas)/var(--tw-bg-opacity,1))}#acwd-root .hover\:text-ink:hover{--tw-text-opacity:1;color:rgb(var(--ac-ink)/var(--tw-text-opacity,1))}#acwd-root .hover\:underline:hover{text-decoration-line:underline}#acwd-root :is(.group:hover .group-hover\:opacity-60){opacity:.6}@media (min-width:640px){#acwd-root .sm\:inline{display:inline}#acwd-root .sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}#acwd-root .sm\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}#acwd-root .sm\:border-l{border-left-width:1px}#acwd-root .sm\:border-t-0{border-top-width:0}}@media (min-width:768px){#acwd-root .md\:col-span-6{grid-column:span 6/span 6}#acwd-root .md\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}@media (min-width:1024px){#acwd-root .lg\:block{display:block}#acwd-root .lg\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (min-width:1280px){#acwd-root .xl\:col-span-12{grid-column:span 12/span 12}#acwd-root .xl\:col-span-5{grid-column:span 5/span 5}#acwd-root .xl\:col-span-7{grid-column:span 7/span 7}#acwd-root .xl\:grid{display:grid}#acwd-root .xl\:grid-cols-12{grid-template-columns:repeat(12,minmax(0,1fr))}#acwd-root .xl\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}#acwd-root .xl\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}#acwd-root .xl\:gap-3{gap:.75rem}#acwd-root .xl\:border-l{border-left-width:1px}#acwd-root .xl\:border-t-0{border-top-width:0}}@media (min-width:1536px){#acwd-root .\32xl\:grid-cols-8{grid-template-columns:repeat(8,minmax(0,1fr))}}</style>
+<section id="acwd-root" aria-label="ACW Performance dashboard">
+
+  <header class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 pb-5">
+    <div class="min-w-0">
+      <h1 class="text-[26px] leading-tight font-extrabold tracking-[-0.02em] text-ink">ACW Performance</h1>
+      <p class="mt-1 text-[13.5px] text-ink2" id="ac-sub">After-call work per accepted call against the target, from Sisense and NICE.</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[12.5px] font-medium text-ink2 ring-1 ring-rule bg-surface" id="ac-status" role="status">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-good opacity-60 animate-ping" id="ac-ping"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-good" id="ac-dot"></span></span>
+        <span id="ac-updated">Loading data…</span>
+      </span>
+      <button type="button" class="ac-btn-primary" id="ac-run-btn" hidden>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 9-14 9V3z"/></svg>
+        <span>Start automation</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="ac-run" class="mb-4" hidden></div>
+
+  <div class="ac-card px-3 py-2.5" role="group" aria-label="Filters">
+    <div class="flex flex-wrap items-center gap-2" id="ac-filters"></div>
+    <div class="flex flex-wrap items-center gap-1.5 empty:hidden pt-2.5 mt-2.5 border-t border-rule/70" id="ac-chips" aria-label="Active filters"></div>
+  </div>
+
+  <nav class="mt-4 flex gap-6 overflow-x-auto border-b border-rule px-1 [scrollbar-width:none]" role="tablist" aria-label="Dashboard views" id="ac-tabs"></nav>
+  <div id="ac-msg" class="empty:hidden mt-4"></div>
+  <div id="ac-view" class="pt-5 transition-opacity duration-200" aria-live="polite"></div>
+  <div id="ac-layer"></div>
+</section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  /* ================================================================ helpers */
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(tag, props) {
+    var n = document.createElement(tag), p = props || {};
+    Object.keys(p).forEach(function (k) {
+      var v = p[k];
+      if (v === null || v === undefined || v === false) return;
+      if (k === 'class') n.className = v; else if (k === 'text') n.textContent = v;
+      else if (k === 'on') Object.keys(v).forEach(function (e) { n.addEventListener(e, v[e]); });
+      else if (k === 'style') n.setAttribute('style', v);
+      else n.setAttribute(k, v === true ? '' : v);
+    });
+    for (var i = 2; i < arguments.length; i++) { var c = arguments[i]; if (c === null || c === undefined || c === false) continue; n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); }
+    return n;
+  }
+  function sv(tag, attrs) {
+    var n = document.createElementNS(NS, tag), a = attrs || {};
+    Object.keys(a).forEach(function (k) { if (a[k] === null || a[k] === undefined) return; if (k === 'text') n.textContent = a[k]; else n.setAttribute(k, a[k]); });
+    for (var i = 2; i < arguments.length; i++) if (arguments[i]) n.appendChild(arguments[i]);
+    return n;
+  }
+  function $(id) { return document.getElementById(id); }
+  function clear(n) { while (n && n.firstChild) n.removeChild(n.firstChild); }
+  function icon(d, size) { return sv('svg', { width: size || 14, height: size || 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, sv('path', { d: d })); }
+  var I = { down: 'M6 9l6 6 6-6', up: 'M18 15l-6-6-6 6', x: 'M18 6 6 18M6 6l12 12', check: 'M20 6 9 17l-5-5', search: 'M21 21l-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14z',
+    dl: 'M12 3v12m0 0-4-4m4 4 4-4M5 21h14', cal: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
+    sliders: 'M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6', play: 'M5 3l14 9-14 9V3z', alert: 'M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
+    spark: 'M13 2 3 14h9l-1 8 10-12h-9l1-8z', ext: 'M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6', refresh: 'M21 12a9 9 0 1 1-2.64-6.36M21 4v5h-5', filter: 'M3 5h18l-7 9v5l-4 2v-7z', back: 'M15 18l-6-6 6-6' };
+  var reduced = false; try { reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  var nf0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }), nf1 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }), nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function hms(min) {                                   // workbook "Actual ACW" format [h]:mm:ss, from minutes
+    if (min === null || min === undefined || !isFinite(min)) return '—';
+    var s = Math.round(min * 60), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return h + ':' + (m < 10 ? '0' : '') + m + ':' + (x < 10 ? '0' : '') + x;
+  }
+  /** The workbook's number formats. */
+  function fmt(v, code) {
+    if (code === 'hms') return hms(v);
+    if (v === null || v === undefined || !isFinite(v)) return '—';
+    switch (code) {
+      case '#,##0': case 'int': return nf0.format(v);
+      case '0.0': case '#,##0.0': return nf1.format(v);
+      case '0.00': return nf2.format(v);
+      case 's': return nf2.format(v) + ' s';
+      case 'var': return v < 0 ? '(' + nf2.format(Math.abs(v)) + ')' : nf2.format(v);
+      case '0%': return (v * 100).toFixed(0) + '%';
+      case '0.0%': return (v * 100).toFixed(1) + '%';
+      case '0.00%': return (v * 100).toFixed(2) + '%';
+      default: return String(v);
+    }
+  }
+  function ymd(s) { return [+s.slice(0, 4), +s.slice(5, 7), +s.slice(8, 10)]; }
+  function addDays(s, n) { var p = ymd(s); return new Date(Date.UTC(p[0], p[1] - 1, p[2] + n)).toISOString().slice(0, 10); }
+  function diffDays(a, b) { var p = ymd(a), q = ymd(b); return Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(p[0], p[1] - 1, p[2])) / 864e5); }
+  function dow(s) { var p = ymd(s); return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); }
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function fDay(s) { var p = ymd(s); return p[2] + ' ' + MON[p[1] - 1]; }
+  function fDayLong(s) { return DOW[dow(s)] + ' ' + fDay(s) + ' ' + s.slice(0, 4); }
+  function fDMon(s) { var p = ymd(s); return p[2] + '-' + MON[p[1] - 1]; }
+  function niceStep(span, n) { var raw = span / n, e = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; }
+  function ticks(lo, hi, n) { if (!(hi > lo)) hi = lo + 1; var st = niceStep(hi - lo, n), a = Math.floor(lo / st) * st, out = []; for (var v = a; v <= hi + st * .5; v += st) out.push(+v.toFixed(10)); if (out[out.length - 1] < hi) out.push(+(out[out.length - 1] + st).toFixed(10)); return out; }
+  function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function csvCell(v) { var s = String(v === null || v === undefined ? '' : v); if (/^[=+\-@\t\r]/.test(s) && !/^-?\d[\d.,]*%?$/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function download(name, text) {
+    var a = el('a', { href: URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv;charset=utf-8' })), download: name });
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 600);
+  }
+  function store(k, v) { try { if (v === undefined) return JSON.parse(localStorage.getItem('acwd.' + k) || 'null'); localStorage.setItem('acwd.' + k, JSON.stringify(v)); } catch (e) { return null; } }
+  function countUp(node, to, f) {
+    if (reduced || !isFinite(to)) { node.textContent = fmt(to, f); return; }
+    var t0 = null, dur = 750;
+    function step(t) { if (!t0) t0 = t; var k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); node.textContent = fmt(to * e, f); if (k < 1) requestAnimationFrame(step); else node.textContent = fmt(to, f); }
+    requestAnimationFrame(step);
+  }
+
+  /* ================================================================ state */
+  var P = null, stamp = '', shown = false, loading = false, pollTimer = null;
+  var DIMS = [
+    { k: 'lg', label: 'LOB' }, { k: 'queue', label: 'Queue' }, { k: 'sd', label: 'SDACM' }, { k: 'tl', label: 'Supervisor' }, { k: 'lang', label: 'Language' }, { k: 'agent', label: 'Agent' }
+  ];
+  var VIEWS = [
+    { id: 'overview', label: 'Overview' }, { id: 'lg', label: 'LOB' }, { id: 'sd', label: 'SDACMs' }, { id: 'tl', label: 'Supervisor' }, { id: 'lang', label: 'Language' },
+    { id: 'agent', label: 'Agent' }, { id: 'daily', label: 'Daily' }, { id: 'health', label: 'Data health' }
+  ];
+  var PRESETS = [['month', 'Latest month loaded'], ['latest', 'Latest day'], ['last7', 'Last 7 days'], ['mtd', 'Month to date'], ['lastmonth', 'Last month'], ['all', 'All loaded data']];
+  var S = { view: store('view') || 'overview', range: { preset: 'month' }, filt: {}, compare: store('compare') !== false, dedupe: store('dedupe') === true, nocalls: store('nocalls') !== false,
+            sorts: {}, q: {}, open: null, trendBy: 'day', rankBy: 'sd' };
+  DIMS.forEach(function (d) { S.filt[d.k] = {}; });
+  if (!VIEWS.some(function (v) { return v.id === S.view; })) S.view = 'overview';
+  var LOWVOL = 20;                                                       // accepted calls below this = small sample (marked, and left out of "slowest" rankings)
+  var STATUS = { good: 'Achieved', bad: 'Not Achieved', none: 'No calls' };
+
+  /* ================================================================ data model */
+  var AV = {};
+  function prep(payload) {
+    P = payload; AV = {};
+    ['lg', 'queue', 'sd', 'tl', 'lang', 'name', 'nn'].forEach(function (k) { AV[k] = P.agents.map(function (a) { return a[k] === '' || a[k] === null || a[k] === undefined ? '(blank)' : a[k]; }); });
+    AV.agent = AV.name;
+    LGS = []; AV.lg.forEach(function (v) { if (v !== '(blank)' && LGS.indexOf(v) < 0) LGS.push(v); }); LGS.sort();
+    passCache = null;
+  }
+  var LGS = [], SERIES = ['rgb(var(--ac-s1))', 'rgb(var(--ac-s2))', 'rgb(var(--ac-s3))'];
+  function lgColor(v) { var i = LGS.indexOf(v); return i >= 0 && i < SERIES.length ? SERIES[i] : 'rgb(var(--ac-ink2))'; }
+  function hasAny(o) { for (var k in o) if (o[k]) return true; return false; }
+  var passCache = null;
+  function agentPass() {
+    if (passCache) return passCache;
+    passCache = P.agents.map(function (x, a) {
+      for (var i = 0; i < DIMS.length; i++) { var k = DIMS[i].k, f = S.filt[k]; if (hasAny(f) && !f[AV[k][a]]) return false; }
+      return true;
+    });
+    return passCache;
+  }
+  function lowerBound(date) { var l = 0, h = P.dates.length; while (l < h) { var m = (l + h) >> 1; if (P.dates[m] < date) l = m + 1; else h = m; } return l; }
+  /** Fact indexes in [from, to] whose agent passes the filters. */
+  function select(from, to) {
+    var ap = agentPass(), lo = lowerBound(from), hi = lowerBound(addDays(to, 1)), out = [], f = P.f;
+    for (var i = 0; i < f.d.length; i++) { var d = f.d[i]; if (d < lo || d >= hi || !ap[f.a[i]]) continue; out.push(i); }
+    return out;
+  }
+  function zero() { return { as: 0, ac: 0, acw: 0, n: 0 }; }
+  /** With "count duplicate rows once", the repeated Sisense rows of an agent-day are taken out of Assigned and Accepted. */
+  function add(s, i) { var f = P.f, dd = S.dedupe; s.as += f.as[i] - (dd ? f.das[i] : 0); s.ac += f.ac[i] - (dd ? f.dac[i] : 0); s.acw += f.acw[i]; s.n++; }
+  function sumOf(idx) { var s = zero(); idx.forEach(function (i) { add(s, i); }); return s; }
+  function groupBy(idx, keyFn) { var m = {}, order = []; idx.forEach(function (i) { var k = keyFn(i), s = m[k]; if (!s) { s = m[k] = zero(); order.push(k); } add(s, i); }); return { map: m, keys: order }; }
+  function target() { return P && P.target ? P.target : 10; }
+  /** The workbook's columns, always from sums. sec = Achieved AVG ACW (seconds per accepted call). */
+  function kpi(s) {
+    var T = target(), abn = s.as - s.ac, sec = s.ac > 0 ? s.acw * 60 / s.ac : null;
+    return { as: s.as, ac: s.ac, acw: s.acw, n: s.n, abn: abn, abnp: s.as > 0 ? abn / s.as : null, sec: sec, vr: sec === null ? null : T - sec, pct: sec !== null && sec > 0 ? T / sec : null,
+             st: sec === null ? 'none' : (sec <= T + 1e-9 ? 'good' : 'bad') };
+  }
+  function secStatus(v) { return v === null || v === undefined || !isFinite(v) ? 'none' : (v <= target() + 1e-9 ? 'good' : 'bad'); }
+  function lobOf(i) { return AV.lg[P.f.a[i]]; }
+
+  /* ================================================================ period */
+  function dataMin() { return P.dates[0] || ''; }
+  function dataMax() { return P.dates[P.dates.length - 1] || ''; }
+  function resolveRange() {
+    var m = dataMax() || P.today, t = P.today, r = S.range, from, to;
+    switch (r.preset) {
+      case 'month': from = m.slice(0, 8) + '01'; to = m; break;
+      case 'latest': from = to = m; break;
+      case 'last7': from = addDays(m, -6); to = m; break;
+      case 'mtd': from = t.slice(0, 8) + '01'; to = addDays(t, -1); break;
+      case 'lastmonth': { var first = t.slice(0, 8) + '01', last = addDays(first, -1); from = last.slice(0, 8) + '01'; to = last; break; }
+      case 'custom': from = r.from; to = r.to; break;
+      default: from = dataMin(); to = dataMax();
+    }
+    var cf = from < dataMin() ? dataMin() : from, ct = to > dataMax() ? dataMax() : to;
+    return { from: from, to: to, cf: cf, ct: ct, n: ct >= cf ? diffDays(cf, ct) + 1 : 0 };
+  }
+  function prevRange(R) {
+    if (!S.compare || R.n < 1) return null;
+    var pf = addDays(R.cf, -R.n), pt = addDays(R.cf, -1);
+    return pt < dataMin() ? null : { from: pf, to: pt };
+  }
+  function rangeText(R) { if (R.n < 1) return 'No loaded days in this period'; if (R.cf === R.ct) return fDayLong(R.cf); return fDay(R.cf) + ' – ' + fDay(R.ct) + ' ' + R.ct.slice(0, 4); }
+  function presetLabel() { var p = PRESETS.filter(function (x) { return x[0] === S.range.preset; })[0]; return p ? p[1] : 'Custom range'; }
+
+  /* ================================================================ workbook tables (the level sheets) */
+  var COLS = [['as', 'Assigned Calls', '#,##0'], ['ac', 'Accepted Calls', '#,##0'], ['abn', 'ABN', '#,##0'], ['acw', 'Actual ACW', 'hms'], ['tg', 'Target', '0.00'],
+              ['sec', 'Achieved AVG ACW', '0.00'], ['vr', 'Variance', 'var'], ['st', 'Final Status', ''], ['pct', 'Overall %', '0.0%']];
+  var HELP = { as: 'Calls assigned to the agent (Sisense)', ac: 'Calls the agent accepted (Sisense)', abn: 'Assigned − Accepted', acw: 'Total after-call work (NICE), hours:minutes:seconds',
+               tg: 'Target seconds of ACW per accepted call', sec: 'Actual ACW seconds ÷ Accepted calls', vr: 'Target − Achieved AVG ACW (positive = faster than the target)',
+               st: 'Achieved when the average is at or below the target', pct: 'Target ÷ Achieved AVG ACW (100% or more = on target)' };
+  var TABLES = {
+    lg: { sheet: 'LOB Level', first: 'LOB', dim: 'lg' }, sd: { sheet: 'SDACMs Level', first: 'SDACMs', dim: 'sd' }, tl: { sheet: 'Supervisor Level', first: 'Supervisor', dim: 'tl' },
+    lang: { sheet: 'Language Level', first: 'Language', dim: 'lang' }, agent: { sheet: 'Agent Level', first: 'Agent', dim: 'agent', extra: true }, daily: { sheet: 'Daily', first: 'Date', dim: 'day' }
+  };
+  function tableRows(key, idx) {
+    var def = TABLES[key], dim = def.dim, ap = agentPass(), map = {}, order = [], rows;
+    if (dim === 'day') {
+      var g = groupBy(idx, function (i) { return P.dates[P.f.d[i]]; });
+      rows = g.keys.slice().sort().map(function (v) { return { label: fDMon(v), sortVal: v, value: v, k: kpi(g.map[v]) }; });
+    } else {
+      P.agents.forEach(function (a, i) { if (!ap[i]) return; var k = dim === 'agent' ? String(i) : AV[dim][i]; if (k === '(blank)') return; if (!map[k]) { map[k] = zero(); order.push(k); } });
+      idx.forEach(function (i) { var a = P.f.a[i], k = dim === 'agent' ? String(a) : AV[dim][a]; if (map[k]) add(map[k], i); });
+      rows = order.map(function (k) { var o = { label: dim === 'agent' ? AV.name[+k] : k, value: dim === 'agent' ? AV.name[+k] : k, k: kpi(map[k]) }; if (dim === 'agent') { o.a = +k; o.tl = AV.tl[+k]; o.lang = AV.lang[+k]; o.nn = AV.nn[+k]; } return o; });
+      if (!S.nocalls) rows = rows.filter(function (r) { return r.k.as > 0 || r.k.ac > 0 || r.k.acw > 0; });
+    }
+    var tot = zero(); rows.forEach(function (r) { tot.as += r.k.as; tot.ac += r.k.ac; tot.acw += r.k.acw; tot.n += r.k.n; });
+    return { rows: rows, total: { label: 'Grand Total', k: kpi(tot) } };
+  }
+
+  /* ================================================================ floating layer */
+  var layer = null, popAnchor = null, tip = null;
+  function closePop() { S.open = null; var p = document.querySelector('#acwd-root .ac-pop'); if (p) p.remove(); if (popAnchor) { popAnchor.setAttribute('aria-expanded', 'false'); popAnchor = null; } }
+  function openPop(anchor, content, id, alignRight) {
+    closePop(); S.open = id; popAnchor = anchor; anchor.setAttribute('aria-expanded', 'true');
+    var pop = el('div', { class: 'ac-pop', role: 'dialog' }, content);
+    pop.addEventListener('click', function (e) { e.stopPropagation(); });
+    layer.appendChild(pop);
+    var r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    var left = alignRight ? r.right - w : r.left; left = Math.max(8, Math.min(left, vw - w - 8));
+    var top = r.bottom + 6; if (top + h > vh - 8 && r.top - h - 6 > 8) top = r.top - h - 6;
+    pop.style.left = left + 'px'; pop.style.top = top + 'px';
+    var first = [].filter.call(pop.querySelectorAll('input,button'), function (x) { return !x.hidden && x.offsetParent !== null; })[0]; if (first) first.focus();
+    return pop;
+  }
+  function showTip(host, x, y, title, rows) {
+    hideTip();
+    tip = el('div', { class: 'pointer-events-none absolute z-20 min-w-[180px] max-w-[300px] rounded-xl bg-surface px-3 py-2.5 text-[12px] shadow-pop ring-1 ring-rule animate-ac-pop', role: 'status' },
+      el('div', { class: 'mb-1.5 font-bold text-ink', text: title }));
+    rows.forEach(function (r) {
+      var sw = r.sw ? el('span', { class: 'inline-block h-2.5 w-2.5 flex-none rounded-sm', style: 'background:' + r.sw }) : null;
+      tip.appendChild(el('div', { class: 'flex items-center gap-2 py-px text-ink2' }, sw, el('span', { text: r.label }), el('b', { class: 'ml-auto pl-4 font-bold tabular-nums text-ink', text: r.value })));
+    });
+    host.appendChild(tip);
+    var W = host.clientWidth, w = tip.offsetWidth, h = tip.offsetHeight, left = x + 14;
+    if (left + w > W) left = Math.max(0, x - w - 14);
+    tip.style.left = left + 'px'; tip.style.top = Math.max(0, Math.min(y - h / 2, host.clientHeight - h)) + 'px';
+  }
+  function hideTip() { if (tip && tip.parentNode) tip.parentNode.removeChild(tip); tip = null; }
+
+  /* ================================================================ filters */
+  function dimOptions(k) {
+    var seen = {}, out = [];
+    P.agents.forEach(function (a, i) { var v = AV[k][i]; if (v === '(blank)' || seen[v]) return; seen[v] = 1; out.push({ v: v, label: v }); });
+    return out.sort(function (a, b) { return a.label.localeCompare(b.label); });
+  }
+  function selectedOf(k) { return Object.keys(S.filt[k]).filter(function (v) { return S.filt[k][v]; }); }
+  function fieldBtn(label, value, on, onClick, id) {
+    var b = el('button', { type: 'button', class: 'ac-field' + (on ? ' ac-field-on' : ''), 'aria-haspopup': 'dialog', 'aria-expanded': 'false', id: id },
+      el('span', { class: 'text-ink2', text: label }), el('span', { class: 'max-w-[160px] overflow-hidden text-ellipsis font-semibold text-ink', text: value }), el('span', { class: 'text-muted' }, icon(I.down, 13)));
+    b.addEventListener('click', function (e) { e.stopPropagation(); if (S.open === id) { closePop(); return; } onClick(b); });
+    return b;
+  }
+  function renderFilters() {
+    var box = $('ac-filters'); clear(box);
+    var R = resolveRange();
+    box.appendChild(fieldBtn('Period', presetLabel(), true, openPeriod, 'ac-f-period'));
+    box.appendChild(el('span', { class: 'hidden sm:inline px-1 text-[12.5px] text-ink2 tabular-nums', text: rangeText(R) }));
+    box.appendChild(el('span', { class: 'hidden lg:block w-px h-6 bg-rule mx-1', 'aria-hidden': 'true' }));
+    DIMS.forEach(function (d) {
+      var sel = selectedOf(d.k), val = !sel.length ? 'All' : sel.length === 1 ? sel[0] : sel.length + ' selected';
+      box.appendChild(fieldBtn(d.label, val, sel.length > 0, function (b) { openMulti(b, d); }, 'ac-f-' + d.k));
+    });
+    box.appendChild(el('span', { class: 'flex-1' }));
+    var opt = el('button', { type: 'button', class: 'ac-btn', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', id: 'ac-f-opts' }, icon(I.sliders, 15), el('span', { text: 'View options' }));
+    if (S.dedupe || !S.nocalls) opt.appendChild(el('span', { class: 'ml-0.5 h-2 w-2 rounded-full bg-warn', title: 'A view option is changed' }));
+    opt.addEventListener('click', function (e) { e.stopPropagation(); if (S.open === 'opts') { closePop(); return; } openOptions(opt); });
+    box.appendChild(opt);
+  }
+  function openPeriod(anchor) {
+    var list = el('div', { class: 'grid gap-0.5', role: 'listbox', 'aria-label': 'Period' });
+    PRESETS.forEach(function (p) {
+      var on = S.range.preset === p[0];
+      list.appendChild(el('button', { type: 'button', class: 'ac-opt', role: 'option', 'aria-selected': String(on), on: { click: function () { S.range = { preset: p[0] }; closePop(); render(); } } },
+        el('span', { class: 'w-4 text-accent' }, on ? icon(I.check, 15) : null), el('span', { text: p[1] })));
+    });
+    var R = resolveRange(), a = el('input', { type: 'date', class: 'ac-input', value: R.n ? R.cf : dataMin(), min: dataMin(), max: dataMax(), 'aria-label': 'From' }),
+        b = el('input', { type: 'date', class: 'ac-input', value: R.n ? R.ct : dataMax(), min: dataMin(), max: dataMax(), 'aria-label': 'To' });
+    var apply = el('button', { type: 'button', class: 'ac-btn-primary w-full justify-center', text: 'Apply dates', on: { click: function () {
+      if (!a.value || !b.value) return; var x = a.value, y = b.value; if (x > y) { var t = x; x = y; y = t; }
+      S.range = { preset: 'custom', from: x, to: y }; closePop(); render(); } } });
+    openPop(anchor, el('div', {}, list, el('div', { class: 'mt-2 grid gap-2 border-t border-rule pt-3' },
+      el('div', { class: 'grid grid-cols-2 gap-2' }, el('label', { class: 'grid gap-1 text-[11.5px] font-medium text-ink2' }, 'From', a), el('label', { class: 'grid gap-1 text-[11.5px] font-medium text-ink2' }, 'To', b)), apply)), 'period');
+  }
+  function openMulti(anchor, d) {
+    var opts = dimOptions(d.k), listBox = el('div', { class: 'mt-2 max-h-[280px] overflow-auto grid gap-0.5', role: 'listbox', 'aria-multiselectable': 'true', 'aria-label': d.label });
+    var search = el('input', { type: 'search', class: 'ac-input', placeholder: 'Search ' + d.label.toLowerCase(), 'aria-label': 'Search ' + d.label });
+    function draw() {
+      clear(listBox); var q = search.value.trim().toLowerCase(), n = 0;
+      opts.forEach(function (o) {
+        if (q && o.label.toLowerCase().indexOf(q) < 0) return; if (++n > 400) return;
+        var on = !!S.filt[d.k][o.v];
+        listBox.appendChild(el('button', { type: 'button', class: 'ac-opt', role: 'option', 'aria-selected': String(on), on: { click: function () {
+          S.filt[d.k][o.v] = !S.filt[d.k][o.v]; passCache = null; draw(); renderBody(true); } } },
+          el('span', { class: 'grid h-4 w-4 flex-none place-items-center rounded-[5px] ring-1 transition-colors ' + (on ? 'bg-accent ring-accent text-accent-ink' : 'ring-ink2/40') }, on ? icon(I.check, 12) : null),
+          el('span', { class: 'truncate', text: o.label })));
+      });
+      if (!n) listBox.appendChild(el('p', { class: 'px-2.5 py-3 text-[12.5px] text-muted', text: 'Nothing matches “' + search.value + '”.' }));
+    }
+    search.addEventListener('input', draw);
+    if (opts.length <= 8) search.hidden = true;
+    var foot = el('div', { class: 'mt-2 flex items-center justify-between border-t border-rule pt-2' },
+      el('button', { type: 'button', class: 'ac-btn h-8', text: 'Clear', on: { click: function () { S.filt[d.k] = {}; passCache = null; closePop(); render(); } } }),
+      el('button', { type: 'button', class: 'ac-btn-primary h-8', text: 'Done', on: { click: function () { closePop(); render(); } } }));
+    draw();
+    openPop(anchor, el('div', {}, search, listBox, foot), d.k);
+  }
+  function openOptions(anchor) {
+    function toggle(title, text, checked, onChange) {
+      var sw = el('input', { type: 'checkbox', class: 'mt-1 h-4 w-4 accent-[rgb(var(--ac-accent))]', 'aria-label': title });
+      sw.checked = checked; sw.addEventListener('change', function () { onChange(sw.checked); });
+      return el('label', { class: 'flex cursor-pointer items-start justify-between gap-4 rounded-lg px-2 py-2.5 hover:bg-canvas' },
+        el('div', {}, el('div', { class: 'text-[13px] font-semibold text-ink', text: title }), el('div', { class: 'mt-0.5 text-[12px] leading-snug text-ink2', text: text })), sw);
+    }
+    var dups = P.health.duplicates.rows;
+    openPop(anchor, el('div', { class: 'w-[340px] grid gap-0.5' },
+      toggle('Compare', 'Show the change against the previous period of the same length on the overview.', S.compare, function (v) { S.compare = v; store('compare', v); renderBody(true); }),
+      toggle('Show agents and teams without calls', 'The workbook lists everyone, with no average for those who took no calls. Turn off to hide them in the tables.', S.nocalls, function (v) { S.nocalls = v; store('nocalls', v); renderBody(true); }),
+      toggle('Count duplicate rows once', dups ? 'Sisense returns ' + fmt(dups, 'int') + ' agent-day rows twice. The sheet keeps them (flagged) and the workbook counted them twice; this only changes what the dashboard counts.' : 'There are no duplicate agent-day rows in the data.', S.dedupe,
+        function (v) { S.dedupe = v; store('dedupe', v); renderFilters(); renderBody(true); })), 'opts', true);
+  }
+  function renderChips() {
+    var box = $('ac-chips'); clear(box);
+    DIMS.forEach(function (d) {
+      selectedOf(d.k).forEach(function (v) {
+        box.appendChild(el('span', { class: 'ac-chip animate-ac-pop' }, el('span', { class: 'text-ink2', text: d.label }), el('b', { class: 'font-semibold', text: v }),
+          el('button', { type: 'button', class: 'grid h-5 w-5 place-items-center rounded-full text-ink2 hover:bg-accent/15 hover:text-ink', 'aria-label': 'Remove ' + d.label + ' ' + v, on: { click: function () { S.filt[d.k][v] = false; passCache = null; render(); } } }, icon(I.x, 12))));
+      });
+    });
+    if (box.firstChild) box.appendChild(el('button', { type: 'button', class: 'ml-1 text-[12.5px] font-semibold text-accent hover:underline', text: 'Clear all', on: { click: function () { DIMS.forEach(function (d) { S.filt[d.k] = {}; }); passCache = null; render(); } } }));
+  }
+  function renderTabs() {
+    var box = $('ac-tabs'); clear(box);
+    VIEWS.forEach(function (v) {
+      var on = S.view === v.id;
+      box.appendChild(el('button', { type: 'button', class: 'ac-tab' + (on ? ' ac-tab-on' : ''), role: 'tab', 'aria-selected': String(on), id: 'ac-tab-' + v.id, text: v.label,
+        on: { click: function () { if (S.view === v.id) return; S.view = v.id; store('view', v.id); renderTabs(); renderBody(); } } }));
+    });
+  }
+  function setFilter(k, v) { S.filt[k] = {}; S.filt[k][v] = true; passCache = null; }
+
+  /* ================================================================ building blocks */
+  function card(title, sub, actions, extraClass) {
+    var head = el('div', { class: 'flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3' },
+      el('div', { class: 'min-w-0' }, el('h2', { class: 'text-[15px] font-bold text-ink', text: title }), sub ? el('p', { class: 'mt-0.5 text-[12.5px] text-ink2', text: sub }) : null),
+      actions ? el.apply(null, ['div', { class: 'flex min-w-0 max-w-full flex-wrap items-center gap-2' }].concat(Array.isArray(actions) ? actions : [actions])) : null);
+    return el('section', { class: 'ac-card min-w-0 ' + (extraClass || '') }, head);
+  }
+  function seg(options, current, onPick, label) {
+    var g = el('div', { class: 'ac-seg', role: 'group', 'aria-label': label });
+    options.forEach(function (o) { g.appendChild(el('button', { type: 'button', class: 'ac-seg-btn' + (current === o[0] ? ' ac-seg-on' : ''), 'aria-pressed': String(current === o[0]), text: o[1], on: { click: function () { onPick(o[0]); } } })); });
+    return g;
+  }
+  function searchBox(key, placeholder) {
+    var wrap = el('label', { class: 'relative flex items-center' }, el('span', { class: 'pointer-events-none absolute left-2.5 text-muted' }, icon(I.search, 14)));
+    var inp = el('input', { type: 'search', class: 'ac-input h-9 w-[200px] pl-8', placeholder: placeholder, 'aria-label': placeholder, value: S.q[key] || '' });
+    var t = null;
+    inp.addEventListener('input', function () { clearTimeout(t); t = setTimeout(function () { S.q[key] = inp.value; renderBody(); var again = document.querySelector('#acwd-root input[data-q="' + key + '"]'); if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); } }, 160); });
+    inp.setAttribute('data-q', key); wrap.appendChild(inp);
+    return wrap;
+  }
+  function csvBtn(fn) { return el('button', { type: 'button', class: 'ac-btn', on: { click: fn } }, icon(I.dl, 15), el('span', { text: 'CSV' })); }
+  function emptyState(title, text, action) {
+    return el('div', { class: 'ac-card grid place-items-center px-6 py-16 text-center animate-ac-in' },
+      el('div', { class: 'mb-3 grid h-11 w-11 place-items-center rounded-full bg-accent/10 text-accent' }, icon(I.cal, 20)),
+      el('h2', { class: 'text-[15px] font-bold text-ink', text: title }), el('p', { class: 'mt-1 max-w-md text-[13px] text-ink2', text: text }), action || null);
+  }
+  function note(text) { return el('p', { class: 'mt-3 px-1 text-[12.5px] leading-relaxed text-ink2', text: text }); }
+  function dot(color) { return el('span', { class: 'inline-block h-2.5 w-2.5 flex-none rounded-full', style: 'background:' + color }); }
+  /** Status pill: Achieved / Not Achieved / No calls (neutral). */
+  function pill(st, text) {
+    var cls = st === 'good' ? 'bg-good-bg text-good' : st === 'bad' ? 'bg-bad-bg text-bad' : 'bg-canvas text-ink2';
+    return el('span', { class: 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ' + cls, title: 'Target ' + fmt(target(), 's') + ' per accepted call' },
+      st === 'none' ? null : icon(st === 'good' ? I.check : I.x, 10), text || STATUS[st]);
+  }
+  /** Seconds with a small bar (0 → 2× target) and a tick at the target; green at/below the target, red above. */
+  function secCell(v) {
+    var wrap = el('span', { class: 'inline-flex items-center justify-end gap-2' });
+    if (v === null || v === undefined || !isFinite(v)) { wrap.appendChild(el('span', { class: 'w-14 text-right text-muted', text: '—' })); return wrap; }
+    var T = target(), st = secStatus(v), bar = el('span', { class: 'ac-cellbar', 'aria-hidden': 'true' });
+    var fill = el('span', { class: 'absolute inset-y-0 left-0 rounded-full ' + (st === 'good' ? 'bg-good/75' : 'bg-bad/70') }); fill.style.width = Math.max(2, Math.min(1, v / (2 * T)) * 100).toFixed(1) + '%';
+    var tk = el('span', { class: 'absolute -inset-y-0.5 w-px bg-ink' }); tk.style.left = '50%';
+    bar.appendChild(fill); bar.appendChild(tk);
+    wrap.appendChild(bar); wrap.appendChild(el('span', { class: 'w-14 text-right tabular-nums', text: fmt(v, '0.00') }));
+    return wrap;
+  }
+  function lowVolMark(k) { return k.ac > 0 && k.ac < LOWVOL ? el('span', { class: 'ml-1.5 rounded px-1 text-[10.5px] font-semibold text-warn ring-1 ring-warn/40', title: 'Only ' + k.ac + ' accepted calls: a small sample, the average moves a lot with one call', text: 'low volume' }) : null; }
+
+  /** One level table: sortable headers, sticky header/first column, Grand Total row, status colours. */
+  function workbookTable(key, def, rows, total, opts) {
+    opts = opts || {};
+    var sort = S.sorts[key] || opts.sort || null, q = (S.q[key] || '').trim().toLowerCase();
+    var list = q ? rows.filter(function (r) { return r.label.toLowerCase().indexOf(q) >= 0 || (r.nn && r.nn.toLowerCase().indexOf(q) >= 0); }) : rows.slice();
+    var val = function (r, k) { if (k === 'tg') return target(); if (k === 'st') return { good: 0, bad: 1, none: 2 }[r.k.st]; return r.k[k]; };
+    if (sort) list.sort(function (a, b) {
+      if (sort.k === '_label') { var x = a.sortVal !== undefined ? a.sortVal : a.label, y = b.sortVal !== undefined ? b.sortVal : b.label; return sort.dir * String(x).localeCompare(String(y)); }
+      if (sort.k === '_tl' || sort.k === '_lang') { var f = sort.k.slice(1); return sort.dir * String(a[f]).localeCompare(String(b[f])) || a.label.localeCompare(b.label); }
+      var av = val(a, sort.k), bv = val(b, sort.k), an = av === null || av === undefined || !isFinite(av), bn = bv === null || bv === undefined || !isFinite(bv);
+      if (an || bn) return an && bn ? a.label.localeCompare(b.label) : an ? 1 : -1;            // no value: always last
+      return sort.dir * (av - bv) || a.label.localeCompare(b.label);
+    });
+    var thead = el('thead'), hr = el('tr');
+    function th(k, text, first, left) {
+      var active = sort && sort.k === k;
+      var b = el('button', { type: 'button', class: 'group inline-flex items-end gap-1 text-inherit hover:text-ink ' + (first || left ? 'text-left' : 'text-right justify-end'), on: { click: function () {
+        var dir = active ? -sort.dir : (k === '_label' || k === '_tl' || k === '_lang' ? 1 : -1); S.sorts[key] = { k: k, dir: dir }; renderBody(); } } },
+        el('span', { text: text }), el('span', { class: 'mb-px transition-transform duration-200 ' + (active ? 'text-accent' : 'opacity-0 group-hover:opacity-60') + (active && sort.dir > 0 ? ' rotate-180' : '') }, icon(I.down, 12)));
+      return el('th', { scope: 'col', class: 'ac-th' + (first ? ' ac-th-first' : left ? ' text-left' : ''), 'aria-sort': active ? (sort.dir < 0 ? 'descending' : 'ascending') : 'none', title: HELP[k] || null }, b);
+    }
+    hr.appendChild(th('_label', def.first, true));
+    if (def.extra) { hr.appendChild(th('_tl', 'Team Leader', false, true)); hr.appendChild(th('_lang', 'Language', false, true)); }
+    COLS.forEach(function (c) { hr.appendChild(th(c[0], c[1], false)); });
+    thead.appendChild(hr);
+    var tbody = el('tbody');
+    function row(r, isTotal) {
+      var k = r.k, tr = el('tr', { class: 'ac-row' + (isTotal ? ' ac-row-total ac-row-grand' : '') + (opts.onRow && !isTotal ? ' cursor-pointer' : '') });
+      var first = el('td', { class: 'ac-td ac-td-first', title: r.nn && !isTotal ? 'Name on Nice: ' + r.nn : null }, el('span', { text: r.label }), isTotal ? null : lowVolMark(k));
+      tr.appendChild(first);
+      if (def.extra) { tr.appendChild(el('td', { class: 'ac-td text-left', text: isTotal ? '' : r.tl })); tr.appendChild(el('td', { class: 'ac-td text-left', text: isTotal ? '' : r.lang })); }
+      COLS.forEach(function (c) {
+        var id = c[0], td;
+        if (id === 'tg') td = el('td', { class: 'ac-td', text: fmt(target(), '0.00') });
+        else if (id === 'st') td = el('td', { class: 'ac-td' }, pill(k.st));
+        else if (id === 'sec') { td = el('td', { class: 'ac-td' }); td.appendChild(secCell(k.sec)); }
+        else if (id === 'vr') td = el('td', { class: 'ac-td' + (k.vr !== null && k.vr < 0 ? ' text-bad' : ''), text: fmt(k.vr, 'var') });
+        else td = el('td', { class: 'ac-td', text: fmt(k[id], c[2]) });
+        if (id === 'sec' && k.sec !== null) td.title = k.sec.toFixed(4) + ' s';
+        tr.appendChild(td);
+      });
+      if (opts.onRow && !isTotal) { tr.tabIndex = 0; tr.title = 'Details for ' + r.label; tr.addEventListener('click', function () { opts.onRow(r); }); tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') opts.onRow(r); }); }
+      return tr;
+    }
+    list.forEach(function (r) { tbody.appendChild(row(r, false)); });
+    if (total && list.length) tbody.appendChild(row(total, true));
+    if (!list.length) tbody.appendChild(el('tr', {}, el('td', { class: 'px-4 py-10 text-center text-[13px] text-ink2', colspan: COLS.length + 1 + (def.extra ? 2 : 0), text: q ? 'No rows match “' + S.q[key] + '”.' : 'No rows for these filters.' })));
+    return el('div', { class: 'ac-tbl-wrap border-t border-rule' }, el('table', { class: 'min-w-full' }, thead, tbody));
+  }
+  function tableCsv(def, rows, total, name) {
+    var head = [def.first].concat(def.extra ? ['Name on Nice', 'Team Leader', 'Language'] : []).concat(COLS.map(function (c) { return c[1]; }));
+    var out = [head.map(csvCell).join(',')];
+    rows.concat(total ? [total] : []).forEach(function (r) {
+      var k = r.k, cells = [r.label].concat(def.extra ? [r.nn || '', r.tl || '', r.lang || ''] : []);
+      COLS.forEach(function (c) {
+        var id = c[0], v;
+        if (id === 'tg') v = target(); else if (id === 'st') v = STATUS[k.st]; else if (id === 'acw') v = hms(k.acw); else if (id === 'pct') v = k.pct === null ? '' : (k.pct * 100).toFixed(1) + '%';
+        else { v = k[id]; v = v === null || !isFinite(v) ? '' : (id === 'sec' || id === 'vr' ? Math.round(v * 1e6) / 1e6 : v); }
+        cells.push(v);
+      });
+      out.push(cells.map(csvCell).join(','));
+    });
+    download(name, out.join('\r\n'));
+  }
+  function fileTag(R) { return R.cf + '_' + R.ct; }
+
+  /* ================================================================ charts (hand-drawn SVG, one axis per panel) */
+  function roundTop(x, y, w, h, r) { r = Math.min(r, w / 2, h); if (h <= 0) return ''; return 'M' + x + ',' + (y + h) + 'V' + (y + r) + 'Q' + x + ',' + y + ' ' + (x + r) + ',' + y + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'V' + (y + h) + 'Z'; }
+  function roundRight(x, y, w, h, r) { r = Math.min(r, h / 2, w); if (w <= 0) return ''; return 'M' + x + ',' + y + 'H' + (x + w - r) + 'Q' + (x + w) + ',' + y + ' ' + (x + w) + ',' + (y + r) + 'V' + (y + h - r) + 'Q' + (x + w) + ',' + (y + h) + ' ' + (x + w - r) + ',' + (y + h) + 'H' + x + 'Z'; }
+  function secTick(t) { return (Math.abs(t - Math.round(t)) > 1e-9 ? t.toFixed(1) : t.toFixed(0)); }
+  function drawLine(path) {
+    if (reduced) return;
+    requestAnimationFrame(function () { try { var len = path.getTotalLength(); path.style.setProperty('--len', len); path.setAttribute('class', 'ac-draw'); } catch (e) {} });
+  }
+  /** Trend: Achieved AVG ACW (seconds) per day or week as one line per LOB, the target line, and a separate lower panel with the accepted calls (bars, own axis). */
+  function trendChart(host, labels, series, bars, o) {
+    var W = Math.max(320, host.clientWidth || 900), small = W < 560, left = small ? 46 : 58, right = small ? 18 : 138, pad = 22, topH = small ? 170 : 210, gap = 30, botH = small ? 70 : 84, axisH = 26;
+    var H = pad + topH + gap + botH + axisH, plotW = W - left - right, n = labels.length, band = plotW / Math.max(1, n), bw = Math.max(3, Math.min(22, band * .55));
+    var cx = function (i) { return left + band * i + band / 2; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    var all = []; series.forEach(function (s) { s.v.forEach(function (v) { if (v !== null && isFinite(v)) all.push(v); }); });
+    if (o.avg !== null && o.avg !== undefined && isFinite(o.avg)) all.push(o.avg);
+    all.push(o.target);
+    var hi0 = Math.max.apply(null, all), tt = ticks(0, hi0 * 1.12, 4), vLo = 0, vHi = tt[tt.length - 1], y = function (v) { return pad + topH - (Math.min(v, vHi) - vLo) / ((vHi - vLo) || 1) * topH; };
+    tt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: 'rgb(var(--ac-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'rgb(var(--ac-muted))', text: secTick(t) })); });
+    svg.appendChild(sv('text', { x: left, y: pad - 8, 'font-size': 11.5, 'font-weight': 600, fill: 'rgb(var(--ac-ink2))', text: o.title }));
+    var endLabels = [];
+    if (o.avg !== null && o.avg !== undefined && isFinite(o.avg)) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(o.avg), y2: y(o.avg), stroke: 'rgb(var(--ac-ink2))', 'stroke-width': 1.25, 'stroke-dasharray': '5 4' })); endLabels.push({ y: y(o.avg), text: 'All ' + fmt(o.avg, '0.00') + ' s', muted: true }); }
+    svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(o.target), y2: y(o.target), stroke: 'rgb(var(--ac-good))', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' })); endLabels.push({ y: y(o.target), text: 'Target ' + secTick(o.target) + ' s', muted: true });
+    series.forEach(function (s) {
+      var d = '', pen = false, last = -1;
+      s.v.forEach(function (v, k) { if (v === null || !isFinite(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + cx(k).toFixed(1) + ',' + y(v).toFixed(1); pen = true; last = k; });
+      if (!d) return;
+      var p = sv('path', { d: d, fill: 'none', stroke: s.color, 'stroke-width': 2.25, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+      svg.appendChild(p); drawLine(p);
+      s.v.forEach(function (v, k) { if (v === null || !isFinite(v) || n > 45) return; svg.appendChild(sv('circle', { cx: cx(k), cy: y(v), r: 3, fill: 'rgb(var(--ac-surface))', stroke: s.color, 'stroke-width': 1.75 })); });
+      if (last >= 0) { svg.appendChild(sv('circle', { cx: cx(last), cy: y(s.v[last]), r: 4.5, fill: s.color, stroke: 'rgb(var(--ac-surface))', 'stroke-width': 2 })); endLabels.push({ y: y(s.v[last]), text: s.name + ' ' + fmt(s.v[last], '0.0') + ' s' }); }
+    });
+    if (!small) {
+      endLabels.sort(function (a, b) { return a.y - b.y; });
+      for (var e = 1; e < endLabels.length; e++) if (endLabels[e].y - endLabels[e - 1].y < 14) endLabels[e].y = endLabels[e - 1].y + 14;
+      for (var e2 = endLabels.length - 2; e2 >= 0; e2--) if (endLabels[e2 + 1].y > pad + topH + 4) { var sh = endLabels[e2 + 1].y - (pad + topH + 4); endLabels.forEach(function (l) { l.y -= sh; }); break; }
+      endLabels.forEach(function (l) { svg.appendChild(sv('text', { x: W - right + 8, y: l.y + 4, 'font-size': 11.5, 'font-weight': l.muted ? 600 : 700, fill: l.muted ? 'rgb(var(--ac-ink2))' : 'rgb(var(--ac-ink))', text: l.text })); });
+    }
+    var top2 = pad + topH + gap, bmax = Math.max.apply(null, bars.concat([1])), bt = ticks(0, bmax, 2), btop = bt[bt.length - 1] || 1, yb = function (v) { return top2 + botH - v / btop * botH; };
+    svg.appendChild(sv('text', { x: left, y: top2 - 8, 'font-size': 11.5, 'font-weight': 600, fill: 'rgb(var(--ac-ink2))', text: o.barLabel }));
+    bt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: yb(t), y2: yb(t), stroke: 'rgb(var(--ac-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: yb(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'rgb(var(--ac-muted))', text: fmt(t, '#,##0') })); });
+    bars.forEach(function (v, k) { if (!(v > 0)) return; var h = v / btop * botH; svg.appendChild(sv('path', { d: roundTop(cx(k) - bw / 2, yb(v), bw, h, 4), fill: 'rgb(var(--ac-ink2))', 'fill-opacity': .32, class: reduced ? null : 'ac-rise', style: 'animation-delay:' + Math.min(400, k * 12) + 'ms' })); });
+    var every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 60))));
+    labels.forEach(function (l, k) { if (k % every === 0) svg.appendChild(sv('text', { x: cx(k), y: top2 + botH + 18, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ac-muted))', text: l.short })); });
+    var cross = sv('rect', { y: pad - 4, height: top2 + botH - pad + 8, fill: 'rgb(var(--ac-ink) / .05)', rx: 6, visibility: 'hidden' });
+    svg.insertBefore(cross, svg.firstChild);
+    var cur = -1;
+    function at(k) {
+      k = Math.max(0, Math.min(n - 1, k)); cur = k;
+      cross.setAttribute('x', cx(k) - band / 2 + 1); cross.setAttribute('width', Math.max(2, band - 2)); cross.setAttribute('visibility', 'visible');
+      var rows = series.map(function (s) { return { sw: s.color, label: s.name, value: s.v[k] === null || s.v[k] === undefined ? '—' : fmt(s.v[k], '0.00') + ' s' }; });
+      rows.push({ label: o.barLabel, value: fmt(bars[k], '#,##0') });
+      showTip(host, cx(k) * (host.clientWidth / W), 70, labels[k].title, rows);
+    }
+    var hit = sv('rect', { x: left, y: 0, width: plotW, height: H - axisH + 6, fill: 'transparent', tabindex: 0, role: 'group', 'aria-label': 'Chart. Use the left and right arrow keys to read each point.' });
+    hit.addEventListener('pointermove', function (ev) { var r = svg.getBoundingClientRect(); at(Math.floor(((ev.clientX - r.left) * (W / r.width) - left) / band)); });
+    function leave() { cross.setAttribute('visibility', 'hidden'); hideTip(); }
+    hit.addEventListener('pointerleave', leave); hit.addEventListener('blur', leave);
+    hit.addEventListener('keydown', function (ev) { if (ev.key === 'ArrowLeft') { at(cur < 0 ? n - 1 : cur - 1); ev.preventDefault(); } else if (ev.key === 'ArrowRight') { at(cur < 0 ? 0 : cur + 1); ev.preventDefault(); } else if (ev.key === 'Escape') leave(); });
+    svg.appendChild(hit);
+    host.appendChild(svg);
+  }
+  /** Horizontal bars (one value per row), target and reference lines, click for details. Colour = status against the target (unless the item has its own). */
+  function hBars(host, items, o) {
+    var W = Math.max(300, host.clientWidth || 560), rowH = 30, bh = 15, left = Math.min(190, W * .38), right = 70, top = 24, n = items.length, H = top + n * rowH + 24;
+    var maxChars = Math.max(8, Math.floor((left - 14) / 6.5)), plotW = W - left - right, lo = o.min || 0, x = function (v) { return left + Math.max(0, Math.min(v, o.max) - lo) / ((o.max - lo) || 1) * plotW; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    ticks(lo, o.max, 4).forEach(function (t) { if (t > o.max + 1e-9 || t < lo - 1e-9) return; svg.appendChild(sv('line', { x1: x(t), x2: x(t), y1: top - 6, y2: top + n * rowH, stroke: 'rgb(var(--ac-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: x(t), y: top + n * rowH + 16, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ac-muted))', text: o.tick(t) })); });
+    items.forEach(function (it, i) {
+      var yy = top + i * rowH + (rowH - bh) / 2, w = Math.max(0, x(it.v) - left), g = sv('g', { tabindex: 0, 'aria-label': it.label + ': ' + o.val(it.v), class: 'outline-none' + (o.onClick ? ' cursor-pointer' : '') });
+      g.appendChild(sv('rect', { x: 0, y: top + i * rowH, width: W, height: rowH, fill: 'transparent' }));
+      g.appendChild(sv('text', { x: left - 10, y: yy + bh / 2 + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'rgb(var(--ac-ink2))', text: trunc(it.label, maxChars) }, sv('title', { text: it.label })));
+      var color = it.color || (o.target !== null && o.target !== undefined ? (it.v <= o.target + 1e-9 ? 'rgb(var(--ac-good))' : 'rgb(var(--ac-bad))') : 'rgb(var(--ac-s1))');
+      var bar = sv('path', { d: roundRight(left, yy, w, bh, 4), fill: color, 'fill-opacity': .85, class: reduced ? null : 'ac-grow', style: 'animation-delay:' + Math.min(500, i * 25) + 'ms' });
+      g.appendChild(bar);
+      g.appendChild(sv('text', { x: left + w + 6, y: yy + bh / 2 + 4, 'font-size': 12, 'font-weight': 700, fill: 'rgb(var(--ac-ink))', text: o.val(it.v) }));
+      function on() { bar.setAttribute('fill-opacity', 1); showTip(host, Math.min((left + w) * host.clientWidth / W, host.clientWidth - 200), (top + i * rowH + rowH / 2) * host.clientWidth / W, it.label, it.tip || []); }
+      function off() { bar.setAttribute('fill-opacity', .85); hideTip(); }
+      g.addEventListener('pointerenter', on); g.addEventListener('pointerleave', off); g.addEventListener('focus', on); g.addEventListener('blur', off);
+      if (o.onClick) { g.addEventListener('click', function () { o.onClick(it); }); g.addEventListener('keydown', function (e) { if (e.key === 'Enter') o.onClick(it); }); }
+      svg.appendChild(g);
+    });
+    var tgtX = o.target !== null && o.target !== undefined ? x(o.target) : null;
+    if (tgtX !== null) {
+      svg.appendChild(sv('line', { x1: tgtX, x2: tgtX, y1: top - 6, y2: top + n * rowH, stroke: 'rgb(var(--ac-good))', 'stroke-width': 1.5, 'stroke-dasharray': '2 3' }));
+      svg.appendChild(sv('text', { x: tgtX, y: top - 11, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: 'rgb(var(--ac-good))', text: 'Target ' + secTick(o.target) + ' s' }));
+    }
+    if (o.ref !== undefined && o.ref !== null && isFinite(o.ref)) {
+      svg.appendChild(sv('line', { x1: x(o.ref), x2: x(o.ref), y1: top - 6, y2: top + n * rowH, stroke: 'rgb(var(--ac-ink2))', 'stroke-width': 1.25, 'stroke-dasharray': '5 4' }));
+      if (tgtX === null || Math.abs(x(o.ref) - tgtX) > 70) svg.appendChild(sv('text', { x: x(o.ref), y: top - 11, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: 'rgb(var(--ac-ink2))', text: o.refLabel }));
+    }
+    host.appendChild(svg);
+  }
+  /** Vertical columns (histogram of agents by Achieved AVG ACW band). */
+  function columns(host, items, o) {
+    var W = Math.max(280, host.clientWidth || 420), H = 220, left = 40, right = 12, top = 22, bot = 40, plotW = W - left - right, plotH = H - top - bot, n = items.length, band = plotW / n, bw = Math.min(54, band * .62);
+    var mx = Math.max.apply(null, items.map(function (i) { return i.v; }).concat([1])), tt = ticks(0, mx, 3), tp = tt[tt.length - 1] || 1, y = function (v) { return top + plotH - v / tp * plotH; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    tt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: 'rgb(var(--ac-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'rgb(var(--ac-muted))', text: fmt(t, 'int') })); });
+    items.forEach(function (it, k) {
+      var x0 = left + band * k + (band - bw) / 2, h = it.v / tp * plotH, g = sv('g', { tabindex: 0, 'aria-label': it.label + ': ' + it.v, class: 'outline-none' });
+      g.appendChild(sv('rect', { x: left + band * k, y: top, width: band, height: plotH, fill: 'transparent' }));
+      g.appendChild(sv('path', { d: roundTop(x0, y(it.v), bw, h, 4), fill: it.good ? 'rgb(var(--ac-good))' : 'rgb(var(--ac-bad))', 'fill-opacity': .8, class: reduced ? null : 'ac-rise', style: 'animation-delay:' + k * 60 + 'ms' }));
+      if (it.v > 0) g.appendChild(sv('text', { x: x0 + bw / 2, y: y(it.v) - 6, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 700, fill: 'rgb(var(--ac-ink))', text: fmt(it.v, 'int') }));
+      g.appendChild(sv('text', { x: x0 + bw / 2, y: top + plotH + 17, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ac-ink2))', text: it.label }));
+      function on() { showTip(host, (x0 + bw) * host.clientWidth / W, (top + plotH / 2) * host.clientWidth / W, it.title, it.tip); }
+      g.addEventListener('pointerenter', on); g.addEventListener('pointerleave', hideTip); g.addEventListener('focus', on); g.addEventListener('blur', hideTip);
+      if (o.onClick && it.v > 0) { g.setAttribute('class', 'outline-none cursor-pointer'); g.setAttribute('role', 'button'); g.addEventListener('click', function () { o.onClick(it, k); }); g.addEventListener('keydown', function (e) { if (e.key === 'Enter') o.onClick(it, k); }); }
+      svg.appendChild(g);
+    });
+    svg.appendChild(sv('text', { x: left + plotW / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 11, fill: 'rgb(var(--ac-muted))', text: o.xLabel }));
+    host.appendChild(svg);
+  }
+  /** Heatmap rows × days of Achieved AVG ACW. Diverging around the target: green at/below it, red above; stronger = further away. */
+  function heatmap(host, rowLabels, colLabels, M, o) {
+    var W = Math.max(320, host.clientWidth || 900), left = Math.min(170, W * .3), top = 26, right = 8, cell = Math.max(10, Math.min(110, (W - left - right) / Math.max(1, colLabels.length))), rh = 28, H = top + rowLabels.length * rh + 8;
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': o.aria });
+    var every = Math.max(1, Math.ceil(26 / cell));
+    colLabels.forEach(function (c, j) { if (j % every === 0) svg.appendChild(sv('text', { x: left + cell * j + cell / 2, y: top - 9, 'text-anchor': 'middle', 'font-size': 10.5, fill: 'rgb(var(--ac-muted))', text: c.short })); });
+    rowLabels.forEach(function (r, i) {
+      var lab = sv('text', { x: left - 10, y: top + i * rh + rh / 2 + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'rgb(var(--ac-ink2))', text: trunc(r, Math.floor((left - 14) / 6.5)), class: o.onRow ? 'cursor-pointer' : null }, sv('title', { text: r }));
+      if (o.onRow) lab.addEventListener('click', function () { o.onRow(r); });
+      svg.appendChild(lab);
+      M[i].forEach(function (c, j) {
+        var x0 = left + cell * j + 1, y0 = top + i * rh + 1, w = cell - 2, h = rh - 2;
+        if (!c || c.v === null || !isFinite(c.v)) { svg.appendChild(sv('rect', { x: x0, y: y0, width: w, height: h, rx: 4, fill: 'rgb(var(--ac-canvas))' })); return; }
+        var good = c.v <= o.center + 1e-9, t = Math.min(1, Math.abs(c.v - o.center) / o.spread), a = .12 + .78 * Math.sqrt(t);
+        var g = sv('g', { tabindex: 0, class: 'outline-none', 'aria-label': r + ', ' + colLabels[j].title + ': ' + o.val(c.v) });
+        g.appendChild(sv('rect', { x: x0, y: y0, width: w, height: h, rx: 4, fill: 'rgb(var(--ac-' + (good ? 'good' : 'bad') + ') / ' + a.toFixed(3) + ')' }));
+        if (cell >= 36) g.appendChild(sv('text', { x: x0 + w / 2, y: y0 + h / 2 + 4, 'text-anchor': 'middle', 'font-size': 10.5, 'font-weight': 600, fill: a > .55 ? '#fff' : 'rgb(var(--ac-ink))', text: o.cellText(c.v) }));
+        function on() { showTip(host, (x0 + w) * host.clientWidth / W, (y0 + h / 2) * host.clientWidth / W, r + ' · ' + colLabels[j].title, c.tip); }
+        g.addEventListener('pointerenter', on); g.addEventListener('pointerleave', hideTip); g.addEventListener('focus', on); g.addEventListener('blur', hideTip);
+        svg.appendChild(g);
+      });
+    });
+    host.appendChild(svg);
+  }
+  function spark(vals, color) {
+    var W = 140, H = 34, svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, 'aria-hidden': 'true', class: 'block' });
+    var ok = vals.filter(function (v) { return v !== null && isFinite(v); });
+    if (ok.length < 2) return svg;
+    var lo = Math.min.apply(null, ok), hi = Math.max.apply(null, ok), sp = (hi - lo) || 1, n = vals.length;
+    var px = function (i) { return 3 + (W - 9) * i / (n - 1); }, py = function (v) { return H - 4 - (H - 8) * (v - lo) / sp; };
+    var d = '', pen = false, last = -1;
+    vals.forEach(function (v, i) { if (v === null || !isFinite(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + px(i).toFixed(1) + ',' + py(v).toFixed(1); pen = true; last = i; });
+    var p = sv('path', { d: d, fill: 'none', stroke: color || 'rgb(var(--ac-muted))', 'stroke-width': 1.75, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+    svg.appendChild(p); drawLine(p);
+    svg.appendChild(sv('circle', { cx: px(last), cy: py(vals[last]), r: 3, fill: color || 'rgb(var(--ac-accent))' }));
+    return svg;
+  }
+  function legendItem(color, text, dashed) {
+    return el('span', { class: 'inline-flex items-center gap-2' }, dashed ? el('i', { class: 'inline-block w-4 border-t-[1.5px] border-dashed border-ink2' }) : el('i', { class: 'inline-block h-[3px] w-4 rounded', style: 'background:' + color }), text);
+  }
+  function tipRows(k) {
+    return [{ label: 'Achieved AVG ACW', value: k.sec === null ? 'No calls' : fmt(k.sec, '0.00') + ' s' }, { label: 'Overall %', value: fmt(k.pct, '0.0%') }, { label: 'Accepted calls', value: fmt(k.ac, 'int') },
+            { label: 'Assigned calls', value: fmt(k.as, 'int') }, { label: 'ABN', value: fmt(k.abn, 'int') }, { label: 'Actual ACW', value: hms(k.acw) }];
+  }
+
+  /* ================================================================ overview */
+  function dailyRows(idx) { return tableRows('daily', idx).rows; }
+  function weekStart(d) { return addDays(d, -((dow(d) + 6) % 7)); }                      // Monday of the week
+  var BANDS = [[0, .5], [.5, .75], [.75, 1], [1, 1.5], [1.5, 2], [2, Infinity]];          // multiples of the target
+  function bandIndex(sec) { var T = target(); return sec < .5 * T ? 0 : sec < .75 * T ? 1 : sec <= T + 1e-9 ? 2 : sec < 1.5 * T ? 3 : sec < 2 * T ? 4 : 5; }
+  function bandLabel(i) {
+    var T = target(), a = BANDS[i][0] * T, b = BANDS[i][1] * T;
+    return i === 0 ? '< ' + secTick(b) + ' s' : i === BANDS.length - 1 ? '≥ ' + secTick(a) + ' s' : secTick(a) + '–' + secTick(b) + ' s';
+  }
+  function perAgent(idx) { var g = groupBy(idx, function (i) { return P.f.a[i]; }); return g.keys.map(function (a) { return { a: +a, k: kpi(g.map[a]) }; }); }
+  function viewOverview(root, R, idx) {
+    var T = target(), K = kpi(sumOf(idx)), prev = prevRange(R), PK = prev ? kpi(sumOf(select(prev.from, prev.to))) : null;
+    var days = dailyRows(idx);
+    var DIRS = { sec: -1, abn: -1, abnp: -1, pct: 1, ac: 0, as: 0, acw: 0, vr: 1 };
+    function delta(key, mode) {
+      if (!PK || PK[key] === null || K[key] === null || PK[key] === undefined || K[key] === undefined || !isFinite(PK[key]) || !isFinite(K[key])) return null;
+      var diff = mode === 'abs' ? K[key] - PK[key] : mode === 'pts' ? (K[key] - PK[key]) * 100 : (PK[key] ? (K[key] - PK[key]) / PK[key] : 0);
+      var flat = mode === 'abs' ? Math.abs(diff) < .005 : mode === 'pts' ? Math.abs(diff) < .05 : Math.abs(diff) < .0005, dir = DIRS[key] || 0;
+      var good = flat || !dir ? '' : ((diff > 0) === (dir > 0) ? 'good' : 'bad');
+      var text = flat ? 'No change' : (diff > 0 ? '+' : '−') + (mode === 'abs' ? Math.abs(diff).toFixed(2) + ' s' : mode === 'pts' ? Math.abs(diff).toFixed(1) + ' pts' : Math.abs(diff * 100).toFixed(1) + '%');
+      return el('span', { class: 'inline-flex items-center gap-1.5' },
+        el('span', { class: 'inline-flex items-center gap-0.5 rounded-md px-1.5 py-px text-[11.5px] font-bold ' + (good === 'good' ? 'bg-good-bg text-good' : good === 'bad' ? 'bg-bad-bg text-bad' : 'bg-canvas text-ink2') }, flat ? null : icon(diff > 0 ? I.up : I.down, 11), text),
+        el('span', { class: 'text-muted', text: 'vs previous ' + R.n + (R.n === 1 ? ' day' : ' days') }));
+    }
+
+    // 1. Hero: Achieved AVG ACW against the target, then Overall %, Accepted and ABN
+    var hero = el('section', { class: 'ac-card grid overflow-hidden xl:grid-cols-12 animate-ac-in', 'aria-label': 'Summary' });
+    var big = el('span', { class: 'text-[56px] font-extrabold leading-none tracking-[-0.04em] tabular-nums text-ink', text: K.sec === null ? '—' : '0.00' });
+    var verdict = K.sec === null ? 'No accepted calls in this selection.' : fmt(Math.abs(K.vr), '0.00') + ' s ' + (K.vr >= 0 ? 'faster than' : 'slower than') + ' the ' + secTick(T) + ' s target.';
+    var left = el('div', { class: 'relative px-6 pt-5 pb-5 xl:col-span-5' },
+      el('div', { class: 'flex items-center justify-between gap-3' }, el('h2', { class: 'flex items-center gap-2 text-[13px] font-semibold text-ink2' }, 'Achieved AVG ACW', pill(K.st)), el('span', { class: 'text-[12px] text-muted', text: rangeText(R) })),
+      el('div', { class: 'mt-2 flex flex-wrap items-end gap-x-3 gap-y-2' }, big, el('span', { class: 'pb-1.5 text-[18px] font-bold text-ink2', text: K.sec === null ? '' : 'seconds' }), delta('sec', 'abs') || el('span')),
+      el('p', { class: 'mt-2 text-[12.5px] text-ink2', text: verdict + (K.sec === null ? '' : ' ' + hms(K.acw) + ' of after-call work over ' + fmt(K.ac, 'int') + ' accepted calls.') }));
+    if (K.sec !== null) {
+      var mx = Math.max(2 * T, K.sec * 1.1), fill = el('div', { class: 'absolute inset-y-0 left-0 rounded-full transition-[width] duration-700 ease-soft ' + (K.st === 'good' ? 'bg-good' : 'bg-bad'), style: 'width:' + (reduced ? (K.sec / mx * 100).toFixed(1) : 0) + '%' });
+      var tk = el('div', { class: 'absolute -inset-y-1.5 w-0.5 rounded bg-ink' }); tk.style.left = (T / mx * 100).toFixed(1) + '%';
+      var track = el('div', { class: 'relative mt-5 h-2.5 rounded-full bg-canvas ring-1 ring-rule/70', role: 'img', 'aria-label': 'Achieved average ' + fmt(K.sec, '0.00') + ' seconds against a target of ' + secTick(T) + ' seconds' }, fill, tk);
+      var lab = el('div', { class: 'relative mt-1.5 h-4 text-[11px] text-muted' }, el('span', { class: 'absolute left-0', text: '0 s' }), el('span', { class: 'absolute -translate-x-1/2 font-semibold text-ink2', style: 'left:' + (T / mx * 100).toFixed(1) + '%', text: 'Target ' + secTick(T) + ' s' }), el('span', { class: 'absolute right-0', text: secTick(mx) + ' s' }));
+      left.appendChild(track); left.appendChild(lab);
+      if (!reduced) requestAnimationFrame(function () { requestAnimationFrame(function () { fill.style.width = (K.sec / mx * 100).toFixed(1) + '%'; }); });
+      countUp(big, K.sec, '0.00');
+    }
+    var sp = el('div', { class: 'mt-3 overflow-hidden' }); sp.appendChild(spark(days.slice(-21).map(function (r) { return r.k.sec; }), 'rgb(var(--ac-accent))'));
+    left.appendChild(el('div', { class: 'mt-2 flex items-center gap-3 text-[11.5px] text-muted' }, sp, el('span', { text: 'Daily average, last ' + Math.min(21, days.length) + ' days' })));
+    hero.appendChild(left);
+    var right = el('div', { class: 'grid border-t border-rule sm:grid-cols-3 xl:col-span-7 xl:border-l xl:border-t-0' });
+    [['pct', 'Overall %', K.pct, '0.0%', 'Target ÷ Achieved. 100% or more is on target.', 'pts', function (r) { return r.k.pct; }],
+     ['ac', 'Accepted calls', K.ac, 'int', 'of ' + fmt(K.as, 'int') + ' assigned', 'rel', function (r) { return r.k.ac; }],
+     ['abn', 'ABN', K.abn, 'int', 'Assigned − Accepted · ' + fmt(K.abnp, '0.0%') + ' of assigned', 'rel', function (r) { return r.k.abn; }]].forEach(function (x, k) {
+      var v = el('span', { class: 'text-[34px] font-extrabold leading-none tracking-[-0.03em] tabular-nums text-ink', text: x[2] === null ? '—' : '0' });
+      var cell = el('div', { class: 'px-5 pt-5 pb-4 ' + (k ? 'border-t border-rule sm:border-t-0 sm:border-l' : '') },
+        el('div', { class: 'flex flex-wrap items-center gap-2' }, el('h3', { class: 'text-[13px] font-semibold text-ink', text: x[1] }), x[0] === 'pct' ? pill(K.st, K.st === 'none' ? 'No calls' : null) : null),
+        el('div', { class: 'mt-2 text-[11.5px] text-muted', text: x[0] === 'pct' ? 'Variance ' + (K.vr === null ? '—' : (K.vr >= 0 ? '+' : '−') + fmt(Math.abs(K.vr), '0.00') + ' s') : x[0] === 'ac' ? 'Calls handled' : 'Calls not accepted' }),
+        el('div', { class: 'mt-1.5 flex items-baseline gap-3' }, v),
+        el('div', { class: 'mt-1 text-[11.5px] text-ink2', text: x[4] }),
+        delta(x[0], x[5]) ? el('div', { class: 'mt-1.5 text-[11.5px]' }, delta(x[0], x[5])) : null);
+      var s2 = el('div', { class: 'mt-2' }); s2.appendChild(spark(days.slice(-21).map(x[6]), 'rgb(var(--ac-muted))')); cell.appendChild(s2);
+      if (x[2] !== null) countUp(v, x[2], x[3]);
+      right.appendChild(cell);
+    });
+    hero.appendChild(right);
+    root.appendChild(hero);
+
+    // 2. Highlights
+    var hl = highlights(idx, K);
+    if (hl.length) {
+      var ul = el('ul', { class: 'grid gap-2 px-5 pb-4 pt-1 text-[13px] leading-snug text-ink2 sm:grid-cols-2 xl:grid-cols-4' });
+      hl.forEach(function (h) { ul.appendChild(el('li', { class: 'flex gap-2.5 rounded-xl bg-canvas px-3 py-2.5 ring-1 ring-rule/70' }, el('span', { class: 'mt-0.5 ' + (h[2] === 'warn' ? 'text-warn' : 'text-accent') }, icon(h[2] === 'warn' ? I.alert : I.spark, 15)), el('span', {}, el('b', { class: 'block text-[12px] font-semibold text-ink', text: h[0] }), h[1]))); });
+      root.appendChild(el('section', { class: 'mt-3 ac-card animate-ac-in', 'aria-label': 'Highlights' }, el('div', { class: 'px-5 pt-4 pb-2 text-[15px] font-bold text-ink', text: 'Highlights' }), ul));
+    }
+
+    // 3. KPI strip
+    var pa = perAgent(idx).filter(function (x) { return x.k.ac > 0; }), above = pa.filter(function (x) { return x.k.st === 'bad'; }).length;
+    var vols = [['Assigned calls', K.as, 'int', 'as'], ['Accepted calls', K.ac, 'int', 'ac'], ['ABN', K.abn, 'int', 'abn'], ['ABN %', K.abnp, '0.0%', 'abnp'], ['Actual ACW (h:mm:ss)', K.acw, 'hms', 'acw'],
+                ['Variance (s)', K.vr, 'var', 'vr'], ['Agents with calls', pa.length, 'int', null], ['Agents above target', above, 'int', null]];
+    var strip = el('section', { class: 'mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl2 bg-rule/70 ring-1 ring-rule/70 shadow-card md:grid-cols-4 2xl:grid-cols-8 animate-ac-in', 'aria-label': 'Volumes' });
+    vols.forEach(function (v) {
+      var num = el('div', { class: 'mt-0.5 text-[20px] font-bold tracking-[-0.02em] tabular-nums ' + (v[0] === 'Agents above target' && v[1] > 0 ? 'text-bad' : 'text-ink'), text: v[1] === null ? '—' : '0' });
+      var dv = v[3] && v[3] !== 'abnp' && v[3] !== 'vr' ? delta(v[3], 'rel') : null;
+      strip.appendChild(el('div', { class: 'bg-surface px-4 py-3' }, el('div', { class: 'min-w-0' }, el('div', { class: 'text-[12px] font-medium text-ink2', text: v[0] }), num, dv ? el('div', { class: 'mt-0.5 text-[11px]' }, dv) : null)));
+      if (v[1] !== null) countUp(num, v[1], v[2]);
+    });
+    root.appendChild(strip);
+
+    var grid = el('div', { class: 'mt-3 grid gap-3 xl:grid-cols-12' });
+    // 4. Trend by LOB, with the accepted calls below
+    var lgs = LGS.filter(function (q) { return idx.some(function (i) { return lobOf(i) === q; }); }), labels, series = [], bars;
+    if (S.trendBy === 'week') {
+      var wk = {}, wkL = {}; idx.forEach(function (i) { var w = weekStart(P.dates[P.f.d[i]]), q = lobOf(i); (wk[w] = wk[w] || { all: zero(), by: {} }); add(wk[w].all, i); var b = wk[w].by[q] || (wk[w].by[q] = zero()); add(b, i); });
+      var ws = Object.keys(wk).sort();
+      labels = ws.map(function (w) { return { short: fDay(w), title: 'Week of ' + fDayLong(w) }; }); bars = ws.map(function (w) { return wk[w].all.ac; });
+      lgs.forEach(function (q) { series.push({ name: q, color: lgColor(q), v: ws.map(function (w) { var b = wk[w].by[q]; return b ? kpi(b).sec : null; }) }); });
+    } else {
+      var dq = {}; lgs.forEach(function (q) { dq[q] = {}; dailyRows(idx.filter(function (i) { return lobOf(i) === q; })).forEach(function (r) { dq[q][r.value] = r.k; }); });
+      labels = days.map(function (r) { return { short: fDay(r.value), title: fDayLong(r.value) }; }); bars = days.map(function (r) { return r.k.ac; });
+      lgs.forEach(function (q) { series.push({ name: q, color: lgColor(q), v: days.map(function (r) { var k = dq[q][r.value]; return k ? k.sec : null; }) }); });
+    }
+    var c1 = card('Achieved AVG ACW trend', rangeText(R) + (S.trendBy === 'week' ? ', by week' : ', by day') + '. Seconds of after-call work per accepted call, from each ' + (S.trendBy === 'week' ? 'week' : 'day') + '’s totals; lower is better.',
+      [seg([['day', 'Days'], ['week', 'Weeks']], S.trendBy, function (k) { S.trendBy = k; renderBody(); }, 'Group by')], 'xl:col-span-12 animate-ac-in');
+    var host = el('div', { class: 'relative px-4 pb-2' }); c1.appendChild(host);
+    requestAnimationFrame(function () { if (labels.length) trendChart(host, labels, series, bars, { title: 'Achieved AVG ACW (seconds)', barLabel: 'Accepted calls', avg: K.sec, target: T, aria: 'Achieved AVG ACW trend' }); else host.appendChild(el('p', { class: 'px-1 py-6 text-[13px] text-ink2', text: 'No days in this selection.' })); });
+    var lg = el('div', { class: 'flex flex-wrap gap-x-5 gap-y-1 px-5 pb-4 text-[12px] text-ink2' });
+    series.forEach(function (s) { lg.appendChild(legendItem(s.color, s.name)); });
+    lg.appendChild(legendItem(null, 'All (whole selection)', true));
+    lg.appendChild(el('span', { class: 'inline-flex items-center gap-2' }, el('i', { class: 'inline-block w-4 border-t-2 border-dotted border-good' }), 'Target ' + secTick(T) + ' s'));
+    lg.appendChild(el('span', { class: 'inline-flex items-center gap-2' }, el('i', { class: 'inline-block h-2.5 w-2.5 rounded-sm bg-ink2/30' }), 'Accepted calls (lower panel)'));
+    c1.appendChild(lg); grid.appendChild(c1);
+
+    // 5. SDACMs and Supervisors, slowest first
+    function ranked(key) { return tableRows(key, idx).rows.filter(function (r) { return r.k.sec !== null; }).sort(function (a, b) { return b.k.sec - a.k.sec; }); }
+    var sdRows = ranked('sd'), tlRows = ranked('tl');
+    var allV = sdRows.concat(tlRows).map(function (r) { return r.k.sec; }).concat([K.sec || 0, T]), mxv = Math.max.apply(null, allV) * 1.15;
+    var barOpts = function (aria, dim) { return { min: 0, max: mxv, ref: K.sec, target: T, refLabel: 'All ' + fmt(K.sec, '0.00') + ' s', tick: secTick, val: function (v) { return fmt(v, '0.00') + ' s'; }, aria: aria,
+      onClick: function (it) { openDrawer({ kind: 'group', dim: dim, value: it.label }); } }; };
+    var c2 = card('Achieved AVG ACW by SDACM', 'Slowest first. Green = at or below the target, red = above. Select a bar for details.', null, 'md:col-span-6 xl:col-span-5 animate-ac-in');
+    var h2 = el('div', { class: 'relative px-4 pb-4' }); c2.appendChild(h2);
+    requestAnimationFrame(function () { if (sdRows.length) hBars(h2, sdRows.map(function (r) { return { label: r.label, v: r.k.sec, tip: tipRows(r.k) }; }), barOpts('Achieved AVG ACW by SDACM', 'sd')); });
+    if (sdRows.length) {
+      var tb = el('tbody');
+      sdRows.forEach(function (r) {
+        tb.appendChild(el('tr', { class: 'ac-row cursor-pointer', tabindex: 0, title: 'Details for ' + r.label, on: { click: function () { openDrawer({ kind: 'group', dim: 'sd', value: r.label }); }, keydown: function (e) { if (e.key === 'Enter') openDrawer({ kind: 'group', dim: 'sd', value: r.label }); } } },
+          el('td', { class: 'ac-td ac-td-first h-9', text: r.label }), el('td', { class: 'ac-td h-9', text: fmt(r.k.ac, 'int') }),
+          el('td', { class: 'ac-td h-9' + (r.k.st === 'bad' ? ' text-bad' : ''), text: fmt(r.k.sec, '0.00') }), el('td', { class: 'ac-td h-9' + (r.k.st === 'bad' ? ' text-bad' : ''), text: fmt(r.k.pct, '0.0%') })));
+      });
+      c2.appendChild(el('div', { class: 'mx-4 mb-4 overflow-hidden rounded-xl ring-1 ring-rule' }, el('table', { class: 'min-w-full' },
+        el('thead', {}, el('tr', {}, el('th', { class: 'ac-th ac-th-first static', text: 'SDACM' }), el('th', { class: 'ac-th static min-w-0', text: 'Accepted' }), el('th', { class: 'ac-th static min-w-0', text: 'Avg ACW' }), el('th', { class: 'ac-th static min-w-0', text: 'Overall' }))), tb)));
+    }
+    var c3 = card('Supervisors, slowest first', 'Dashed grey line: the whole selection. Select one for details.', null, 'md:col-span-6 xl:col-span-7 animate-ac-in');
+    var h3 = el('div', { class: 'relative px-4 pb-4' }); c3.appendChild(h3);
+    requestAnimationFrame(function () { if (tlRows.length) hBars(h3, tlRows.map(function (r) { return { label: r.label, v: r.k.sec, tip: tipRows(r.k) }; }), barOpts('Supervisors ranked by Achieved AVG ACW', 'tl')); });
+    grid.appendChild(c2); grid.appendChild(c3);
+
+    // 6. Heatmap: supervisor × day around the target
+    var dates = days.map(function (r) { return r.value; }), dIx = {}; dates.forEach(function (d, j) { dIx[d] = j; });
+    var tls = tableRows('tl', idx).rows.filter(function (r) { return r.k.ac > 0; }).map(function (r) { return r.label; }).sort(function (a, b) { return a.localeCompare(b); }), sIx = {}; tls.forEach(function (s, i) { sIx[s] = i; });
+    var M = tls.map(function () { return dates.map(function () { return null; }); }), acc = {};
+    idx.forEach(function (i) { var s = AV.tl[P.f.a[i]]; if (!(s in sIx)) return; var key = sIx[s] + '|' + dIx[P.dates[P.f.d[i]]], a = acc[key] || (acc[key] = zero()); add(a, i); });
+    Object.keys(acc).forEach(function (k) { var p = k.split('|'), kk = kpi(acc[k]); if (kk.sec !== null) M[+p[0]][+p[1]] = { v: kk.sec, tip: [{ label: 'Achieved AVG ACW', value: fmt(kk.sec, '0.00') + ' s' }, { label: 'Accepted calls', value: fmt(kk.ac, 'int') }, { label: 'Actual ACW', value: hms(kk.acw) }, { label: 'ABN', value: fmt(kk.abn, 'int') }] }; });
+    var c4 = card('Achieved AVG ACW by supervisor and day', 'Green at or below the ' + secTick(T) + ' s target, red above; stronger colour = further from the target. Empty = no accepted calls. Select a name for details.', null, 'xl:col-span-12 animate-ac-in');
+    var h4 = el('div', { class: 'relative overflow-x-auto px-4 pb-4' }); c4.appendChild(h4);
+    requestAnimationFrame(function () { if (tls.length && dates.length) heatmap(h4, tls, dates.map(function (d) { return { short: fDay(d).split(' ')[0], title: fDayLong(d) }; }), M, { center: T, spread: T, aria: 'Achieved AVG ACW by supervisor and day', val: function (v) { return fmt(v, '0.00') + ' s'; }, cellText: function (v) { return v.toFixed(1); }, onRow: function (s) { openDrawer({ kind: 'group', dim: 'tl', value: s }); } }); });
+    grid.appendChild(c4);
+
+    // 7. Agents by band + slowest agents
+    var counts = BANDS.map(function () { return 0; }); pa.forEach(function (x) { counts[bandIndex(x.k.sec)]++; });
+    var nobody = perAgent(idx).filter(function (x) { return x.k.ac === 0; }).length;
+    var c5 = card('Agents by Achieved AVG ACW', pa.length + ' agents with accepted calls; ' + (pa.length - above) + ' at or below the ' + secTick(T) + ' s target (green).' + (nobody ? ' ' + nobody + ' took no calls in this period.' : '') + ' Select a column to see who.', null, 'md:col-span-6 xl:col-span-5 animate-ac-in');
+    var h5 = el('div', { class: 'relative px-4 pb-4' }); c5.appendChild(h5);
+    requestAnimationFrame(function () { columns(h5, BANDS.map(function (b, k) { return { label: bandLabel(k), v: counts[k], good: b[1] <= 1, title: bandLabel(k) + ' per accepted call', tip: [{ label: 'Agents', value: fmt(counts[k], 'int') }, { label: 'Share', value: pa.length ? fmt(counts[k] / pa.length, '0%') : '—' }] }; }), { aria: 'Agents by Achieved AVG ACW band', xLabel: 'Seconds of ACW per accepted call', onClick: function (it, k) { openDrawer({ kind: 'band', i: k, label: bandLabel(k) }); } }); });
+    grid.appendChild(c5);
+    var topBy = S.topBy || 'sec', pool = pa.filter(function (x) { return topBy === 'sec' ? x.k.ac >= LOWVOL : x.k.acw > 0; });
+    var tops = pool.sort(function (a, b) { return topBy === 'sec' ? b.k.sec - a.k.sec : b.k.acw - a.k.acw; }).slice(0, 10);
+    var c6 = card(topBy === 'sec' ? 'Slowest agents' : 'Agents with the most ACW time', tops.length ? (topBy === 'sec' ? 'The ' + tops.length + ' highest averages among agents with at least ' + LOWVOL + ' accepted calls (fewer calls make the average unreliable).' : 'The ' + tops.length + ' agents with the most total after-call work.') : 'No agents to show for this selection.',
+      [seg([['sec', 'Slowest average'], ['acw', 'Most ACW time']], topBy, function (k) { S.topBy = k; renderBody(); }, 'Rank by')], 'md:col-span-6 xl:col-span-7 animate-ac-in');
+    var h6 = el('div', { class: 'relative px-4 pb-4' }); c6.appendChild(h6);
+    requestAnimationFrame(function () {
+      if (!tops.length) return;
+      var vf = function (g) { return topBy === 'sec' ? g.k.sec : g.k.acw / 60; };
+      hBars(h6, tops.map(function (g) { return { label: AV.name[g.a], a: g.a, v: vf(g), color: topBy === 'sec' ? null : 'rgb(var(--ac-s1))', tip: tipRows(g.k).concat([{ label: 'Supervisor', value: AV.tl[g.a] }]) }; }),
+        { min: 0, max: Math.max.apply(null, tops.map(vf).concat(topBy === 'sec' ? [T] : [0])) * 1.15 || 1, target: topBy === 'sec' ? T : null, tick: function (x) { return topBy === 'sec' ? secTick(x) : secTick(x) + ' h'; },
+          val: function (v) { return topBy === 'sec' ? fmt(v, '0.00') + ' s' : fmt(v, '0.0') + ' h'; }, aria: 'Agents ranked', onClick: function (it) { openDrawer({ kind: 'agent', a: it.a }); } });
+    });
+    grid.appendChild(c6);
+    root.appendChild(grid);
+  }
+  /** Plain-language highlights, computed from the selection. */
+  function highlights(idx, K) {
+    var out = [], T = target();
+    if (K.sec !== null) out.push(['Target ' + secTick(T) + ' s', 'Achieved AVG ACW is ' + fmt(K.sec, '0.00') + ' s, ' + fmt(Math.abs(K.vr), '0.00') + ' s ' + (K.vr >= 0 ? 'under' : 'over') + ' the target (Overall ' + fmt(K.pct, '0%') + ').', K.st === 'good' ? '' : 'warn']);
+    var tl = tableRows('tl', idx).rows.filter(function (r) { return r.k.ac > 0; });
+    if (tl.length) {
+      var bad = tl.filter(function (r) { return r.k.st === 'bad'; });
+      out.push(['Supervisors', (tl.length - bad.length) + ' of ' + tl.length + ' meet the target' + (bad.length ? '. Above it: ' + bad.sort(function (a, b) { return b.k.sec - a.k.sec; }).slice(0, 3).map(function (r) { return r.label + ' (' + fmt(r.k.sec, '0.0') + ' s)'; }).join(', ') + '.' : '. The slowest is ' + tl.sort(function (a, b) { return b.k.sec - a.k.sec; })[0].label + ' at ' + fmt(tl[0].k.sec, '0.0') + ' s.'), bad.length ? 'warn' : '']);
+    }
+    var pa = perAgent(idx), withCalls = pa.filter(function (x) { return x.k.ac > 0; }), bad2 = withCalls.filter(function (x) { return x.k.st === 'bad'; }), low = bad2.filter(function (x) { return x.k.ac < LOWVOL; }).length;
+    if (withCalls.length) out.push(['Agents', bad2.length + ' of ' + withCalls.length + ' agents with calls are above the target' + (low ? '; ' + low + ' of them have fewer than ' + LOWVOL + ' accepted calls, so their average is a small sample.' : '.'), bad2.length ? 'warn' : '']);
+    var none = P.agents.filter(function (a, i) { return agentPass()[i]; }).length - withCalls.length;
+    if (none > 0) out.push(['No calls', none + ' agents in this selection took no accepted calls. They show as “No calls”; the workbook showed them as Achieved.']);
+    if (K.as > 0) out.push(['ABN', fmt(K.abn, 'int') + ' of ' + fmt(K.as, 'int') + ' assigned calls (' + fmt(K.abnp, '0.0%') + ') were not accepted.']);
+    var dups = idx.filter(function (i) { return P.f.dn[i] > 0; }).length;
+    if (dups && !S.dedupe) out.unshift(['Duplicate rows counted', fmt(dups, 'int') + ' agent-days in this selection appear twice in Sisense and are counted twice (as the workbook did). View options → “Count duplicate rows once” shows the totals without them.', 'warn']);
+    return out.sort(function (a, b) { return (b[2] === 'warn' ? 1 : 0) - (a[2] === 'warn' ? 1 : 0); }).slice(0, 4);
+  }
+
+  /* ================================================================ table views */
+  function viewTable(root, R, idx, key) {
+    var def = TABLES[key], dim = def.dim;
+    var onRow = function (r) {
+      if (dim === 'agent') { openDrawer({ kind: 'agent', a: r.a }); return; }
+      if (dim === 'day') { openDrawer({ kind: 'day', value: r.value }); return; }
+      openDrawer({ kind: 'group', dim: dim, value: r.value });
+    };
+    var t = tableRows(key, idx);
+    var c = card(def.sheet, rangeText(R) + '. ' + t.rows.length + (t.rows.length === 1 ? ' row' : ' rows') + '. Select a row for details.',
+      [searchBox(key, 'Search ' + def.first.toLowerCase()), csvBtn(function () { tableCsv(def, t.rows, t.total, 'acw-' + key + '-' + fileTag(R) + '.csv'); })], 'animate-ac-in');
+    c.appendChild(workbookTable(key, def, t.rows, t.total, { onRow: onRow, sort: key === 'agent' ? { k: 'sec', dir: -1 } : { k: '_label', dir: 1 } }));
+    root.appendChild(c);
+    root.appendChild(note('Same columns as the “' + def.sheet + '” sheet of the ACW report. Achieved AVG ACW = Actual ACW seconds ÷ Accepted calls, ABN = Assigned − Accepted, Variance = Target − Achieved, Overall % = Target ÷ Achieved, always from the totals (never an average of averages). Target ' + secTick(target()) + ' s. Green = Achieved, red = Not Achieved; “No calls” = no accepted calls (no average to judge).' + (S.dedupe ? ' Duplicate agent-day rows are counted once (View options).' : '')));
+  }
+
+  /* ================================================================ data health */
+  var FLAGTXT = {
+    NOT_IN_DATABASE: ['Agents not in the Data Base (calls)', 'In Sisense but not in the Data Base, so left out of the numbers. Add them to the Data Base (or a spelling to the Aliases tab).'],
+    ALIAS_LEARNED: ['Spellings matched automatically', 'Sisense spells these names differently from the Data Base. The match was saved in the Aliases tab so the sheet formulas find them too.'],
+    DUPLICATE_IDENTICAL: ['Duplicate rows (identical)', 'Sisense returns these agents twice with the same numbers. Both rows are kept, so their calls count twice (the workbook did the same).'],
+    DUPLICATE_DIFFERENT: ['Duplicate rows (different)', 'Sisense returns these agents twice with different numbers.'],
+    ACCEPTED_GT_ASSIGNED: ['Accepted above assigned', 'Sisense reports more accepted than assigned calls for these agent-days; kept as returned.'],
+    ACW_NOT_IN_DATABASE: ['Agents not in the Data Base (ACW)', 'NICE has ACW time for these Nice IDs but the Data Base does not list them, so the minutes are left out.'],
+    ACW_OTHER_ACTIVITY: ['NICE rows ignored', 'Rows with an activity other than ACW (only ACW is loaded).']
+  };
+  function viewHealth(root) {
+    var H = P.health, grid = el('div', { class: 'grid gap-3 lg:grid-cols-2' });
+    var c1 = card('Data', 'What the dashboard has loaded', null, 'animate-ac-in');
+    var dl = el('dl', { class: 'grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2.5 px-5 pb-5 text-[13px]' });
+    function row(a, b, bad) { dl.appendChild(el('dt', { class: bad ? 'text-bad' : 'text-ink2', text: a })); dl.appendChild(el('dd', { class: 'font-semibold ' + (bad ? 'text-bad' : 'text-ink'), text: b })); }
+    var noAcw = H.days.filter(function (x) { return x[1] > 0 && x[2] === 0; }).map(function (x) { return x[0]; }), noCe = H.days.filter(function (x) { return x[2] > 0 && x[1] === 0; }).map(function (x) { return x[0]; });
+    row('Calls (Sisense)', P.lastLoad ? new Date(P.lastLoad).toLocaleString() + (P.lastBy ? ' by ' + P.lastBy : '') : 'Never');
+    row('Last Sisense result', P.lastStatus || '—', /^CHECK|FAIL/.test(P.lastStatus || ''));
+    row('ACW (NICE)', P.lastAcw ? new Date(P.lastAcw).toLocaleString() + (P.acwBy ? ' by ' + P.acwBy : '') + (P.acwPeriod ? ' · ' + P.acwPeriod : '') : 'Not loaded by the automation yet');
+    row('Last NICE result', P.acwStatus || '—', /^CHECK|FAIL/.test(P.acwStatus || ''));
+    row('Rows used', fmt(H.ceRows, 'int') + ' Call Events rows · ' + fmt(H.acwRows, 'int') + ' ACW rows');
+    row('Days', P.dates.length ? fDay(dataMin()) + ' – ' + fDay(dataMax()) + ' ' + dataMax().slice(0, 4) + ' (' + P.dates.length + ')' : 'None');
+    row('Missing call days', H.missingCeDays.length ? H.missingCeDays.map(fDay).join(', ') : 'None', H.missingCeDays.length > 0);
+    row('Missing ACW days', H.missingAcwDays.length ? H.missingAcwDays.map(fDay).join(', ') : 'None', H.missingAcwDays.length > 0);
+    row('Days with calls but no ACW', noAcw.length ? noAcw.map(fDay).join(', ') + ' (ACW is loaded month to date by the NICE step)' : 'None', noAcw.length > 0);
+    if (noCe.length) row('Days with ACW but no calls', noCe.map(fDay).join(', '), true);
+    row('Duplicate agent-day rows', H.duplicates.rows ? fmt(H.duplicates.rows, 'int') + ' (' + fmt(H.duplicates.assigned, 'int') + ' assigned calls; counted ' + (S.dedupe ? 'once in the dashboard' : 'twice') + '; sheet setting: ' + P.dedupe + ')' : 'None', H.duplicates.rows > 0 && !S.dedupe);
+    row('Accepted above assigned', H.acceptedOverAssigned ? fmt(H.acceptedOverAssigned, 'int') + ' rows' : 'None', H.acceptedOverAssigned > 0);
+    row('Lookups', H.lookupErrors.length ? H.lookupErrors.length + ' agents with #N/A lookups in the sheet: ' + H.lookupErrors.slice(0, 6).map(function (x) { return x.name; }).join(', ') + ' (matched by name here)' : 'Every row resolves in the Data Base', H.lookupErrors.length > 0);
+    row('Sheet vs Data Base', H.cross.checked ? (H.cross.mismatch ? H.cross.mismatch + ' of ' + fmt(H.cross.checked, 'int') + ' rows differ: ' + H.cross.examples.slice(0, 2).join('; ') : 'All ' + fmt(H.cross.checked, 'int') + ' rows agree') : '—', H.cross.mismatch > 0);
+    row('Calls not in the Data Base', H.unmatchedCe.length ? H.unmatchedCe.length + ' names, e.g. ' + H.unmatchedCe.slice(0, 4).map(function (x) { return x.name; }).join(', ') : 'None', H.unmatchedCe.length > 0);
+    row('ACW not in the Data Base', H.unmatchedAcw.length ? H.unmatchedAcw.length + ' Nice IDs, e.g. ' + H.unmatchedAcw.slice(0, 4).map(function (x) { return x.id; }).join(', ') : 'None', H.unmatchedAcw.length > 0);
+    if (H.unreadableAcw) row('Unreadable ACW lengths', fmt(H.unreadableAcw, 'int') + ' rows counted as 0', true);
+    row('Data Base import', P.db && P.db.ok ? 'OK (' + fmt(P.db.agents, 'int') + ' agents)' : (P.db ? P.db.message : 'Unknown'), !(P.db && P.db.ok));
+    row('Target', secTick(target()) + ' s per accepted call (_Control tab)');
+    c1.appendChild(dl); grid.appendChild(c1);
+
+    var c2 = card('Flags', fmt(P.flags.total, 'int') + ' flag lines in the _Flags tab, grouped here as one line per agent.', null, 'animate-ac-in');
+    if (P.flags.items.length) {
+      var byType = {}; P.flags.items.forEach(function (f) { (byType[f.type] = byType[f.type] || []).push(f); });
+      Object.keys(byType).forEach(function (t) {
+        var list = byType[t], info = FLAGTXT[t] || [t, ''], isAcw = /^ACW_/.test(t), isAlias = t === 'ALIAS_LEARNED';
+        var tb = el('tbody');
+        list.forEach(function (f) { tb.appendChild(el('tr', { class: 'ac-row' }, el('td', { class: 'ac-td ac-td-first', text: f.agent || '—' }), el('td', { class: 'ac-td', text: fmt(f.days, 'int') }),
+          el('td', { class: 'ac-td', text: isAlias ? f.note : isAcw ? fmt(f.minutes, 'int') + ' min' : fmt(f.assigned, 'int') }))); });
+        c2.appendChild(el('div', { class: 'border-t border-rule px-5 pb-1 pt-3' }, el('div', { class: 'text-[13px] font-bold text-ink', text: info[0] + ' · ' + list.length + (list.length === 1 ? ' agent' : ' agents') }), el('p', { class: 'mt-0.5 text-[12px] text-ink2', text: info[1] })));
+        c2.appendChild(el('div', { class: 'ac-tbl-wrap max-h-[260px] rounded-none' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', { class: 'ac-th ac-th-first', text: isAlias ? 'Name in Sisense' : 'Agent' }), el('th', { class: 'ac-th', text: 'Days' }), el('th', { class: 'ac-th', text: isAlias ? 'Data Base name' : isAcw ? 'ACW time' : 'Assigned calls' }))), tb)));
+      });
+    } else c2.appendChild(el('p', { class: 'px-5 pb-5 text-[13px] text-ink2', text: 'No flags.' }));
+    grid.appendChild(c2);
+
+    var c3 = card('Recent runs', 'From the _Load Log tab (newest first)', null, 'animate-ac-in');
+    if (P.log && P.log.length) {
+      var tb3 = el('tbody');
+      P.log.forEach(function (l) { tb3.appendChild(el('tr', { class: 'ac-row' }, el('td', { class: 'ac-td ac-td-first', text: isNaN(+l[0]) ? String(l[0]) : new Date(+l[0]).toLocaleString() }), el('td', { class: 'ac-td text-left', text: l[4] + (l[5] ? ' · ' + l[5] : '') }),
+        el('td', { class: 'ac-td text-left', text: /^\d{4}-/.test(l[2]) && /^\d{4}-/.test(l[3]) ? fDay(l[2]) + ' – ' + fDay(l[3]) : '' }), el('td', { class: 'ac-td text-left', text: l[1] }),
+        el('td', { class: 'ac-td text-left ' + (l[7] === 'OK' ? 'text-good' : 'text-bad'), text: l[7], title: l[8] }))); });
+      c3.appendChild(el('div', { class: 'ac-tbl-wrap border-t border-rule max-h-[320px]' }, el('table', {}, el('thead', {}, el.apply(null, ['tr', {}].concat(['Run at', 'What', 'Period', 'By', 'Status'].map(function (h, j) { return el('th', { class: 'ac-th' + (j ? ' text-left' : ' ac-th-first'), text: h }); })))), tb3)));
+    } else c3.appendChild(el('p', { class: 'px-5 pb-5 text-[13px] text-ink2', text: 'No runs yet.' }));
+    grid.appendChild(c3);
+
+    var c4 = card('How the numbers are calculated', null, null, 'animate-ac-in');
+    var ul = el('ul', { class: 'grid gap-2 px-5 pb-5 pl-9 text-[13px] leading-relaxed text-ink2 list-disc' });
+    ['Assigned and Accepted calls come from the Sisense Vendor dashboard (Calls Event by Vendor Log; Role Interpreter + Operator, status Active + Terminated - Eligible). The automation refreshes the last 3 days each run, because Sisense can still change them. Agents that are not in the Data Base are left out and listed under Flags.',
+     'Actual ACW comes from NICE Time Utilization (MU set 6 FG, Agent Activity, code ACW, by day and agent), from the 1st of the month to yesterday.',
+     'ABN = Assigned − Accepted. Achieved AVG ACW = Actual ACW seconds ÷ Accepted calls. Variance = Target − Achieved. Overall % = Target ÷ Achieved. Achieved when the average is at or below the target (' + secTick(target()) + ' s). Always from totals, exactly like the workbook level sheets.',
+     'LOB = Language Group (AOL, Spanish, PENs); Queue = Operator when the Language Group is PENs, otherwise VRI. SDACMs = Manager, Supervisor and Language (Seat Language) come from the Data Base. Moving someone to another team moves their past numbers too.',
+     'Agents with no accepted calls have no average. They show as “No calls”; the workbook showed “_” and Achieved. Averages built on fewer than ' + LOWVOL + ' accepted calls are marked “low volume” and left out of the slowest-agent ranking.'
+    ].forEach(function (t) { ul.appendChild(el('li', { text: t })); });
+    c4.appendChild(ul); grid.appendChild(c4);
+
+    var c5 = card('Rows per day', 'Call Events rows and ACW rows loaded for each day', null, 'animate-ac-in');
+    var tb5 = el('tbody'); H.days.slice().reverse().forEach(function (x) { tb5.appendChild(el('tr', { class: 'ac-row' }, el('td', { class: 'ac-td ac-td-first', text: fDayLong(x[0]) }), el('td', { class: 'ac-td' + (x[1] ? '' : ' text-bad'), text: x[1] ? fmt(x[1], 'int') : 'none' }), el('td', { class: 'ac-td' + (x[2] ? '' : ' text-bad'), text: x[2] ? fmt(x[2], 'int') : 'none' }))); });
+    c5.appendChild(el('div', { class: 'ac-tbl-wrap border-t border-rule max-h-[320px]' }, el('table', {}, el('thead', {}, el('tr', {}, el('th', { class: 'ac-th ac-th-first', text: 'Date' }), el('th', { class: 'ac-th', text: 'Call Events rows' }), el('th', { class: 'ac-th', text: 'ACW rows (NICE)' }))), tb5)));
+    grid.appendChild(c5);
+
+    var R2 = H.roster, c6 = card('Data Base quality', fmt(R2.agents, 'int') + ' agents read from the Data Base tab. Fix these at the source (the Database workbook); the dashboard already copes with them.', null, 'animate-ac-in');
+    var dl6 = el('dl', { class: 'grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2.5 px-5 pb-5 text-[13px]' });
+    function row6(a, b, bad) { dl6.appendChild(el('dt', { class: bad ? 'text-warn' : 'text-ink2', text: a })); dl6.appendChild(el('dd', { class: 'font-semibold ' + (bad ? 'text-warn' : 'text-ink'), text: b })); }
+    row6('Duplicate Nice IDs', R2.duplicateNiceIds.length ? R2.duplicateNiceIds.join(', ') : 'None', R2.duplicateNiceIds.length > 0);
+    row6('Blank Nice ID', R2.blankNiceId ? fmt(R2.blankNiceId, 'int') + ' agents (cannot receive calls or ACW)' : 'None', R2.blankNiceId > 0);
+    row6('First / Last name swapped', R2.swapped ? R2.swapped + ' rows, e.g. ' + R2.swappedExamples.slice(0, 3).join(', ') + ' (Name on Nice is used to match)' : 'None', R2.swapped > 0);
+    row6('Production Start date as text', R2.textDates ? fmt(R2.textDates, 'int') + ' rows written as text (read as D/M/YYYY)' : 'None', R2.textDates > 0);
+    row6('Unreadable dates', R2.unreadableDates ? fmt(R2.unreadableDates, 'int') + ' rows' : 'None', R2.unreadableDates > 0);
+    row6('Spelling differences', R2.caseVariants.length ? R2.caseVariants.slice(0, 4).join('; ') : 'None', R2.caseVariants.length > 0);
+    row6('No SDACM / no Supervisor', R2.noManager || R2.noSupervisor ? R2.noManager + ' / ' + R2.noSupervisor + ' agents' : 'None', (R2.noManager + R2.noSupervisor) > 0);
+    c6.appendChild(dl6); grid.appendChild(c6);
+    root.appendChild(grid);
+  }
+
+  function skeleton() {
+    var root = $('ac-view'); clear(root);
+    root.appendChild(el('div', { class: 'grid gap-3', 'aria-hidden': 'true' },
+      el('div', { class: 'ac-card grid gap-6 p-5 xl:grid-cols-3' }, el('div', { class: 'grid gap-3' }, el('div', { class: 'ac-skel h-3 w-24' }), el('div', { class: 'ac-skel h-12 w-40' }), el('div', { class: 'ac-skel h-2 w-full' })),
+        el('div', { class: 'grid gap-3' }, el('div', { class: 'ac-skel h-3 w-20' }), el('div', { class: 'ac-skel h-8 w-28' }), el('div', { class: 'ac-skel h-2 w-full' })),
+        el('div', { class: 'hidden xl:grid gap-3' }, el('div', { class: 'ac-skel h-3 w-20' }), el('div', { class: 'ac-skel h-8 w-28' }), el('div', { class: 'ac-skel h-2 w-full' }))),
+      el('div', { class: 'ac-card p-5' }, el('div', { class: 'ac-skel h-3 w-32 mb-5' }), el('div', { class: 'ac-skel h-[260px] w-full' }))));
+  }
+
+  /* ================================================================ detail drawer */
+  var DR = { stack: [], node: null, head: null, body: null, lastFocus: null };
+  var DIMNAME = { tl: 'Supervisor', sd: 'SDACM', lang: 'Language', lg: 'LOB', queue: 'Queue' };
+  function openDrawer(spec, push) {
+    hideTip(); closePop();
+    if (!DR.node) {
+      DR.lastFocus = document.activeElement;
+      DR.head = el('div', { class: 'flex items-start gap-2 border-b border-rule px-5 pb-4 pt-4' });
+      DR.body = el('div', { class: 'relative flex-1 overflow-y-auto overscroll-contain px-5 pb-10 pt-4' });
+      DR.node = el('div', { class: 'ac-drawer-wrap', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ac-dr-title' },
+        el('div', { class: 'ac-drawer-back', on: { click: closeDrawer } }), el('aside', { class: 'ac-drawer' }, DR.head, DR.body));
+      $('acwd-root').appendChild(DR.node);
+      document.addEventListener('keydown', drawerKeys, true);
+      DR.stack = [];
+    }
+    if (!push) DR.stack = [];
+    DR.stack.push(spec);
+    drawDrawer();
+  }
+  function closeDrawer() {
+    if (!DR.node) return;
+    var n = DR.node; DR.node = null; DR.stack = []; hideTip();
+    document.removeEventListener('keydown', drawerKeys, true);
+    n.classList.add('ac-drawer-out'); setTimeout(function () { if (n.parentNode) n.parentNode.removeChild(n); }, reduced ? 0 : 190);
+    try { if (DR.lastFocus && document.contains(DR.lastFocus)) DR.lastFocus.focus(); } catch (e) {}
+  }
+  function drawerKeys(e) {
+    if (!DR.node) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (DR.stack.length > 1) { DR.stack.pop(); drawDrawer(); } else closeDrawer(); return; }
+    if (e.key !== 'Tab') return;
+    var f = [].filter.call(DR.node.querySelectorAll('button,[href],[tabindex="0"]'), function (x) { return x.offsetParent !== null; });
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]) { f[f.length - 1].focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { f[0].focus(); e.preventDefault(); }
+  }
+  function drawDrawer() {
+    var spec = DR.stack[DR.stack.length - 1]; clear(DR.head); clear(DR.body); hideTip(); DR.body.scrollTop = 0;
+    var R = resolveRange(), all = select(R.cf, R.ct), K0 = kpi(sumOf(all));
+    var info = spec.kind === 'agent' ? drawerAgent(spec, R, all, K0) : spec.kind === 'band' ? drawerBand(spec, R, all, K0) : spec.kind === 'day' ? drawerDay(spec, R, all, K0) : drawerGroup(spec, R, all, K0);
+    if (DR.stack.length > 1) DR.head.appendChild(el('button', { type: 'button', class: 'ac-btn h-8 w-8 flex-none justify-center px-0', 'aria-label': 'Back', title: 'Back', on: { click: function () { DR.stack.pop(); drawDrawer(); } } }, icon(I.back, 15)));
+    DR.head.appendChild(el('div', { class: 'min-w-0 flex-1 animate-ac-in' },
+      el('div', { class: 'text-[11.5px] font-semibold uppercase tracking-[.06em] text-muted', text: info.kicker }),
+      el('h2', { id: 'ac-dr-title', class: 'mt-0.5 truncate text-[20px] font-extrabold tracking-[-0.02em] text-ink', text: info.title }),
+      el('p', { class: 'mt-0.5 text-[12.5px] text-ink2', text: info.sub })));
+    DR.head.appendChild(el('button', { type: 'button', class: 'ac-btn h-8 w-8 flex-none justify-center px-0', 'aria-label': 'Close details', title: 'Close (Esc)', on: { click: closeDrawer } }, icon(I.x, 15)));
+    var first = DR.head.querySelector('button'); if (first) first.focus();
+  }
+  function drTiles(k, K0) {
+    var g = el('div', { class: 'grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-rule/70 ring-1 ring-rule/70 animate-ac-in' });
+    var d = k.sec !== null && K0.sec !== null ? k.sec - K0.sec : null;
+    g.appendChild(el('div', { class: 'bg-surface px-4 py-3' }, el('div', { class: 'flex items-center gap-2 text-[12px] font-medium text-ink2' }, 'Achieved AVG ACW', pill(k.st)),
+      el('div', { class: 'mt-0.5 text-[22px] font-bold tracking-[-0.02em] tabular-nums ' + (k.st === 'good' ? 'text-good' : k.st === 'bad' ? 'text-bad' : 'text-ink'), text: k.sec === null ? 'No calls' : fmt(k.sec, '0.00') + ' s' }),
+      el('div', { class: 'mt-0.5 text-[11.5px] font-semibold text-muted', text: d === null ? 'Target ' + secTick(target()) + ' s' : (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(2) + ' s vs selection' })));
+    g.appendChild(el('div', { class: 'bg-surface px-4 py-3' }, el('div', { class: 'text-[12px] font-medium text-ink2', text: 'Overall % · Variance' }),
+      el('div', { class: 'mt-0.5 text-[22px] font-bold tracking-[-0.02em] tabular-nums text-ink', text: fmt(k.pct, '0.0%') }),
+      el('div', { class: 'mt-0.5 text-[11.5px] font-semibold text-muted', text: k.vr === null ? 'Target ÷ Achieved' : 'Variance ' + (k.vr >= 0 ? '+' : '−') + Math.abs(k.vr).toFixed(2) + ' s' })));
+    var v2 = el('div', { class: 'col-span-2 grid grid-cols-4 bg-surface px-4 py-3 text-[11.5px]' });
+    [['Assigned', fmt(k.as, 'int')], ['Accepted', fmt(k.ac, 'int')], ['ABN', fmt(k.abn, 'int')], ['Actual ACW', hms(k.acw)]].forEach(function (x) { v2.appendChild(el('div', {}, el('div', { class: 'text-muted', text: x[0] }), el('div', { class: 'font-bold text-ink tabular-nums', text: x[1] }))); });
+    g.appendChild(v2);
+    return g;
+  }
+  function drSection(title, sub) { return el('section', { class: 'mt-6 animate-ac-in' }, el('h3', { class: 'text-[13.5px] font-bold text-ink', text: title }), sub ? el('p', { class: 'mt-0.5 text-[12px] text-ink2', text: sub }) : null); }
+  function drDaily(facts) {
+    var sec = drSection('Achieved AVG ACW day by day', 'Dashed line = target ' + secTick(target()) + ' s. Red dots are above the target. Days without accepted calls are gaps.');
+    var g = groupBy(facts, function (i) { return P.dates[P.f.d[i]]; }), ds = g.keys.slice().sort(), host = el('div', { class: 'relative mt-2' });
+    sec.appendChild(host);
+    requestAnimationFrame(function () { if (ds.length) miniTrend(host, ds.map(function (d) { return { short: fDay(d), title: fDayLong(d) }; }), ds.map(function (d) { return kpi(g.map[d]); })); });
+    return sec;
+  }
+  function drPeople(title, facts, limit) {
+    var g = groupBy(facts, function (i) { return P.f.a[i]; });
+    var all = g.keys.map(function (a) { return { a: +a, k: kpi(g.map[a]) }; }), rows = all.filter(function (r) { return r.k.ac > 0; }).sort(function (x, y) { return y.k.sec - x.k.sec; }), none = all.length - rows.length;
+    var sec = drSection(title + ' (' + rows.length + ')', 'Slowest average first' + (none ? '; ' + none + ' more took no accepted calls' : '') + '. Select one for details.'), n = limit || 12;
+    var list = el('div', { class: 'mt-2 overflow-hidden rounded-xl ring-1 ring-rule' });
+    list.appendChild(el('div', { class: 'flex items-center gap-3 bg-raised px-3 py-2 text-[11.5px] font-semibold text-ink2' }, el('span', { class: 'flex-1', text: 'Agent' }), el('span', { class: 'w-16 text-right', text: 'Accepted' }), el('span', { class: 'w-[130px] text-right', text: 'Avg ACW (s)' })));
+    rows.slice(0, n).forEach(function (r) {
+      list.appendChild(el('button', { type: 'button', class: 'ac-dr-row', on: { click: function () { openDrawer({ kind: 'agent', a: r.a }, true); } } },
+        el('span', { class: 'min-w-0 flex-1 truncate text-left font-medium text-ink' }, AV.name[r.a], lowVolMark(r.k)),
+        el('span', { class: 'w-16 text-right tabular-nums text-ink2', text: fmt(r.k.ac, 'int') }), el('span', { class: 'w-[130px]' }, secCell(r.k.sec))));
+    });
+    if (!rows.length) list.appendChild(el('div', { class: 'bg-raised px-3 py-3 text-[12.5px] text-ink2', text: 'No agent took an accepted call here.' }));
+    if (rows.length > n) list.appendChild(el('div', { class: 'bg-raised px-3 py-2 text-[12px] text-ink2', text: (rows.length - n) + ' more in the Agent tab.' }));
+    sec.appendChild(list);
+    return sec;
+  }
+  function drActions(btns) { return el.apply(null, ['div', { class: 'mt-5 flex flex-wrap gap-2 animate-ac-in' }].concat(btns)); }
+  function drLink(text, spec) { return el('button', { type: 'button', class: 'ac-link text-left', text: text, on: { click: function () { openDrawer(spec, true); } } }); }
+  /** Rank by Achieved AVG ACW (1 = fastest) among the groups that have accepted calls. */
+  function rankOf(all, keyFn, v) {
+    var g = groupBy(all, keyFn), list = g.keys.filter(function (x) { return x !== '(blank)'; }).map(function (x) { return kpi(g.map[x]); }).filter(function (q) { return q.sec !== null; });
+    return { rank: v === null ? null : list.filter(function (q) { return q.sec < v - 1e-12; }).length + 1, of: list.length };
+  }
+  function drawerAgent(spec, R, all, K0) {
+    var a = spec.a, ag = P.agents[a], facts = all.filter(function (i) { return P.f.a[i] === a; }), k = kpi(sumOf(facts));
+    var rk = rankOf(all, function (i) { return P.f.a[i]; }, k.sec);
+    if (!facts.length) DR.body.appendChild(el('p', { class: 'rounded-xl bg-canvas px-4 py-3 text-[13px] text-ink2', text: 'No calls or ACW for ' + ag.name + ' in this selection. Change the period or remove a filter.' }));
+    else {
+      DR.body.appendChild(drTiles(k, K0));
+      if (rk.rank) DR.body.appendChild(el('p', { class: 'mt-3 text-[12.5px] text-ink2' }, 'Ranks ', el('b', { class: 'text-ink', text: rk.rank + ' of ' + rk.of }), ' agents (1 = lowest average) in this selection.'));
+      if (k.ac > 0 && k.ac < LOWVOL) DR.body.appendChild(el('p', { class: 'mt-2 rounded-lg bg-canvas px-3 py-2 text-[12px] text-ink2 ring-1 ring-warn/40', text: 'Only ' + k.ac + ' accepted calls: a small sample, so one long wrap-up moves the average a lot.' }));
+      if (k.ac === 0 && k.acw > 0) DR.body.appendChild(el('p', { class: 'mt-2 rounded-lg bg-canvas px-3 py-2 text-[12px] text-ink2 ring-1 ring-warn/40', text: hms(k.acw) + ' of ACW but no accepted call in Sisense in this period, so there is no average.' }));
+      var dups = facts.filter(function (i) { return P.f.dn[i] > 0; }).length;
+      if (dups && !S.dedupe) DR.body.appendChild(el('p', { class: 'mt-2 rounded-lg bg-bad-bg px-3 py-2 text-[12px] text-bad', text: 'Sisense returns this agent twice on ' + dups + (dups === 1 ? ' day' : ' days') + '; those calls are counted twice (see View options).' }));
+      DR.body.appendChild(drDaily(facts));
+    }
+    var prof = drSection('Profile', 'From the Data Base.'), dl = el('dl', { class: 'mt-2 grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[13px]' });
+    function row(t, v) { dl.appendChild(el('dt', { class: 'text-ink2', text: t })); dl.appendChild(el('dd', { class: 'min-w-0 font-semibold text-ink' }, typeof v === 'string' ? document.createTextNode(v) : v)); }
+    row('Interpreter name', ag.name); row('Name on Nice', ag.nn || '—'); row('Nice ID', ag.nice || '—');
+    [['lg', 'LOB'], ['queue', 'Queue'], ['tl', 'Supervisor'], ['sd', 'SDACM'], ['lang', 'Language']].forEach(function (x) { var v = ag[x[0]]; row(x[1], v && v !== '(blank)' ? drLink(v, { kind: 'group', dim: x[0], value: v }) : '—'); });
+    row('Seat', ag.seat || '—'); if (ag.st) row('Status', ag.st); if (ag.prod) row('Production start', ag.prod);
+    prof.appendChild(dl); DR.body.appendChild(prof);
+    DR.body.appendChild(drActions([el('button', { type: 'button', class: 'ac-btn-primary h-9', on: { click: function () { setFilter('agent', ag.name); closeDrawer(); render(); } } }, icon(I.filter, 14), el('span', { text: 'Show only ' + ag.name }))]));
+    return { kicker: 'Agent · ' + ag.lg, title: ag.name, sub: rangeText(R) + (rk.rank ? ' · rank ' + rk.rank + ' of ' + rk.of : '') };
+  }
+  function drawerGroup(spec, R, all, K0) {
+    var dim = spec.dim, val = spec.value, keyFn = function (i) { return AV[dim][P.f.a[i]]; }, facts = all.filter(function (i) { return keyFn(i) === val; }), k = kpi(sumOf(facts));
+    var rk = rankOf(all, keyFn, k.sec);
+    if (!facts.length) DR.body.appendChild(el('p', { class: 'rounded-xl bg-canvas px-4 py-3 text-[13px] text-ink2', text: 'Nothing for ' + val + ' in this selection.' }));
+    else {
+      DR.body.appendChild(drTiles(k, K0));
+      if (rk.rank && rk.of > 1) DR.body.appendChild(el('p', { class: 'mt-3 text-[12.5px] text-ink2' }, 'Ranks ', el('b', { class: 'text-ink', text: rk.rank + ' of ' + rk.of }), ' (1 = lowest average) in this selection.'));
+      DR.body.appendChild(drDaily(facts));
+      DR.body.appendChild(drPeople('Agents', facts, 12));
+    }
+    var btns = [el('button', { type: 'button', class: 'ac-btn-primary h-9', on: { click: function () { setFilter(dim, val); closeDrawer(); render(); } } }, el('span', { text: 'Filter the dashboard to ' + val }))];
+    var next = { lg: 'sd', sd: 'tl', tl: 'agent', lang: 'agent' }[dim];
+    if (next) btns.push(el('button', { type: 'button', class: 'ac-btn h-9', on: { click: function () { setFilter(dim, val); S.view = next; store('view', next); closeDrawer(); render(); } } }, el('span', { text: 'Show its ' + ({ sd: 'SDACMs', tl: 'supervisors', agent: 'agents' }[next]) + ' table' })));
+    DR.body.appendChild(drActions(btns));
+    return { kicker: DIMNAME[dim] || dim, title: val, sub: rangeText(R) + ' · ' + fmt(groupBy(facts, function (i) { return P.f.a[i]; }).keys.length, 'int') + ' agents' };
+  }
+  function drawerDay(spec, R, all, K0) {
+    var facts = all.filter(function (i) { return P.dates[P.f.d[i]] === spec.value; }), k = kpi(sumOf(facts));
+    DR.body.appendChild(drTiles(k, K0));
+    var g = groupBy(facts, function (i) { return AV.tl[P.f.a[i]]; }), rows = g.keys.filter(function (x) { return x !== '(blank)'; }).map(function (x) { return { label: x, k: kpi(g.map[x]) }; }).filter(function (r) { return r.k.sec !== null; }).sort(function (a, b) { return b.k.sec - a.k.sec; });
+    var sec = drSection('Supervisors', 'Achieved AVG ACW by supervisor on this day, slowest first.'), host = el('div', { class: 'relative mt-1' }); sec.appendChild(host);
+    requestAnimationFrame(function () { if (rows.length) hBars(host, rows.map(function (r) { return { label: r.label, v: r.k.sec, tip: tipRows(r.k) }; }), { min: 0, max: Math.max.apply(null, rows.map(function (r) { return r.k.sec; }).concat([target()])) * 1.15, target: target(), tick: secTick, val: function (v) { return fmt(v, '0.00') + ' s'; }, aria: 'Achieved AVG ACW by supervisor', onClick: function (it) { openDrawer({ kind: 'group', dim: 'tl', value: it.label }, true); } }); });
+    DR.body.appendChild(sec);
+    DR.body.appendChild(drPeople('Agents', facts, 12));
+    return { kicker: 'Day', title: fDayLong(spec.value), sub: rangeText(R) };
+  }
+  function drawerBand(spec, R, all, K0) {
+    var per = groupBy(all, function (i) { return P.f.a[i]; }), inBand = {};
+    per.keys.forEach(function (a) { var q = kpi(per.map[a]); if (q.sec !== null && bandIndex(q.sec) === spec.i) inBand[a] = 1; });
+    var facts = all.filter(function (i) { return inBand[P.f.a[i]]; }), k = kpi(sumOf(facts));
+    DR.body.appendChild(drTiles(k, K0));
+    DR.body.appendChild(drPeople('Agents', facts, 40));
+    return { kicker: 'Achieved AVG ACW band', title: spec.label + ' per accepted call', sub: rangeText(R) + ' · ' + Object.keys(inBand).length + ' agents' };
+  }
+  /** Small single-series line (drawer): Achieved AVG ACW per day, target line, hover/keyboard tooltip. */
+  function miniTrend(host, labels, ks) {
+    var W = Math.max(280, host.clientWidth || 500), H = 168, left = 44, right = 14, top = 12, bot = 26, plotW = W - left - right, plotH = H - top - bot, n = labels.length, ref = target();
+    var vals = ks.map(function (k) { return k.sec; }), ok = vals.filter(function (v) { return v !== null && isFinite(v); }).concat([ref]);
+    var hi = Math.max.apply(null, ok), tt = ticks(0, hi * 1.12, 3), y0 = 0, y1 = tt[tt.length - 1], x = function (j) { return left + (n === 1 ? plotW / 2 : plotW * j / (n - 1)); }, y = function (v) { return top + plotH - (Math.min(v, y1) - y0) / ((y1 - y0) || 1) * plotH; };
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, width: '100%', role: 'img', 'aria-label': 'Achieved AVG ACW by day' });
+    tt.forEach(function (t) { svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: 'rgb(var(--ac-rule))', 'stroke-width': 1 })); svg.appendChild(sv('text', { x: left - 8, y: y(t) + 4, 'text-anchor': 'end', 'font-size': 10.5, fill: 'rgb(var(--ac-muted))', text: secTick(t) })); });
+    svg.appendChild(sv('line', { x1: left, x2: W - right, y1: y(ref), y2: y(ref), stroke: 'rgb(var(--ac-good))', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }));
+    var d = '', pen = false; vals.forEach(function (v, j) { if (v === null || !isFinite(v)) { pen = false; return; } d += (pen ? 'L' : 'M') + x(j).toFixed(1) + ',' + y(v).toFixed(1); pen = true; });
+    if (d) { var path = sv('path', { d: d, fill: 'none', stroke: 'rgb(var(--ac-s1))', 'stroke-width': 2.25, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }); svg.appendChild(path); drawLine(path); }
+    vals.forEach(function (v, j) { if (v !== null && isFinite(v)) svg.appendChild(sv('circle', { cx: x(j), cy: y(v), r: n > 20 ? 2.2 : 3, fill: 'rgb(var(--ac-surface))', stroke: secStatus(v) === 'bad' ? 'rgb(var(--ac-bad))' : 'rgb(var(--ac-s1))', 'stroke-width': 1.75 })); });
+    var every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(plotW / 58))));
+    labels.forEach(function (l, j) { if ((j % every === 0 && (n - 1 - j >= every || j === n - 1)) || j === n - 1) svg.appendChild(sv('text', { x: x(j), y: H - 7, 'text-anchor': j === 0 && n > 1 ? 'start' : j === n - 1 && n > 1 ? 'end' : 'middle', 'font-size': 10.5, fill: 'rgb(var(--ac-muted))', text: l.short })); });
+    var cross = sv('line', { y1: top, y2: top + plotH, stroke: 'rgb(var(--ac-ink2) / .35)', 'stroke-width': 1, visibility: 'hidden' }); svg.appendChild(cross);
+    var cur = -1;
+    function at(j) { j = Math.max(0, Math.min(n - 1, j)); cur = j; cross.setAttribute('x1', x(j)); cross.setAttribute('x2', x(j)); cross.setAttribute('visibility', 'visible'); showTip(host, x(j) * host.clientWidth / W, 30, labels[j].title, tipRows(ks[j])); }
+    var hit = sv('rect', { x: left - 6, y: 0, width: plotW + 12, height: H, fill: 'transparent', tabindex: 0, 'aria-label': 'Achieved AVG ACW by day. Use the arrow keys to read each day.' });
+    hit.addEventListener('pointermove', function (e) { var r = svg.getBoundingClientRect(); at(Math.round(((e.clientX - r.left) * W / r.width - left) / (n === 1 ? 1 : plotW / (n - 1)))); });
+    function leave() { cross.setAttribute('visibility', 'hidden'); hideTip(); }
+    hit.addEventListener('pointerleave', leave); hit.addEventListener('blur', leave);
+    hit.addEventListener('keydown', function (e) { if (e.key === 'ArrowLeft') { at(cur < 0 ? n - 1 : cur - 1); e.preventDefault(); } else if (e.key === 'ArrowRight') { at(cur < 0 ? 0 : cur + 1); e.preventDefault(); } });
+    svg.appendChild(hit);
+    host.appendChild(svg);
+  }
+
+  /* ================================================================ render */
+  function renderBody(keepPop) {
+    hideTip(); if (!keepPop) closePop();
+    var root = $('ac-view'); clear(root); renderChips();
+    if (!P) return;
+    if (!P.dates.length && S.view !== 'health') {
+      root.appendChild(emptyState('No ACW data yet', P.canRun ? 'Press Start automation to load the calls from Sisense and the ACW time from NICE.' : 'Nothing has been loaded yet. Ask an RTM, Manager or Admin to run the automation.',
+        P.canRun ? el('button', { type: 'button', class: 'ac-btn-primary mt-4', on: { click: startRun } }, icon(I.play, 14), el('span', { text: 'Start automation' })) : null));
+      return;
+    }
+    if (S.view === 'health') { viewHealth(root); return; }
+    var R = resolveRange();
+    $('ac-sub').textContent = rangeText(R) + (hasAnyFilter() ? ', filtered' : '') + '. After-call work per accepted call against the ' + secTick(target()) + ' s target, from Sisense and NICE.';
+    if (R.n < 1) { root.appendChild(emptyState('No data in this period', 'Data is loaded from ' + fDayLong(dataMin()) + ' to ' + fDayLong(dataMax()) + '. Pick another period.')); return; }
+    var idx = select(R.cf, R.ct);
+    if (!idx.length && S.view !== 'agent' && S.view !== 'lg' && S.view !== 'sd' && S.view !== 'tl' && S.view !== 'lang') { root.appendChild(emptyState('Nothing matches these filters', 'Remove a filter or choose a longer period.')); return; }
+    if (!idx.length && !P.agents.some(function (a, i) { return agentPass()[i]; })) { root.appendChild(emptyState('Nothing matches these filters', 'Remove a filter or choose a longer period.')); return; }
+    if (S.view === 'overview') viewOverview(root, R, idx); else viewTable(root, R, idx, S.view);
+  }
+  function hasAnyFilter() { return DIMS.some(function (d) { return hasAny(S.filt[d.k]); }); }
+  function render() { if (!P) return; passCache = null; closePop(); renderFilters(); renderTabs(); renderBody(); }
+
+  function updatedText() {
+    var n = $('ac-updated'), d = $('ac-dot'), ping = $('ac-ping');
+    if (!P || !P.lastLoad) { n.textContent = P ? (P.dates.length ? 'Data to ' + fDay(dataMax()) : 'Not loaded yet') : 'Loading data…'; d.className = 'relative inline-flex h-2 w-2 rounded-full bg-warn'; ping.className = 'hidden'; return; }
+    var mins = Math.round((Date.now() - P.lastLoad) / 60000), lastDay = dataMax(), behind = lastDay && P.today ? diffDays(lastDay, P.today) : 0, stale = behind > 1;
+    n.textContent = 'Loaded ' + (mins < 1 ? 'just now' : mins < 60 ? mins + ' min ago' : mins < 2880 ? Math.round(mins / 60) + ' h ago' : Math.round(mins / 1440) + ' days ago') + (lastDay ? ' · data to ' + fDay(lastDay) : '');
+    d.className = 'relative inline-flex h-2 w-2 rounded-full ' + (stale ? 'bg-warn' : 'bg-good');
+    ping.className = stale ? 'hidden' : 'absolute inline-flex h-full w-full rounded-full bg-good opacity-60 animate-ping';
+    $('ac-status').title = stale ? 'The data ends ' + behind + ' days before today. Press Start automation to bring it up to yesterday.' : 'Data is up to date (through yesterday).';
+  }
+
+  /* ================================================================ server */
+  function gs(name) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (ok, fail) { var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail); r[name].apply(r, args); });
+  }
+  function msg(text, kind) {
+    var m = $('ac-msg'); clear(m); if (!text) return;
+    m.appendChild(el('div', { class: 'animate-ac-in rounded-xl px-4 py-3 text-[13px] ring-1 ' + (kind === 'bad' ? 'bg-bad-bg text-bad ring-bad/30' : 'bg-accent/10 text-ink ring-accent/25'), role: kind === 'bad' ? 'alert' : 'status', text: text }));
+  }
+  function load() {
+    if (loading) return Promise.resolve(); loading = true;
+    if (!P) skeleton(); else $('ac-view').classList.add('opacity-60');
+    return gs('getAcwDashboardData').then(function (res) {
+      msg(''); stamp = res.stamp; prep(res.payload); $('ac-run-btn').hidden = !P.canRun; render(); updatedText();
+    }).catch(function (e) {
+      var t = (e && e.message) || String(e);
+      msg(/permission|access|not found|denied|not set up/i.test(t) ? 'The dashboard could not read the ACW Data spreadsheet: ' + t : 'The dashboard could not load: ' + t, 'bad');
+      if (!P) clear($('ac-view'));
+    }).then(function () { loading = false; $('ac-view').classList.remove('opacity-60'); });
+  }
+  function poll() {
+    if (!shown || document.hidden || loading || RUN.active) return;
+    gs('getAcwDashboardStamp').then(function (r) { if (r && r.stamp !== stamp) load(); else updatedText(); }).catch(function () {});
+  }
+
+  /* ================================================================ NICE bridge (WFM NICE Connector extension) */
+  var NICE = (function () {
+    var waiters = {}, seq = 0;
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (e.source !== window || !d || d.__wfmNice !== 1 || d.dir !== 'ext') return;
+      var w = waiters[d.id]; if (!w) return;
+      if (d.type === 'progress') { if (w.onProgress) w.onProgress(d); return; }
+      delete waiters[d.id];
+      if (d.type === 'error') w.fail(d); else w.ok(d);
+    });
+    function post(m) { m.__wfmNice = 1; m.dir = 'page'; window.postMessage(m, '*'); }
+    return {
+      hello: function (ms) {
+        var id = 'h' + (++seq);
+        return new Promise(function (ok) {
+          var t = setTimeout(function () { delete waiters[id]; ok(null); }, ms || 1200);
+          waiters[id] = { ok: function (d) { clearTimeout(t); ok(d); }, fail: function () { clearTimeout(t); ok(null); } };
+          post({ type: 'hello', id: id });
+        });
+      },
+      /** The jobs run in the same signed-in NICE tab; the result is { results: [...] } in job order. */
+      runJobs: function (jobs, onProgress) {
+        var id = 'r' + Date.now() + '_' + (++seq);
+        var p = new Promise(function (ok, fail) { waiters[id] = { ok: ok, fail: fail, onProgress: onProgress }; post({ type: 'run', id: id, jobs: jobs }); });
+        p.id = id; return p;
+      },
+      cancel: function (id) { post({ type: 'cancel', id: id }); }
+    };
+  })();
+
+  /* ================================================================ Start automation */
+  var STEPS = [
+    ['sisense', 'Update calls from Sisense', 'Assigned and Accepted calls · last 3 days'],
+    ['connector', 'Connect to NICE', 'Finding the WFM NICE Connector in this browser'],
+    ['session', 'Use your NICE session', 'Opening NICE WebStation in a background tab'],
+    ['generate', 'Generate the ACW report', 'Time Utilization · 6 FG · Agent Activity · code ACW · by day and agent'],
+    ['wait', 'Wait for NICE', 'NICE prepares the report (usually 1–2 minutes)'],
+    ['download', 'Download the data', '1 CSV file from View Reports'],
+    ['save', 'Save ACW Raw Data', 'Replacing this month’s dates in ACW Raw Data'],
+    ['refresh', 'Refresh the dashboard', '']
+  ];
+  var RUN = { active: false, state: {}, text: {}, id: null, plan: null, t0: 0, timer: null, parts: {} };
+  function startRun() {
+    if (RUN.active) return;
+    RUN.active = true; RUN.state = {}; RUN.text = {}; RUN.t0 = Date.now(); RUN.plan = null; RUN.id = null; RUN.done = null; RUN.missing = false; RUN.parts = {};
+    $('ac-run-btn').disabled = true; showRun();
+    clearInterval(RUN.timer); RUN.timer = setInterval(drawRun, 1000);
+    setStep('sisense', 'active', P && P.backfill ? 'Refreshing ' + P.backfill.label + ' (Sisense can still change these days)' : undefined);
+    gs('acwBackfillSisense').then(function (r) {
+      RUN.parts.sisense = r;
+      var t = r.processed && r.processed.length ? fmt(r.totals.rows, 'int') + ' Call Events rows for ' + r.processed.map(fDay).join(', ') : 'Nothing new in Sisense';
+      setStep('sisense', r.status === 'OK' ? 'done' : 'warn', t + (r.warnings && r.warnings.length ? '. ' + r.warnings.join(' ') : '') + ' (' + r.seconds + ' s)');
+    }, function (e) {
+      RUN.parts.sisense = { error: (e && e.message) || String(e) };
+      setStep('sisense', 'error', RUN.parts.sisense.error);
+    }).then(niceAcw).catch(function (e) {
+      var t = (e && e.message) || String(e);
+      setStep(RUN.cur || 'save', 'error', t);
+      if (!RUN.parts.acw || !RUN.parts.acw.error) RUN.parts.acw = { error: t, stage: 'app' };
+      if (RUN.plan) gs('acwReportRunFailure', RUN.plan.runId, 'app', t).catch(function () {});
+      done('The sheet was not changed unless a step above says so.');
+    });
+  }
+  function niceAcw() {
+    setStep('connector', 'active');
+    return NICE.hello(1500).then(function (info) {
+      if (!info) { setStep('connector', 'error', 'The WFM NICE Connector extension is not installed or not enabled in this browser.'); RUN.missing = true; RUN.parts.acw = { error: 'connector' }; return refreshAndFinish(); }
+      setStep('connector', 'done', 'Connector ' + (info.version || '') + ' ready');
+      return gs('acwStartNice').then(function (plan) {
+        RUN.plan = plan;
+        setStep('session', 'active', 'Period: ' + plan.label + ' (' + plan.days + ' days)');
+        var t0 = Date.now(), jobs = plan.jobs.map(function (j) { j.runId = plan.runId; return j; });
+        var p = NICE.runJobs(jobs, onProgress); RUN.id = p.id;
+        return p.then(function (res) {
+          var rs = (res && res.results) || [];
+          if (rs.length !== 1 || !rs[0] || typeof rs[0].csv !== 'string') throw new Error('The connector did not return the ACW report. Nothing was changed in ACW Raw Data.');
+          ['session', 'generate', 'wait'].forEach(function (s) { if (RUN.state[s] !== 'done') setStep(s, 'done'); });
+          setStep('download', 'done', fmt(rs[0].csv.length, 'int') + ' bytes from NICE');
+          setStep('save', 'active', 'Replacing ' + plan.label + ' in ACW Raw Data');
+          return gs('acwSaveNice', plan.runId, rs[0].csv, { reportOid: rs[0].report && rs[0].report.oid, niceSeconds: Math.round((Date.now() - t0) / 1000) }).then(function (s) {
+            RUN.parts.acw = s;
+            setStep('save', s.status === 'OK' ? 'done' : 'warn', fmt(s.rows, 'int') + ' rows (' + fmt(s.hours, '#,##0.0') + ' h of ACW) saved for ' + s.label + (s.warnings && s.warnings.length ? '. ' + s.warnings.join(' ') : ''));
+            return refreshAndFinish();
+          }, function (e) {                                         // the save itself failed: say so, never report success
+            var t = (e && e.message) || String(e);
+            RUN.parts.acw = { error: t, stage: 'save' };
+            setStep('save', 'error', t);
+            return refreshAndFinish();
+          });
+        }, function (err) {
+          var stage = err && err.stage || 'nice', text = (err && (err.message || err.error)) || 'The connector stopped.';
+          var stepId = { login: 'session', session: 'session', generate: 'generate', wait: 'wait', download: 'download', cancelled: RUN.cur || 'generate' }[stage] || (RUN.cur || 'generate');
+          setStep(stepId, stage === 'cancelled' ? 'blocked' : 'error', text);
+          gs('acwReportRunFailure', plan.runId, stage, text).catch(function () {});
+          RUN.parts.acw = { error: text, stage: stage, code: err && err.code };
+          return refreshAndFinish();
+        });
+      });
+    });
+  }
+  function refreshAndFinish() {
+    setStep('refresh', 'active');
+    loading = false;
+    return load().then(function () { setStep('refresh', 'done'); done(); });
+  }
+  function done(extra) {
+    var s = RUN.parts.sisense || {}, p = RUN.parts.acw || {}, okS = !s.error, okP = !p.error, secs = Math.round((Date.now() - RUN.t0) / 1000);
+    var text = okS && okP ? 'Done in ' + secs + ' s: calls refreshed from Sisense and ACW ' + (p.label ? 'for ' + p.label + ' ' : '') + 'loaded from NICE.'
+      : (okS ? 'Calls were refreshed from Sisense. ' : 'Sisense was not updated. ') + (okP ? 'ACW was loaded from NICE.' : p.stage === 'cancelled' ? 'ACW: stopped, nothing changed.' : p.stage === 'save' ? 'ACW was not changed (the save stopped: see the step above). Send the message to the app owner.' : 'ACW was not changed. ' + hintFor(p.stage, p.code));
+    finish(okS && okP, extra ? text + ' ' + extra : text);
+  }
+  function hintFor(stage, code) {
+    var byCode = { BUSY: 'Another NICE automation is running in this browser; wait for it to finish.', FORM_CHANGED: 'NICE seems to have changed its report form. Send this message to the app owner.', TAB_CLOSED: 'The NICE tab was closed during the run; press Start automation again and leave it open.', APPROVAL: 'Press Start automation again and choose Allow in the connector window.' };
+    if (code && byCode[code]) return byCode[code];
+    if (RUN.missing) return 'Install the WFM NICE Connector (one time), reload this page and press Start automation again.';
+    return { login: 'Sign in to NICE in the tab the connector opened, then press Start automation again.', generate: 'NICE did not accept the report request; try again, and tell the app owner if it keeps failing.',
+             wait: 'NICE took too long to prepare the report. Try again in a few minutes.', download: 'The report could not be downloaded. Try again.' }[stage] || 'Try again in a minute.';
+  }
+  function onProgress(d) {
+    var map = { session: 'session', login: 'session', generate: 'generate', wait: 'wait', download: 'download' }, s = map[d.stage];
+    if (!s) return;
+    var order = STEPS.map(function (x) { return x[0]; }), ix = order.indexOf(s);
+    order.slice(2, ix).forEach(function (p) { if (RUN.state[p] !== 'done') setStep(p, 'done'); });
+    setStep(s, d.stage === 'login' ? 'login' : 'active', d.text);
+  }
+  function setStep(id, state, text) { RUN.state[id] = state; if (text !== undefined) RUN.text[id] = text; if (state === 'active' || state === 'login') RUN.cur = id; drawRun(); }
+  function finish(ok, text) { RUN.active = false; RUN.done = { ok: ok, text: text }; clearInterval(RUN.timer); $('ac-run-btn').disabled = false; drawRun(); }
+  function showRun() { var box = $('ac-run'); box.hidden = false; drawRun(); }
+  function drawRun() {
+    var box = $('ac-run'); if (box.hidden) return; clear(box);
+    var secs = Math.round((Date.now() - RUN.t0) / 1000), D = RUN.done && !RUN.active ? RUN.done : null;
+    var head = el('div', { class: 'flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-3' },
+      el('div', { class: 'min-w-0' }, el('h2', { class: 'text-[15px] font-bold text-ink', text: RUN.active ? 'Updating the ACW report…' : D && D.ok ? 'ACW report updated' : 'Automation finished with a problem' }),
+        el('p', { class: 'mt-0.5 text-[12.5px] text-ink2', text: (RUN.plan ? 'ACW ' + RUN.plan.label + ' · ' : '') + (RUN.active ? secs + ' s' : '') })),
+      el('div', { class: 'flex items-center gap-2' },
+        RUN.active && RUN.id ? el('button', { type: 'button', class: 'ac-btn h-8', text: 'Stop NICE', on: { click: function () { NICE.cancel(RUN.id); } } }) : null,
+        !RUN.active ? el('button', { type: 'button', class: 'ac-btn h-8', text: 'Close', on: { click: function () { $('ac-run').hidden = true; RUN.done = null; } } }) : null,
+        !RUN.active && D && !D.ok ? el('button', { type: 'button', class: 'ac-btn-primary h-8', on: { click: startRun } }, icon(I.refresh, 13), el('span', { text: 'Try again' })) : null));
+    var list = el('ol', { class: 'grid gap-px px-5 pb-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-3' });
+    STEPS.forEach(function (s, k) {
+      var st = RUN.state[s[0]] || 'todo', t = RUN.text[s[0]] || s[2];
+      var mark = st === 'done' ? el('span', { class: 'ac-step-dot bg-good text-accent-ink ring-good' }, icon(I.check, 13))
+        : st === 'error' ? el('span', { class: 'ac-step-dot bg-bad text-accent-ink ring-bad' }, icon(I.x, 13))
+        : st === 'warn' || st === 'blocked' || st === 'login' ? el('span', { class: 'ac-step-dot bg-warn text-accent-ink ring-warn' }, icon(st === 'login' ? I.ext : I.alert, 13))
+        : st === 'active' ? el('span', { class: 'ac-step-dot ring-accent text-accent' }, el('span', { class: 'h-3 w-3 rounded-full border-2 border-accent border-t-transparent animate-spin' }))
+        : el('span', { class: 'ac-step-dot text-[11px] font-bold', text: String(k + 1) });
+      list.appendChild(el('li', { class: 'flex gap-2.5 py-2 ' + (st === 'todo' ? 'opacity-60' : '') }, mark,
+        el('div', { class: 'min-w-0' }, el('div', { class: 'text-[12.5px] font-semibold ' + (st === 'error' ? 'text-bad' : 'text-ink'), text: s[1] }), el('div', { class: 'mt-0.5 text-[11.5px] leading-snug ' + (st === 'error' ? 'text-bad' : st === 'login' ? 'text-warn font-semibold' : 'text-ink2'), text: t }))));
+    });
+    var bar = el('div', { class: 'h-1 overflow-hidden rounded-t-xl2 bg-canvas' }, el('div', { class: 'h-full bg-accent transition-[width] duration-700 ease-soft', style: 'width:' + (STEPS.filter(function (s) { return RUN.state[s[0]] === 'done' || RUN.state[s[0]] === 'warn'; }).length / STEPS.length * 100).toFixed(0) + '%' }));
+    var c = el('section', { class: 'ac-card overflow-hidden animate-ac-in', 'aria-label': 'Start automation progress', 'aria-live': 'polite' }, bar, head, list);
+    if (RUN.missing && !RUN.active) c.appendChild(el('div', { class: 'mx-5 mb-4 rounded-xl bg-canvas px-4 py-3 text-[12.5px] leading-relaxed text-ink2 ring-1 ring-rule' },
+      el('b', { class: 'block text-ink', text: 'One-time setup on this computer (for the ACW time)' }),
+      '1. Install "WFM NICE Connector" (ask the app owner). 2. Open NICE WebStation once and sign in as usual. 3. Reload this page and press Start automation. The first time, the connector asks you to allow this app; choose Allow.'));
+    if (D && D.text) c.appendChild(el('p', { class: 'mx-5 mb-4 text-[12.5px] font-medium ' + (D.ok ? 'text-good' : 'text-ink2'), text: D.text }));
+    box.appendChild(c);
+  }
+
+  /* ================================================================ boot */
+  function boot() {
+    layer = $('ac-layer');
+    document.addEventListener('click', function () { if (S.open) { closePop(); if (P) renderFilters(); } });
+    document.addEventListener('keydown', function (e) { if (e.key !== 'Escape' || !S.open) return; var id = popAnchor && popAnchor.id; closePop(); if (P) renderFilters(); var a = id && $(id); if (a) a.focus(); });
+    var lastW = window.innerWidth;
+    window.addEventListener('resize', function () { if (window.innerWidth === lastW) return; lastW = window.innerWidth; closePop(); clearTimeout(boot._rz); boot._rz = setTimeout(function () { if (shown && P && S.view === 'overview') renderBody(); }, 160); });
+    window.addEventListener('scroll', function (e) { if (S.open && !(e.target && e.target.closest && e.target.closest('.ac-pop'))) { closePop(); if (P) renderFilters(); } }, true);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden && shown) poll(); });
+    $('ac-run-btn').addEventListener('click', startRun);
+    setInterval(function () { if (shown && P) updatedText(); }, 60000);
+  }
+  boot();
+
+  var API = {
+    show: function () { shown = true; if (!P) load(); else { poll(); if (S.view === 'overview') renderBody(); } if (!pollTimer) pollTimer = setInterval(poll, 5 * 60 * 1000); },
+    hide: function () { shown = false; hideTip(); closePop(); },
+    setRole: function () {},
+    // used by the automated tests
+    _t: { S: S, kpi: kpi, select: select, sumOf: sumOf, resolve: resolveRange, data: function () { return P; }, render: render, tableRows: tableRows, TABLES: TABLES, fmt: fmt, startRun: startRun, NICE: NICE, RUN: RUN, prep: prep, bandIndex: bandIndex, hms: hms }
+  };
+  window.ACWD_UI = API;
+  (window.WFM_DASH_QUEUE = window.WFM_DASH_QUEUE || []).push({
+    id: 'acw', title: 'ACW Performance', viewId: 'view-dash-acw',
+    icon: 'M12 6v6l4 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z',
+    onShow: API.show, onHide: API.hide, onRole: API.setRole
+  });
+  if (window.WFM_Dashboards) window.WFM_Dashboards.drain();
+})();
+</script>

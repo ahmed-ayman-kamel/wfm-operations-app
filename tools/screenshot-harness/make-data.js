@@ -146,6 +146,46 @@ const myTodos = [
   { id: 'pt3', title: 'Gym after shift', notes: '', priority: 'low', category: 'Fitness', dueDate: '', completed: true, createdAt: '2026-10-18T11:00:00Z' }
 ];
 
+
+// ---------- ACW Performance (Call Events A:U + ACW Raw Data A:P + roster) ----------
+const acwPeople = AGENTS.map(a => ({ name: a.name, nice: a.name.split(' ').reverse().join(', '), niceId: Number(a.nice), lg: a.lg, mgr: a.acm, sup: a.tl,
+  lang: a.lang, queue: a.lg === 'PENs' ? 'Operator' : 'VRI', seat: a.lang, status: 'Active', cls: 'Full time', prod: '' }));
+const acwRoster = { people: acwPeople, issues: {}, resolve: () => null };
+const ceRows = [], acwRaw = [];
+days.forEach(day => AGENTS.forEach(a => {
+  if (rnd() < 0.12) return;
+  const as = int(25, 60), ac = Math.round(as * between(0.95, 1.0));
+  ceRows.push([at(day, 0, 0), 'Vendor A', a.name, as, ac, ac / as, as - ac, int(0, 2), (as - ac) / as, 0, Number(a.nice), a.name.split(' ').reverse().join(', '),
+    a.tl, a.lang, a.lang, '', '', '', '', '', '']);
+  const secPerCall = between(6, 14) / a.skill;                 // ACW seconds per accepted call around the 10 s target
+  acwRaw.push([at(day, 0, 0), 'E1', 'Entity', Number(a.nice), a.name.toUpperCase(), 'ACW', 0, 0, (ac * secPerCall) / 3600, '', '', '', '', '', '', '']);
+}));
+const acwPayload = B.ACD_aggregate_(ceRows, acwRaw, acwRoster, {});
+Object.assign(acwPayload, { lastLoad: at(TODAY, 8, 45).getTime(), lastPeriod: '17 Oct – 19 Oct 2026', lastStatus: 'OK', lastBy: 'demo.rtm@example.com',
+  lastAcw: at(TODAY, 8, 52).getTime(), acwPeriod: '1 Oct – 19 Oct 2026', acwStatus: 'OK', acwBy: 'demo.rtm@example.com', dedupe: 'KEEP',
+  db: { ok: true, message: '', agents: AGENTS.length }, flags: { total: 0, items: [] }, log: [], stamp: 'demo',
+  today: TODAY, target: 10, canRun: true, backfill: B.AC_backfillPlan_(TODAY), nicePlan: B.MV_paidPlan_(TODAY) });
+
+// ---------- Reporting → Extract Data (catalog + one report's live details) ----------
+const extractReports = B.EXTRACT_reports_().map(B.EXTRACT_public_);
+const fmtD = d => (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)) + '/' + d.slice(0, 4);
+const LANG2 = ['Arabic', 'Spanish', 'French', 'Portuguese', 'Turkish'];
+const previews = {
+  mvcc_data: { header: ['Date', 'Week', 'Vendor', 'Agent name', 'Assigned', 'Accepted', 'CSR', 'Timed Out', 'Cancelled', 'TO rate', 'Canc rate', 'Abandond', 'Paid hour', 'Talk time'],
+    rows: AGENTS.slice(0, 5).map((a, i) => ['10/1/2026', 'W1', 'Vendor A', a.name, String(40 + i), String(39 + i), '97.5%', '1', '0', '2.5%', '0.0%', '0', '7.80', '3.41']), rows_n: 1963, cols: 26 },
+  aht: { header: ['Date', 'Agent Name', 'Interpreter ID', 'Language', 'Call ID', 'Minutes', 'Seconds', 'Duration', 'Status'],
+    rows: AGENTS.slice(0, 5).map((a, i) => ['10/1/2026', a.name, a.id, a.lang, 'C-' + (880100 + i * 37), String(3 + i), String(12 * i % 60), '0:0' + (3 + i) + ':12', 'CLOSED']), rows_n: 41173, cols: 9 },
+  short_calls: { header: ['Date', 'Call Center', 'Agent Name', 'Agent ID', 'Duration in second', 'Language Name', 'Total interpretation minutes', 'Status', 'Notes'],
+    rows: AGENTS.slice(3, 8).map((a, i) => ['10/1/2026', 'Vendor A', a.name, 'IR-1000' + (15200000 + i * 731), String([58, 47, 59, 12, 101][i]), LANG2[i], String([1, 1, 1, 0, 2][i]), 'CLOSED', i === 2 ? 'Provider not responding' : '–']), rows_n: 386, cols: 10 },
+  paid_hours: { header: ['Date', 'Agent ID', 'Agent Name', 'Activity', 'Scheduled', 'Actual', 'Paid hour', 'Hours'],
+    rows: AGENTS.slice(0, 5).map((a, i) => ['10/1/2026', a.nice, a.name, 'Open', '7:30', '7:2' + i, '7.4' + i, '7.4' + i]), rows_n: 7530, cols: 12 }
+};
+const mvccReport = extractReports.find(r => r.id === 'mvcc');
+const extractMvcc = { ok: true, report: mvccReport, workbook: 'MVCC Data', timeZone: TZ, stamp: 'demo', running: false, checkedAt: TODAY + ' 09:20',
+  datasets: mvccReport.datasets.map(d => { const p = previews[d.id]; return { id: d.id, title: d.title, sheet: d.sheet, description: d.description,
+    updated: '10/19/2026', expectedRows: p.rows_n, available: true, rows: p.rows_n, cols: p.cols, header: p.header.concat(Array(Math.max(0, p.cols - p.header.length)).fill('')),
+    formats: Array(p.cols).fill(''), preview: p.rows.map(r => r.concat(Array(Math.max(0, p.cols - r.length)).fill(''))) }; }) };
+
 const STAMP = String(at(TODAY, 9, 5).getTime());
 const dash = (p) => ({ ok: true, stamp: STAMP, cached: false, payload: p });
 const out = {
@@ -156,7 +196,9 @@ const out = {
   getAdherenceDashboardData: dash(adhPayload), getAdherenceDashboardStamp: { ok: true, stamp: 'demo' },
   getMvccDashboardData: dash(mvPayload), getMvccDashboardStamp: { ok: true, stamp: 'demo' },
   getAssistantStatus: { configured: true, providerCount: 2, isAdmin: false, rateLimitPerHour: 40 },
-  getReportingCatalog: { reports: B.REPORTING_REGISTRY }, getMyTodos: myTodos
+  getReportingCatalog: { reports: B.REPORTING_REGISTRY }, getMyTodos: myTodos,
+  getAcwDashboardData: dash(acwPayload), getAcwDashboardStamp: { ok: true, stamp: STAMP },
+  getExtractCatalog: { ok: true, role: 'Manager', reports: extractReports }, getExtractReport: extractMvcc
 };
 fs.writeFileSync(__dirname + '/mock-data.json', JSON.stringify(out));
-console.log('voyce rows', voyceRows.length, 'agents', voycePayload.agents.length, '| adh facts', adhPayload.f.d.length, '| mvcc facts', mvPayload.f.d.length);
+console.log('acw facts', acwPayload.f.d.length, '| extract reports', extractReports.length, '|', 'voyce rows', voyceRows.length, 'agents', voycePayload.agents.length, '| adh facts', adhPayload.f.d.length, '| mvcc facts', mvPayload.f.d.length);

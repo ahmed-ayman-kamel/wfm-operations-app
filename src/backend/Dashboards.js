@@ -34,7 +34,13 @@ var DASHBOARDS = {
        subtitle: 'Productivity, CSR, abandoned and short calls',
        roles: ['RTM', 'Manager', 'Admin', 'Operations'],
        icon: 'activity'
-     }
+     },
+  acw: {
+    title: 'ACW Performance',
+    subtitle: 'After-call work per accepted call against the 10 s target',
+    roles: ['RTM', 'Manager', 'Admin', 'Operations'],
+    icon: 'clock'
+  }
 
 };
 

@@ -65,6 +65,11 @@ const API_FUNCS_ = {
   getReportingCatalog: API_NOT_OPERATIONS_,
   runVoycePerformanceReport: API_NOT_OPERATIONS_,
   runAutomatedVoyceReports: API_NOT_OPERATIONS_,
+  // Reporting → Extract Data (Extract.gs also checks the dashboard's own roles)
+  getExtractCatalog: API_NOT_OPERATIONS_,
+  getExtractReport: API_NOT_OPERATIONS_,
+  extractReadPage: API_NOT_OPERATIONS_,
+  extractCheck: API_NOT_OPERATIONS_,
 
   // Dashboards (each checks requireDashboardAccess_ / run roles itself)
   getDashboardMenu: API_ANY_ROLE_,
@@ -81,7 +86,13 @@ const API_FUNCS_ = {
   mvccBackfillSisense: API_ANY_ROLE_,
   mvccStartPaidHours: API_ANY_ROLE_,
   mvccSavePaidHours: API_ANY_ROLE_,
-  mvccReportRunFailure: API_ANY_ROLE_
+  mvccReportRunFailure: API_ANY_ROLE_,
+  getAcwDashboardData: API_ANY_ROLE_,
+  getAcwDashboardStamp: API_ANY_ROLE_,
+  acwBackfillSisense: API_ANY_ROLE_,
+  acwStartNice: API_ANY_ROLE_,
+  acwSaveNice: API_ANY_ROLE_,
+  acwReportRunFailure: API_ANY_ROLE_
 };
 
 function apiRoleAllowed_(rule, role) {
@@ -153,7 +164,9 @@ const API_AUDIT_ACTIONS_ = {
   createTicket: 'args', updateTicket: 'args', addTicketComment: 'args',
   saveAiSettings: 'none', testAiProvider: 'none',
   runVoycePerformanceReport: 'none', runAutomatedVoyceReports: 'none', loadVoyceOnlineHours: 'args',
-  adhStartRun: 'none', adhSaveReport: 'none', mvccBackfillSisense: 'none', mvccStartPaidHours: 'none', mvccSavePaidHours: 'none'
+  adhStartRun: 'none', adhSaveReport: 'none', mvccBackfillSisense: 'none', mvccStartPaidHours: 'none', mvccSavePaidHours: 'none',
+  acwBackfillSisense: 'none', acwStartNice: 'none', acwSaveNice: 'none',
+  extractCheck: 'args'                                  // one line per finished raw-data download: report, datasets, rows, format
 };
 
 function apiAuditClean_(v, depth) {

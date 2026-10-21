@@ -11,6 +11,9 @@
     1. window.ReportingExport - builds .xlsx and .csv files in the browser from a report result.
        Pure functions, no DOM, so they are unit-tested in Node (tests/reporting_test.js).
     2. window.Reporting       - the screens: tool picker, upload, results, export.
+    3. window.ReportingExtract - the "Extract Data" subsection: the raw data behind each dashboard, read live
+       from its source spreadsheet through Extract.gs and saved as CSV or Excel with window.ReportingExport.
+       Which dashboards and datasets appear is decided only on the server (EXTRACT_reports_ in Extract.gs).
 
   ADDING A REPORT TOOL: add it to REPORTING_REGISTRY in Reporting.gs, add its run function there
   (returning the same { columns, rows, serials, sheetName, diagnostics } shape), then add a screen
@@ -19,15 +22,48 @@
 -->
 <div id="view-reporting" class="page-view" style="display: none;">
 
-  <!-- TOOL PICKER -->
+  <!-- TOOL PICKER + EXTRACT DATA (two subsections of Reporting) -->
   <div id="rpt-catalog-screen" class="rpt-screen">
     <div class="filter-card">
       <div>
         <div class="rpt-heading">Reporting</div>
-        <div class="rpt-subheading">Pick a report, upload its source files, review the result, and download it.</div>
+        <div class="rpt-subheading" id="rpt-sec-sub">Pick a report, upload its source files, review the result, and download it.</div>
       </div>
     </div>
-    <div id="rpt-catalog-grid" class="rpt-catalog-grid" aria-live="polite"></div>
+    <div class="rpt-tabs rpt-sec-tabs" role="tablist" aria-label="Reporting sections">
+      <button type="button" class="rpt-tab is-active" role="tab" id="rpt-sec-tab-tools" aria-selected="true" aria-controls="rpt-sec-pane-tools">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+        Report tools
+      </button>
+      <button type="button" class="rpt-tab" role="tab" id="rpt-sec-tab-extract" aria-selected="false" aria-controls="rpt-sec-pane-extract" tabindex="-1">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5"/><path d="M4 11v6c0 1.66 3.58 3 8 3"/><path d="M18 15v6"/><path d="m15 18 3 3 3-3"/></svg>
+        Extract Data <span class="rpt-tab-count" id="rpt-sec-extract-count"></span>
+      </button>
+    </div>
+    <div id="rpt-sec-pane-tools" class="rpt-sec-pane" role="tabpanel" aria-labelledby="rpt-sec-tab-tools">
+      <div id="rpt-catalog-grid" class="rpt-catalog-grid" aria-live="polite"></div>
+    </div>
+    <div id="rpt-sec-pane-extract" class="rpt-sec-pane" role="tabpanel" aria-labelledby="rpt-sec-tab-extract" hidden>
+      <div id="rpt-x-grid" class="rpt-catalog-grid" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- EXTRACT DATA: one dashboard's raw datasets (filled by window.ReportingExtract) -->
+  <div id="rpt-x-report" class="rpt-screen" style="display: none;">
+    <div class="filter-card">
+      <div class="rpt-title-row">
+        <button type="button" class="btn-secondary rpt-back" id="rpt-x-back" aria-label="Back to Extract Data">&larr; Extract Data</button>
+        <div>
+          <div class="rpt-heading" id="rpt-x-title">Extract Data</div>
+          <div class="rpt-subheading" id="rpt-x-sub"></div>
+        </div>
+      </div>
+      <button type="button" class="btn-secondary" id="rpt-x-refresh" title="Read the row counts and last load again">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+        Refresh
+      </button>
+    </div>
+    <div id="rpt-x-body" class="rpt-screen" aria-live="polite"></div>
   </div>
 
   <!-- TOOL: Voyce Performance Report -->
@@ -273,6 +309,114 @@
   #view-reporting .rpt-pager-btns { display: flex; gap: 8px; }
   #view-reporting .rpt-pager-btns .btn-secondary { height: 32px; padding: 0 12px; }
 
+  /* ---------- Reporting subsections (Report tools | Extract Data) ---------- */
+  #view-reporting .rpt-sec-tabs { margin-top: -4px; }
+  #view-reporting .rpt-sec-tabs .rpt-tab svg { opacity: 0.8; }
+  #view-reporting .rpt-sec-pane { animation: rptFade 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  @keyframes rptFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #view-reporting .rpt-catalog-grid > .rpt-catalog-card { animation: riseIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) backwards; animation-delay: calc(var(--i, 0) * 45ms); }
+
+  /* ---------- Extract Data: catalog cards ---------- */
+  #view-reporting .rpt-x-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  #view-reporting .rpt-x-chip { font-size: 11px; font-weight: 700; color: var(--text-secondary); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border-subtle); background: var(--surface); white-space: nowrap; }
+  #view-reporting .rpt-x-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 6px; }
+  #view-reporting .rpt-x-card-src { font-size: 11.5px; font-weight: 600; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+  #view-reporting .rpt-x-card-src span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #view-reporting .rpt-catalog-card:hover .rpt-catalog-cta { transform: translateX(3px); }
+  #view-reporting .rpt-catalog-cta { transition: transform 0.15s ease; }
+  #view-reporting .rpt-x-skel-card { cursor: default; pointer-events: none; }
+  #view-reporting .rpt-x-skel-card .skeleton-cell { height: 12px; }
+
+  /* ---------- Extract Data: report screen ---------- */
+  #view-reporting .rpt-x-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px 20px; padding: 18px 20px; border-radius: var(--radius-lg); border: 1px solid var(--primary-blue-border); background: var(--primary-blue-light); animation: riseIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  #view-reporting .rpt-x-hero-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  #view-reporting .rpt-x-hero-side { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; justify-content: flex-end; }
+  #view-reporting .rpt-x-stat { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+  #view-reporting .rpt-x-stat b { font-size: 18px; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.3px; }
+  #view-reporting .rpt-x-stat span { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  #view-reporting .rpt-x-hero .rpt-x-slot { grid-column: 1 / -1; }
+  #view-reporting .rpt-x-slot:empty { display: none; }
+  #view-reporting .btn-primary svg, #view-reporting .btn-secondary svg { flex-shrink: 0; }
+  #view-reporting .rpt-x-btn-ico { display: inline-flex; align-items: center; gap: 7px; }
+
+  #view-reporting .rpt-x-list { display: flex; flex-direction: column; gap: 12px; }
+  #view-reporting .rpt-x-ds { background: var(--surface-strong); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 16px 18px; display: flex; flex-direction: column; gap: 0; transition: border-color 0.2s ease, box-shadow 0.2s ease; animation: riseIn 0.38s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: calc(80ms + var(--i, 0) * 50ms); }
+  #view-reporting .rpt-x-ds:hover { box-shadow: var(--shadow-md); }
+  #view-reporting .rpt-x-ds.is-busy { border-color: var(--primary-blue-border); }
+  #view-reporting .rpt-x-ds.is-done { border-color: var(--status-completed-border); }
+  #view-reporting .rpt-x-ds.is-failed, #view-reporting .rpt-x-ds.is-unavailable { border-color: var(--status-cancelled-border); }
+  #view-reporting .rpt-x-ds-head { display: flex; align-items: flex-start; gap: 14px; }
+  #view-reporting .rpt-x-ds > .rpt-x-slot { margin-top: 12px; }
+  #view-reporting .rpt-x-ds-icon { width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0; background: var(--primary-blue-light); color: var(--primary-blue); display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease, color 0.2s ease; }
+  #view-reporting .is-done .rpt-x-ds-icon { background: var(--status-completed-bg); color: var(--status-completed-text); }
+  #view-reporting .is-unavailable .rpt-x-ds-icon, #view-reporting .is-failed .rpt-x-ds-icon { background: var(--status-cancelled-bg); color: var(--status-cancelled-text); }
+  #view-reporting .rpt-x-ds-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  #view-reporting .rpt-x-ds-title { font-size: 14px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #view-reporting .rpt-x-tag { font-size: 10.5px; font-weight: 700; color: var(--text-muted); padding: 1px 8px; border-radius: 999px; border: 1px dashed var(--border-medium); }
+  #view-reporting .rpt-x-ds-desc { font-size: 12px; font-weight: 500; color: var(--text-muted); line-height: 1.5; }
+  #view-reporting .rpt-x-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 2px; font-size: 11.5px; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  #view-reporting .rpt-x-meta span { display: inline-flex; align-items: center; gap: 5px; }
+  #view-reporting .rpt-x-meta span::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--border-medium); }
+  #view-reporting .rpt-x-meta span:first-child::before { display: none; }
+  #view-reporting .rpt-x-empty-badge { font-size: 10.5px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--status-pending-bg); color: var(--status-pending-text); border: 1px solid var(--status-pending-border); }
+  #view-reporting .rpt-x-ds-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  #view-reporting .rpt-x-ds-actions .btn-secondary { height: 34px; padding: 0 12px; }
+  #view-reporting .rpt-x-ds-actions .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  #view-reporting .rpt-x-link { font: inherit; font-size: 12px; font-weight: 700; color: var(--primary-blue); background: none; border: none; cursor: pointer; padding: 6px 4px; display: inline-flex; align-items: center; gap: 5px; border-radius: var(--radius-sm); }
+  #view-reporting .rpt-x-link:hover { text-decoration: underline; }
+  #view-reporting .rpt-x-link:disabled { color: var(--text-muted); cursor: default; text-decoration: none; }
+  #view-reporting .rpt-x-link svg { transition: transform 0.2s ease; }
+  #view-reporting .rpt-x-link[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+  /* progress */
+  #view-reporting .rpt-x-progress { display: flex; flex-direction: column; gap: 7px; animation: rptFade 0.22s ease both; }
+  #view-reporting .rpt-x-progress-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  #view-reporting .rpt-x-progress-row .rpt-status { color: var(--text-secondary); }
+  #view-reporting .rpt-x-bar { height: 6px; border-radius: 999px; background: var(--border-subtle); overflow: hidden; position: relative; }
+  #view-reporting .rpt-x-bar > i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--primary-blue), var(--accent-cyan)); transition: width 0.25s ease-out; }
+  #view-reporting .rpt-x-bar.is-indeterminate > i { width: 35% !important; animation: rptSlide 1.1s ease-in-out infinite; }
+  @keyframes rptSlide { from { left: -35%; } to { left: 100%; } }
+  #view-reporting .rpt-x-cancel { font: inherit; font-size: 12px; font-weight: 700; color: var(--text-muted); background: none; border: none; cursor: pointer; padding: 2px 4px; }
+  #view-reporting .rpt-x-cancel:hover { color: var(--status-cancelled-text); }
+
+  /* result line */
+  #view-reporting .rpt-x-result { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; line-height: 1.5; animation: rptFade 0.24s ease both; }
+  #view-reporting .rpt-x-result.is-ok { background: var(--status-completed-bg); border: 1px solid var(--status-completed-border); color: var(--text-primary); }
+  #view-reporting .rpt-x-result.is-error { background: var(--status-cancelled-bg); border: 1px solid var(--status-cancelled-border); color: var(--status-cancelled-text); }
+  #view-reporting .rpt-x-result.is-info { background: var(--primary-blue-light); border: 1px solid var(--primary-blue-border); color: var(--text-primary); }
+  #view-reporting .rpt-x-result-ico { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #FFFFFF; margin-top: 1px; animation: rptPop 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+  #view-reporting .is-ok .rpt-x-result-ico { background: var(--status-completed-text); }
+  #view-reporting .is-error .rpt-x-result-ico { background: var(--status-cancelled-text); }
+  #view-reporting .is-info .rpt-x-result-ico { background: var(--primary-blue); }
+  @keyframes rptPop { from { transform: scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  #view-reporting .rpt-x-result small { display: block; font-weight: 600; color: var(--text-muted); }
+  #view-reporting .rpt-x-result .rpt-x-link { padding: 0; font-size: 12px; }
+
+  /* preview */
+  #view-reporting .rpt-x-preview { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+  #view-reporting .rpt-x-preview.is-open { grid-template-rows: 1fr; }
+  #view-reporting .rpt-x-preview > div { overflow: hidden; min-height: 0; }
+  #view-reporting .rpt-x-preview .table-container { max-height: 260px; margin-top: 14px; overflow: auto; display: block; box-shadow: none; }
+  #view-reporting .rpt-x-preview-note { font-size: 11.5px; font-weight: 600; color: var(--text-muted); padding: 8px 2px 0; }
+  #view-reporting .rpt-x-preview th, #view-reporting .rpt-x-preview td { white-space: nowrap; font-size: 12px; }
+
+  #view-reporting .rpt-x-notices { display: flex; flex-direction: column; gap: 8px; }
+  #view-reporting .rpt-x-notices:empty { display: none; }
+  #view-reporting .rpt-x-skel { display: flex; flex-direction: column; gap: 12px; }
+  #view-reporting .rpt-x-skel .rpt-x-ds { animation: none; }
+  #view-reporting .rpt-x-skel .skeleton-cell { height: 12px; }
+
+  @media (max-width: 860px) {
+    #view-reporting .rpt-x-hero { grid-template-columns: 1fr; }
+    #view-reporting .rpt-x-hero-side { justify-content: space-between; }
+    #view-reporting .rpt-x-ds-head { flex-wrap: wrap; }
+    #view-reporting .rpt-x-ds-actions { width: 100%; justify-content: flex-start; padding-left: 52px; }
+  }
+  @media (max-width: 520px) {
+    #view-reporting .rpt-x-ds-actions { padding-left: 0; }
+    #view-reporting .rpt-x-stat { align-items: flex-start; }
+  }
+
   @media (max-width: 1100px) { #rpt-vc-metric-strip .metric-box, #rpt-ot-metric-strip .metric-box { grid-column: span 4; } }
   @media (max-width: 720px) {
     #view-reporting .rpt-drop-body { padding: 22px 12px; }
@@ -298,6 +442,9 @@
  *   integer  -> number, '0' format
  *   datetime -> real Excel date from result.serials[i] (computed on the server in New York time),
  *               formatted yyyy-mm-dd hh:mm:ss
+ *   raw      -> the cell exactly as received: a number stays a number (dates/times arrive as serials),
+ *               true/false stays a boolean, anything else is text. Used by Extract Data, whose
+ *               numberFormat per column is the source sheet's own format.
  * ------------------------------------------------------------------------------------------- */
 window.ReportingExport = (function () {
   var enc = new TextEncoder();
@@ -423,6 +570,7 @@ window.ReportingExport = (function () {
       out.push('<sheetFormatPr defaultRowHeight="15"/><cols>');
       cols.forEach(function (c, i) {
         var w = c.type === 'datetime' ? 20 : Math.max(12, Math.min(40, String(c.header).length + 2));
+        if (c.type === 'raw' && /[ydhs]/i.test(String(c.numberFormat || '').replace(/"[^"]*"|\[\$[^\]]*\]/g, ''))) w = Math.max(w, 18);
         out.push('<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>');
       });
       out.push('</cols><sheetData>');
@@ -438,6 +586,13 @@ window.ReportingExport = (function () {
         var row = result.rows[r], rn = r + first, cells = ['<row r="' + rn + '">'];
         for (var i = 0; i < cols.length; i++) {
           var ref = letters[i] + rn, s = colStyle[i], v = row[i], type = cols[i].type;
+          if (type === 'raw') {
+            if (v === null || v === undefined || v === '') cells.push('<c r="' + ref + '" s="' + s + '"/>');
+            else if (typeof v === 'number' && isFinite(v)) cells.push('<c r="' + ref + '" s="' + s + '"><v>' + v + '</v></c>');
+            else if (typeof v === 'boolean') cells.push('<c r="' + ref + '" t="b" s="' + s + '"><v>' + (v ? 1 : 0) + '</v></c>');
+            else cells.push('<c r="' + ref + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xmlEsc(v) + '</t></is></c>');
+            continue;
+          }
           if (type === 'datetime') {
             var serial = result.serials && result.serials[i] ? result.serials[i][r] : null;
             cells.push(typeof serial === 'number' && isFinite(serial)
@@ -788,8 +943,8 @@ window.ReportingIdentify = (function () {
   }
 
   function showScreen(id) {
-    ['rpt-catalog-screen'].concat(Object.keys(TOOLS).map(function (k) { return TOOLS[k].screen; }))
-      .forEach(function (s) { $(s).style.display = (s === id) ? 'flex' : 'none'; });
+    ['rpt-catalog-screen', 'rpt-x-report'].concat(Object.keys(TOOLS).map(function (k) { return TOOLS[k].screen; }))
+      .forEach(function (s) { var el = $(s); if (el) el.style.display = (s === id) ? 'flex' : 'none'; });
   }
 
   function openTool(id) {
@@ -1532,8 +1687,587 @@ window.ReportingIdentify = (function () {
 
   window.Reporting = {
     show: show,
+    showScreen: showScreen,
     backToCatalog: backToCatalog,
     resetVoyceClean: resetVoyceClean
   };
+})();
+</script>
+<script>
+/* ---------------------------------------------------------------------------------------------
+ * window.ReportingExtract: Reporting → Extract Data.
+ *   Catalog   the dashboards this person may extract from (getExtractCatalog; the server decides).
+ *   Report    one dashboard's raw datasets, read live (getExtractReport): rows, columns, last load, preview.
+ *   Download  one dataset as CSV or Excel, or all of a dashboard's datasets as one Excel workbook (one sheet
+ *             per dataset, named like the source tab). Rows are read in blocks (extractReadPage, 3 at a time),
+ *             every block is checked for size, and before the file is saved extractCheck confirms the data was
+ *             not reloaded meanwhile. Any failure stops the download with the reason; nothing partial is saved.
+ *   CSV   = values exactly as the sheet shows them.
+ *   Excel = the cell values themselves (full precision; dates and times are real Excel dates) with the sheet's
+ *           own number formats, so it looks like the sheet.
+ * Files are built here with window.ReportingExport (no extra permission, nothing stored on Drive).
+ * ------------------------------------------------------------------------------------------- */
+(function () {
+  'use strict';
+  if (!window.Reporting || !window.ReportingExport) return;
+
+  var PAGE_CELLS = 120000, MIN_PAGE_ROWS = 200, MAX_PAGE_ROWS = 20000, PARALLEL = 3, RETRIES = 2;
+  var XLSX_MAX_ROWS = 1048575, XLSX_MAX_TEXT = 32767;
+  var XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  var SECTION_KEY = 'wfm.reporting.section';
+  var CANCELLED = 'EXTRACT_CANCELLED';
+
+  var svg = function (body, size) {
+    return '<svg width="' + (size || 18) + '" height="' + (size || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  };
+  var ICON = {
+    activity: svg('<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>', 20),
+    clock: svg('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', 20),
+    table: svg('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>'),
+    sheet: svg('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', 13),
+    download: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>', 15),
+    chevron: svg('<path d="M6 9l6 6 6-6"/>', 14),
+    alert: svg('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>')
+  };
+
+  var state = {
+    section: 'tools', catalog: null, loading: false, catalogError: '',
+    report: null, detail: null, detailToken: 0, detailError: '',
+    job: null, jobSeq: 0, open: {}, results: {}
+  };
+  var TOOLS_SUB = '';
+
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+    });
+  }
+  function fmtInt(n) { return Number(n || 0).toLocaleString('en-US'); }
+  function plural(n, one, many) { return fmtInt(n) + ' ' + (n === 1 ? one : (many || one + 's')); }
+  function toast(msg, type) { if (typeof showToast === 'function') showToast(msg, type); }
+  function msgOf(err) { return String((err && err.message) || err || 'Unknown error').replace(/^Error:\s*/, ''); }
+  function wait(ms) { return new Promise(function (ok) { setTimeout(ok, ms); }); }
+  function call(name, args) {
+    return new Promise(function (ok, fail) {
+      var r = google.script.run.withSuccessHandler(ok).withFailureHandler(fail);
+      r[name].apply(r, args || []);
+    });
+  }
+  function pref(v) {
+    try { if (v === undefined) return localStorage.getItem(SECTION_KEY) || ''; localStorage.setItem(SECTION_KEY, v); } catch (e) { return ''; }
+    return v;
+  }
+
+  // ---------------------------------------------------------------- subsections (Report tools | Extract Data)
+  function setSection(sec, focus, noLoad) {
+    state.section = sec === 'extract' ? 'extract' : 'tools';
+    ['tools', 'extract'].forEach(function (k) {
+      var on = k === state.section, tab = $('rpt-sec-tab-' + k), pane = $('rpt-sec-pane-' + k);
+      tab.classList.toggle('is-active', on);
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+      if (pane.hidden === on) {                                   // restart the fade only when the pane changes
+        pane.hidden = !on;
+        if (on) { pane.style.animation = 'none'; void pane.offsetWidth; pane.style.animation = ''; }
+      }
+      if (on && focus) tab.focus();
+    });
+    $('rpt-sec-sub').textContent = state.section === 'extract'
+      ? 'Download the raw data behind each dashboard, read live from its source. Pick a dashboard to see its datasets.'
+      : TOOLS_SUB;
+    pref(state.section);
+    if (state.section === 'extract' && !noLoad) ensureCatalog();
+  }
+
+  function bindTabs() {
+    ['tools', 'extract'].forEach(function (k) {
+      var tab = $('rpt-sec-tab-' + k);
+      tab.addEventListener('click', function () { setSection(k); });
+      tab.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'Home' || e.key === 'End') {
+          e.preventDefault();
+          setSection(state.section === 'tools' ? 'extract' : 'tools', true);
+        }
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- catalog
+  function ensureCatalog() {
+    if (state.loading) return;
+    if (state.catalog) { renderCatalog(); return; }
+    loadCatalog();
+  }
+
+  function loadCatalog() {
+    state.loading = true; state.catalogError = '';
+    renderCatalogSkeleton();
+    call('getExtractCatalog', []).then(function (res) {
+      state.loading = false;
+      state.catalog = (res && res.reports) || [];
+      var c = $('rpt-sec-extract-count'); if (c) c.textContent = state.catalog.length ? String(state.catalog.length) : '';
+      renderCatalog();
+    }, function (err) {
+      state.loading = false;
+      state.catalogError = msgOf(err);
+      renderCatalog();
+    });
+  }
+
+  function renderCatalogSkeleton() {
+    var cards = '';
+    for (var i = 0; i < 4; i++) {
+      cards += '<div class="rpt-catalog-card rpt-x-skel-card" style="--i:' + i + '" aria-hidden="true">' +
+        '<span class="rpt-catalog-icon"></span><div class="skeleton-cell" style="width:55%"></div>' +
+        '<div class="skeleton-cell" style="width:90%"></div><div class="skeleton-cell" style="width:70%"></div></div>';
+    }
+    $('rpt-x-grid').innerHTML = cards + '<span class="sr-only" style="position:absolute;left:-9999px">Loading dashboards…</span>';
+  }
+
+  function renderCatalog() {
+    var grid = $('rpt-x-grid');
+    if (state.catalogError) {
+      grid.innerHTML = '<div class="rpt-empty">Could not load Extract Data: ' + esc(state.catalogError) +
+        '<br><button type="button" class="btn-secondary" id="rpt-x-catalog-retry" style="margin-top:12px;">Try again</button></div>';
+      $('rpt-x-catalog-retry').onclick = loadCatalog;
+      return;
+    }
+    if (!state.catalog) return;
+    if (!state.catalog.length) { grid.innerHTML = '<div class="rpt-empty">No dashboard data is available for extraction with your role.</div>'; return; }
+    grid.innerHTML = state.catalog.map(function (r, i) {
+      var n = r.datasets.length;
+      return '<button type="button" class="rpt-catalog-card" style="--i:' + i + '" data-report="' + esc(r.id) + '">' +
+        '<span class="rpt-catalog-icon">' + (ICON[r.icon] || ICON.table) + '</span>' +
+        '<span class="rpt-catalog-title">' + esc(r.title) + '</span>' +
+        '<span class="rpt-catalog-desc">' + esc(r.subtitle) + '</span>' +
+        '<span class="rpt-x-chips">' + r.datasets.map(function (d) { return '<span class="rpt-x-chip">' + esc(d.title) + '</span>'; }).join('') + '</span>' +
+        '<span class="rpt-x-card-foot"><span class="rpt-x-card-src">' + ICON.sheet + '<span>' + plural(n, 'dataset') + ' · ' + esc(r.workbook) + '</span></span>' +
+        '<span class="rpt-catalog-cta">Open &rarr;</span></span></button>';
+    }).join('');
+    Array.prototype.forEach.call(grid.querySelectorAll('[data-report]'), function (b) {
+      b.onclick = function () { openReport(b.getAttribute('data-report')); };
+    });
+  }
+
+  // ---------------------------------------------------------------- report screen
+  function reportById(id) { return (state.catalog || []).filter(function (r) { return r.id === id; })[0] || null; }
+  function dsById(id) { return ((state.detail && state.detail.datasets) || []).filter(function (d) { return d.id === id; })[0] || null; }
+
+  function openReport(id) {
+    var r = reportById(id);
+    if (!r) return;
+    if (!state.report || state.report.id !== id) { state.open = {}; state.results = {}; }
+    state.report = r;
+    $('rpt-x-title').textContent = r.title;
+    $('rpt-x-sub').textContent = r.subtitle || '';
+    window.Reporting.showScreen('rpt-x-report');
+    loadDetail();
+    $('rpt-x-back').focus();
+  }
+
+  function backToCatalog() {
+    if (state.job) { state.job.cancelled = true; toast('Download cancelled. Nothing was saved.'); }
+    window.Reporting.showScreen('rpt-catalog-screen');
+    setSection('extract');
+  }
+
+  function loadDetail() {
+    var token = ++state.detailToken, r = state.report;
+    state.detail = null; state.detailError = '';
+    renderDetailSkeleton();
+    $('rpt-x-refresh').disabled = true;
+    call('getExtractReport', [r.id]).then(function (res) {
+      if (token !== state.detailToken) return;
+      state.detail = res;
+      $('rpt-x-refresh').disabled = false;
+      renderDetail();
+    }, function (err) {
+      if (token !== state.detailToken) return;
+      state.detailError = msgOf(err);
+      $('rpt-x-refresh').disabled = false;
+      renderDetailError();
+    });
+  }
+
+  function renderDetailSkeleton() {
+    var r = state.report, rows = '';
+    r.datasets.forEach(function (d, i) {
+      rows += '<div class="rpt-x-ds"><div class="rpt-x-ds-head"><span class="rpt-x-ds-icon">' + ICON.table + '</span>' +
+        '<div class="rpt-x-ds-main"><div class="rpt-x-ds-title">' + esc(d.title) + '</div><div class="rpt-x-ds-desc">' + esc(d.description) + '</div>' +
+        '<div class="rpt-x-meta"><div class="skeleton-cell" style="width:' + (30 + (i % 3) * 8) + '%"></div></div></div></div></div>';
+    });
+    $('rpt-x-body').innerHTML = '<div class="rpt-x-hero" aria-hidden="true"><div class="rpt-x-hero-text"><span class="rpt-auto-title">Download all raw data</span>' +
+      '<span class="rpt-auto-sub">Reading the datasets from ' + esc(r.workbook) + '…</span></div>' +
+      '<div class="rpt-x-hero-side"><span class="rpt-status"><span class="rpt-spinner"></span> Checking the source</span></div></div>' +
+      '<div class="rpt-x-skel">' + rows + '</div>';
+  }
+
+  function renderDetailError() {
+    $('rpt-x-body').innerHTML = '<div class="notice rpt-notice-error" role="alert"><strong>The raw data could not be read.</strong> ' + esc(state.detailError) +
+      '<div style="margin-top:10px;"><button type="button" class="btn-secondary" id="rpt-x-detail-retry">Try again</button></div></div>';
+    $('rpt-x-detail-retry').onclick = loadDetail;
+  }
+
+  /** Datasets that can be downloaded, and the reason when "Download all" cannot be offered. */
+  function readiness() {
+    var d = state.detail, usable = [], blocked = [];
+    d.datasets.forEach(function (x) {
+      if (x.available && x.cols > 0) usable.push(x);
+      else blocked.push(x);
+    });
+    var reason = '';
+    if (d.running) reason = 'An update is running.';
+    else if (blocked.length) reason = blocked.map(function (x) { return x.title; }).join(', ') + (blocked.length === 1 ? ' is' : ' are') + ' not available, so the full workbook cannot be built. The other datasets can still be downloaded one by one.';
+    return { usable: usable, blocked: blocked, reason: reason };
+  }
+
+  function renderDetail() {
+    var d = state.detail, r = state.report, ready = readiness();
+    var rowsTotal = ready.usable.reduce(function (n, x) { return n + (x.rows || 0); }, 0);
+    $('rpt-x-sub').textContent = (r.subtitle ? r.subtitle + ' · ' : '') + 'Source: ' + (d.workbook || r.workbook) + ' · checked ' + d.checkedAt + ' (New York)';
+
+    var notices = '';
+    if (d.running) {
+      notices += '<div class="notice rpt-notice-info" role="status"><strong>This data is being updated by its automation right now.</strong> ' +
+        'Downloads are paused until the update finishes, so a file never mixes old and new rows. Press Refresh in a minute or two.</div>';
+    }
+    ready.blocked.forEach(function (x) {
+      notices += '<div class="notice rpt-notice-error" role="alert"><strong>' + esc(x.title) + ' is not available.</strong> ' +
+        esc(x.error || 'The tab "' + x.sheet + '" is empty.') + '</div>';
+    });
+
+    var names = ready.usable.map(function (x) { return x.sheet; });
+    var allOk = !ready.reason && ready.usable.length > 0;
+    var hero = '<div class="rpt-x-hero" id="rpt-x-hero">' +
+      '<div class="rpt-x-hero-text"><span class="rpt-auto-title">Download all raw data</span>' +
+      '<span class="rpt-auto-sub">' + (d.datasets.length > 1
+        ? 'One Excel workbook with one sheet per dataset (' + esc(names.join(', ')) + '), with the same headers, values and number formats as the source.'
+        : 'One Excel workbook with the ' + esc(names[0] || d.datasets[0].sheet) + ' sheet, with the same headers, values and number formats as the source.') + '</span></div>' +
+      '<div class="rpt-x-hero-side">' +
+        '<div class="rpt-x-stat"><b>' + (ready.blocked.length ? fmtInt(ready.usable.length) + ' of ' + fmtInt(d.datasets.length) : fmtInt(d.datasets.length)) + '</b><span>' + (d.datasets.length === 1 ? 'Dataset' : 'Datasets') + '</span></div>' +
+        '<div class="rpt-x-stat"><b>' + fmtInt(rowsTotal) + '</b><span>Rows</span></div>' +
+        '<button type="button" class="btn-primary rpt-x-btn-ico" id="rpt-x-all"' + (allOk ? '' : ' disabled') +
+          (ready.reason ? ' title="' + esc(ready.reason) + '"' : '') + '>' + ICON.download + ' Download all (Excel)</button>' +
+      '</div>' +
+      '<div id="rpt-x-all-slot" class="rpt-x-slot"></div>' +
+    '</div>';
+
+    var list = '<div class="rpt-x-list">' + d.datasets.map(function (x, i) { return dsCard(x, i); }).join('') + '</div>';
+    var help = '<details class="rpt-help"><summary>What is in these files?</summary>' +
+      '<p>The rows come straight from the source tab at the moment you download, through the app. Nothing in the source is changed.</p><ul>' +
+      '<li><strong>Excel:</strong> the cell values themselves (full precision; dates and times are real Excel dates) with the sheet\'s own number formats, so it looks like the sheet. One sheet per dataset, named like the source tab.</li>' +
+      '<li><strong>CSV:</strong> values exactly as the sheet shows them (for example 50.00%, 0:30, 9/30/2026 12:29:38).</li>' +
+      '<li>Every row of the tab is included, with its header row. Before the file is saved the app checks that the data was not reloaded while it was being read; if it was, nothing is saved and you are asked to download again.</li>' +
+      '<li>Rosters and the automation\'s helper tabs (_Control, _Load Log, _Flags) are not included.</li></ul></details>';
+
+    $('rpt-x-body').innerHTML = (notices ? '<div class="rpt-x-notices">' + notices + '</div>' : '') + hero + list + help;
+    bindDetail();
+    if (state.results.__all && allOk) showResult('__all', state.results.__all);
+    ready.usable.forEach(function (x) { if (state.results[x.id]) showResult(x.id, state.results[x.id]); });
+  }
+
+  function dsCard(x, i) {
+    var usable = x.available && x.cols > 0, dis = (!usable || state.detail.running) ? ' disabled' : '';
+    var meta = '';
+    if (x.available) {
+      meta = '<span>' + plural(x.rows || 0, 'row') + '</span><span>' + plural(x.cols || 0, 'column') + '</span>';
+      if (x.updated) meta += '<span>Last load ' + esc(x.updated) + '</span>';
+      if (!x.rows && x.cols) meta += '<span class="rpt-x-empty-badge">No data rows yet</span>';
+    } else {
+      meta = '<span>Not available</span>';
+    }
+    var tag = (x.sheet && x.sheet.toLowerCase() !== String(x.title).toLowerCase()) ? '<span class="rpt-x-tag">Tab: ' + esc(x.sheet) + '</span>' : '';
+    var hasPreview = usable && x.preview && x.preview.length;
+    var open = !!state.open[x.id] && hasPreview;
+    return '<article class="rpt-x-ds' + (usable ? '' : ' is-unavailable') + '" style="--i:' + i + '" data-ds="' + esc(x.id) + '" aria-label="' + esc(x.title) + '">' +
+      '<div class="rpt-x-ds-head">' +
+        '<span class="rpt-x-ds-icon">' + (usable ? ICON.table : ICON.alert) + '</span>' +
+        '<div class="rpt-x-ds-main">' +
+          '<div class="rpt-x-ds-title">' + esc(x.title) + tag + '</div>' +
+          '<div class="rpt-x-ds-desc">' + esc(x.description) + '</div>' +
+          '<div class="rpt-x-meta">' + meta + '</div>' +
+        '</div>' +
+        '<div class="rpt-x-ds-actions">' +
+          (hasPreview ? '<button type="button" class="rpt-x-link" data-act="preview" aria-expanded="' + open + '" aria-controls="rpt-x-pv-' + esc(x.id) + '">Preview ' + ICON.chevron + '</button>' : '') +
+          '<button type="button" class="btn-secondary rpt-x-btn-ico" data-act="csv"' + dis + ' aria-label="Download ' + esc(x.title) + ' as CSV">' + ICON.download + ' CSV</button>' +
+          '<button type="button" class="btn-secondary rpt-x-btn-ico" data-act="xlsx"' + dis + ' aria-label="Download ' + esc(x.title) + ' as Excel">' + ICON.download + ' Excel</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="rpt-x-slot" data-slot="' + esc(x.id) + '"></div>' +
+      (hasPreview ? previewHtml(x, open) : '') +
+    '</article>';
+  }
+
+  function previewHtml(x, open) {
+    var head = x.header.map(function (h) { return '<th>' + (h === '' ? '<span class="rpt-blank">(blank)</span>' : esc(h)) + '</th>'; }).join('');
+    var body = x.preview.map(function (row) {
+      return '<tr>' + x.header.map(function (h, c) { var v = row[c]; return '<td>' + (v === '' || v == null ? '<span class="rpt-blank">–</span>' : esc(v)) + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    return '<div class="rpt-x-preview' + (open ? ' is-open' : '') + '" id="rpt-x-pv-' + esc(x.id) + '"><div>' +
+      '<div class="table-container"><table class="wfm-table rpt-table" aria-label="First rows of ' + esc(x.title) + '"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>' +
+      '<div class="rpt-x-preview-note">First ' + fmtInt(x.preview.length) + ' of ' + plural(x.rows, 'row') + ', as shown in the sheet.</div></div></div>';
+  }
+
+  function bindDetail() {
+    var all = $('rpt-x-all');
+    if (all) all.onclick = function () { startJob(readiness().usable.map(function (x) { return x.id; }), 'xlsx', true); };
+    Array.prototype.forEach.call($('rpt-x-body').querySelectorAll('[data-ds]'), function (card) {
+      var id = card.getAttribute('data-ds');
+      Array.prototype.forEach.call(card.querySelectorAll('[data-act]'), function (b) {
+        var act = b.getAttribute('data-act');
+        b.onclick = function () {
+          if (act === 'preview') {
+            var pv = $('rpt-x-pv-' + id), open = !pv.classList.contains('is-open');
+            pv.classList.toggle('is-open', open); b.setAttribute('aria-expanded', String(open)); state.open[id] = open;
+          } else startJob([id], act, false);
+        };
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- download jobs
+  function setBusy(on) {
+    var body = $('rpt-x-body');
+    Array.prototype.forEach.call(body.querySelectorAll('[data-act="csv"],[data-act="xlsx"],#rpt-x-all'), function (b) {
+      if (on) { b.setAttribute('data-was', b.disabled ? '1' : '0'); b.disabled = true; }
+      else if (b.hasAttribute('data-was')) { b.disabled = b.getAttribute('data-was') === '1'; b.removeAttribute('data-was'); }
+    });
+    $('rpt-x-refresh').disabled = on;
+  }
+
+  function slotFor(key) { return key === '__all' ? $('rpt-x-all-slot') : $('rpt-x-body').querySelector('[data-slot="' + key + '"]'); }
+  function cardFor(key) { return key === '__all' ? null : $('rpt-x-body').querySelector('[data-ds="' + key + '"]'); }
+  function setCardState(key, cls) {
+    var c = cardFor(key); if (!c) return;
+    ['is-busy', 'is-done', 'is-failed'].forEach(function (k) { c.classList.toggle(k, k === cls); });
+  }
+
+  function showProgress(key, job) {
+    var slot = slotFor(key); if (!slot) return;
+    slot.innerHTML = '<div class="rpt-x-progress" role="status">' +
+      '<div class="rpt-x-progress-row"><span class="rpt-status"><span class="rpt-spinner"></span><span data-p="text">Starting…</span></span>' +
+      '<span><span data-p="pct"></span> <button type="button" class="rpt-x-cancel" data-p="cancel">Cancel</button></span></div>' +
+      '<div class="rpt-x-bar" data-p="bar"><i></i></div></div>';
+    slot.querySelector('[data-p="cancel"]').onclick = function () { job.cancelled = true; };
+    setCardState(key, 'is-busy');
+  }
+
+  function updateProgress(key, text, frac) {
+    var slot = slotFor(key); if (!slot) return;
+    var t = slot.querySelector('[data-p="text"]'), bar = slot.querySelector('[data-p="bar"]'), pct = slot.querySelector('[data-p="pct"]');
+    if (!t) return;
+    t.textContent = text;
+    if (frac === null) { bar.classList.add('is-indeterminate'); pct.textContent = ''; }
+    else {
+      bar.classList.remove('is-indeterminate');
+      var p = Math.max(0, Math.min(1, frac));
+      bar.firstChild.style.width = (p * 100).toFixed(1) + '%';
+      pct.textContent = Math.floor(p * 100) + '%';
+    }
+  }
+
+  function showResult(key, res) {
+    var slot = slotFor(key); if (!slot) return;
+    var ico = res.kind === 'ok' ? '&#10003;' : (res.kind === 'error' ? '!' : 'i');
+    slot.innerHTML = '<div class="rpt-x-result is-' + res.kind + '" role="' + (res.kind === 'error' ? 'alert' : 'status') + '">' +
+      '<span class="rpt-x-result-ico">' + ico + '</span><div>' + res.html + '</div></div>';
+    var retry = slot.querySelector('[data-retry]');
+    if (retry) retry.onclick = function () { startJob(res.retry.ids, res.retry.format, res.retry.all); };
+    setCardState(key, res.kind === 'ok' ? 'is-done' : (res.kind === 'error' ? 'is-failed' : ''));
+  }
+
+  function fileTag() {
+    try {
+      var p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date()).reduce(function (o, x) { o[x.type] = x.value; return o; }, {});
+      return p.year + p.month + p.day + '_' + p.hour + p.minute;
+    } catch (e) {
+      var d = new Date(), z = function (n) { return (n < 10 ? '0' : '') + n; };
+      return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '_' + z(d.getHours()) + z(d.getMinutes());
+    }
+  }
+  function slug(s) { return String(s || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Data'; }
+
+  function download(data, name, mime) {
+    var url = URL.createObjectURL(new Blob([data], { type: mime }));
+    var a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+  }
+
+  function isBlank(v) { return v === '' || v === null || v === undefined; }
+
+  /** Reads every row of one dataset in blocks. Resolves { ds, header, formats, rows }. */
+  function fetchDataset(ds, mode, job, onRows) {
+    var cols = ds.cols, total = ds.rows || 0, header = ds.header.slice(0, cols);
+    while (header.length < cols) header.push('');
+    var formats = (ds.formats || []).slice(0, cols);
+    if (!total) return Promise.resolve({ ds: ds, header: header, formats: formats, rows: [] });
+
+    var per = Math.max(MIN_PAGE_ROWS, Math.min(MAX_PAGE_ROWS, Math.floor(PAGE_CELLS / cols)));
+    var pages = [];
+    for (var start = 2; start <= total + 1; start += per) pages.push({ start: start, count: Math.min(per, total + 2 - start) });
+    var rows = new Array(total), next = 0;
+
+    function readPage(pg, attempt) {
+      return call('extractReadPage', [state.report.id, ds.id, mode, pg.start, pg.count, cols]).then(function (res) {
+        var ok = res && res.start === pg.start && res.count === pg.count && Array.isArray(res.rows) && res.rows.length === pg.count;
+        for (var i = 0; ok && i < res.rows.length; i++) ok = Array.isArray(res.rows[i]) && res.rows[i].length === cols;
+        if (!ok) throw new Error('the server returned an incomplete block');
+        return res.rows;
+      }).catch(function (err) {
+        if (job.cancelled) throw new Error(CANCELLED);
+        var m = msgOf(err);
+        if (attempt < RETRIES && !/^Unauthorized|Unknown (report|dataset|action)|Invalid|too large/i.test(m)) {
+          return wait(900 * (attempt + 1)).then(function () { return readPage(pg, attempt + 1); });
+        }
+        throw new Error(/^Could not read "/.test(m) ? m : 'Rows ' + fmtInt(pg.start) + '–' + fmtInt(pg.start + pg.count - 1) + ' of "' + ds.sheet + '" could not be read: ' + m);
+      });
+    }
+    function worker() {
+      if (job.cancelled) return Promise.reject(new Error(CANCELLED));
+      if (job.failed || next >= pages.length) return Promise.resolve();
+      var pg = pages[next++];
+      return readPage(pg, 0).then(function (block) {
+        if (job.cancelled) throw new Error(CANCELLED);
+        for (var i = 0; i < block.length; i++) rows[pg.start - 2 + i] = block[i];
+        onRows(block.length);
+        return worker();
+      }, function (err) { job.failed = true; throw err; });
+    }
+    var workers = [];
+    for (var w = 0; w < Math.min(PARALLEL, pages.length); w++) workers.push(worker());
+    return Promise.all(workers).then(function () {
+      for (var i = 0; i < rows.length; i++) if (!rows[i]) throw new Error('Row ' + fmtInt(i + 2) + ' of "' + ds.sheet + '" is missing from the download.');
+      while (rows.length && rows[rows.length - 1].every(isBlank)) rows.pop();          // blank rows at the very end of the tab
+      var width = cols;                                                                 // blank, header-less columns at the right edge
+      while (width > 1 && isBlank(header[width - 1]) && rows.every(function (r) { return isBlank(r[width - 1]); })) width--;
+      if (width < cols) { header = header.slice(0, width); formats = formats.slice(0, width); rows = rows.map(function (r) { return r.slice(0, width); }); }
+      return { ds: ds, header: header, formats: formats, rows: rows };
+    });
+  }
+
+  function toCsvResult(t) { return { columns: t.header.map(function (h) { return { header: h }; }), rows: t.rows }; }
+  function toXlsxResult(t) {
+    if (t.rows.length > XLSX_MAX_ROWS) throw new Error('"' + t.ds.sheet + '" has ' + fmtInt(t.rows.length) + ' rows, more than an Excel sheet can hold. Download it as CSV instead.');
+    for (var r = 0; r < t.rows.length; r++) {
+      for (var c = 0; c < t.rows[r].length; c++) {
+        var v = t.rows[r][c];
+        if (typeof v === 'string' && v.length > XLSX_MAX_TEXT) throw new Error('A cell in "' + t.ds.sheet + '" (row ' + fmtInt(r + 2) + ') holds more text than Excel allows in one cell. Download it as CSV instead.');
+      }
+    }
+    return {
+      columns: t.header.map(function (h, i) { return { header: h, type: 'raw', numberFormat: t.formats[i] || '' }; }),
+      rows: t.rows, sheetName: t.ds.sheet
+    };
+  }
+
+  function rowCheck(t) {
+    var n = t.rows.length, e = t.ds.expectedRows;
+    if (e === null || e === undefined) return '';
+    if (e === n) return 'Matches the ' + plural(e, 'row') + ' recorded by the last load.';
+    return 'The last load recorded ' + plural(e, 'row') + '; the tab holds ' + fmtInt(n) + ' now (rows were added or edited after that load).';
+  }
+
+  function startJob(ids, format, all) {
+    if (!state.detail) return;
+    if (state.job) { toast('Another download is still finishing. Try again in a moment.'); return; }
+    if (state.detail.running) { toast('This data is being updated right now. Press Refresh in a minute.', 'error'); return; }
+    var list = ids.map(dsById).filter(Boolean);
+    if (!list.length || list.length !== ids.length) return;
+    var key = all ? '__all' : ids[0];
+    var job = { id: ++state.jobSeq, cancelled: false, failed: false };
+    var mode = format === 'csv' ? 'display' : 'values';
+    var report = state.report, stamp = state.detail.stamp;
+    var totalRows = list.reduce(function (n, x) { return n + (x.rows || 0); }, 0), loaded = 0;
+    state.job = job;
+    delete state.results[key];
+    setBusy(true);
+    showProgress(key, job);
+
+    var tables = [];
+    var chain = list.reduce(function (p, ds, i) {
+      return p.then(function () {
+        var label = list.length > 1 ? 'Reading ' + ds.title + ' (' + (i + 1) + ' of ' + list.length + ')' : 'Reading rows';
+        updateProgress(key, label + ' · ' + fmtInt(loaded) + ' of ' + fmtInt(totalRows), totalRows ? (loaded / totalRows) * 0.92 : 0);
+        return fetchDataset(ds, mode, job, function (n) {
+          loaded += n;
+          updateProgress(key, label + ' · ' + fmtInt(loaded) + ' of ' + fmtInt(totalRows), totalRows ? (loaded / totalRows) * 0.92 : 0);
+        }).then(function (t) { tables.push(t); });
+      });
+    }, Promise.resolve());
+
+    chain.then(function () {
+      if (job.cancelled) throw new Error(CANCELLED);
+      updateProgress(key, 'Checking that the data did not change while it was read…', null);
+      var rowsRead = tables.reduce(function (n, t) { return n + t.rows.length; }, 0);
+      return call('extractCheck', [report.id, stamp, { datasets: ids, rows: rowsRead, format: format }]);
+    }).then(function (chk) {
+      if (job.cancelled) throw new Error(CANCELLED);
+      if (!chk || !chk.consistent) {
+        throw new Error(chk && chk.running
+          ? 'An update of this data started while it was being read, so the rows could mix old and new data. Nothing was saved. Wait for the update to finish, press Refresh and download again.'
+          : 'The data was reloaded while it was being read, so the rows could mix old and new data. Nothing was saved. Press Refresh and download again.');
+      }
+      updateProgress(key, format === 'csv' ? 'Building the CSV file…' : 'Building the Excel file…', null);
+      return wait(30).then(function () {                       // let the progress text paint before the heavy work
+        var base = slug(report.title) + (all ? '_Raw_Data_' : '_' + slug(list[0].title) + '_Raw_') + fileTag();
+        if (format === 'csv') return { name: base + '.csv', data: window.ReportingExport.buildCsv(toCsvResult(tables[0])), mime: 'text/csv;charset=utf-8' };
+        var sheets = tables.map(toXlsxResult);
+        return window.ReportingExport.buildWorkbook(sheets).then(function (bytes) { return { name: base + '.xlsx', data: bytes, mime: XLSX_MIME }; });
+      });
+    }).then(function (file) {
+      if (job.cancelled) throw new Error(CANCELLED);
+      download(file.data, file.name, file.mime);
+      var rowsSaved = tables.reduce(function (n, t) { return n + t.rows.length; }, 0);
+      var html;
+      if (all) {
+        html = '<strong>Saved ' + esc(file.name) + '</strong> · ' + plural(tables.length, 'sheet') + ' · ' + plural(rowsSaved, 'row') +
+          '<small>' + tables.map(function (t) { return esc(t.ds.sheet) + ' ' + fmtInt(t.rows.length); }).join(' · ') + '</small>';
+      } else {
+        var t = tables[0];
+        html = '<strong>Saved ' + esc(file.name) + '</strong> · ' + plural(t.rows.length, 'row') + ' × ' + plural(t.header.length, 'column') +
+          (t.rows.length ? '' : ' (header row only: the tab has no data rows)') + (rowCheck(t) ? '<small>' + esc(rowCheck(t)) + '</small>' : '');
+      }
+      state.results[key] = { kind: 'ok', html: html };
+      if (all) tables.forEach(function (t) { delete state.results[t.ds.id]; });
+      finish(job);
+      showResult(key, state.results[key]);
+      toast('Downloaded ' + file.name + ' (' + plural(rowsSaved, 'row') + ')');
+    }).catch(function (err) {
+      var m = msgOf(err), cancelled = m === CANCELLED || job.cancelled;
+      state.results[key] = cancelled
+        ? { kind: 'info', html: 'Cancelled. Nothing was saved.' }
+        : { kind: 'error', html: '<strong>The download did not complete.</strong> ' + esc(m) +
+            ' <button type="button" class="rpt-x-link" data-retry>Try again</button>', retry: { ids: ids, format: format, all: all } };
+      finish(job);
+      showResult(key, state.results[key]);
+      if (!cancelled) toast('The download did not complete: ' + m, 'error');
+    });
+  }
+
+  function finish(job) {
+    if (state.job === job) state.job = null;
+    setBusy(false);
+  }
+
+  // ---------------------------------------------------------------- start-up
+  TOOLS_SUB = $('rpt-sec-sub').textContent;
+  bindTabs();
+  $('rpt-x-back').addEventListener('click', backToCatalog);
+  $('rpt-x-refresh').addEventListener('click', function () { if (!state.job && state.report) loadDetail(); });
+  setSection(pref() === 'extract' ? 'extract' : 'tools', false, true);   // the list loads when Reporting is opened
+
+  var baseShow = window.Reporting.show;
+  window.Reporting.show = function () {
+    baseShow.apply(this, arguments);
+    if (!state.catalog && !state.loading) loadCatalog();      // fills the tab count; cheap (no spreadsheet opened)
+    else if (state.section === 'extract') renderCatalog();
+  };
+
+  window.ReportingExtract = { openReport: openReport, setSection: setSection, refresh: function () { if (state.report) loadDetail(); } };
 })();
 </script>

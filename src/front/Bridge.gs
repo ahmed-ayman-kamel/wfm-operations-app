@@ -257,6 +257,10 @@ function testAiProvider() { return callBackend_('testAiProvider', Array.prototyp
 function getReportingCatalog() { return callBackend_('getReportingCatalog', Array.prototype.slice.call(arguments)); }
 function runVoycePerformanceReport() { return callBackend_('runVoycePerformanceReport', Array.prototype.slice.call(arguments)); }
 function runAutomatedVoyceReports() { return callBackend_('runAutomatedVoyceReports', Array.prototype.slice.call(arguments)); }
+function getExtractCatalog() { return callBackend_('getExtractCatalog', Array.prototype.slice.call(arguments)); }
+function getExtractReport() { return callBackend_('getExtractReport', Array.prototype.slice.call(arguments)); }
+function extractReadPage() { return callBackend_('extractReadPage', Array.prototype.slice.call(arguments)); }
+function extractCheck() { return callBackend_('extractCheck', Array.prototype.slice.call(arguments)); }
 function getDashboardMenu() { return callBackend_('getDashboardMenu', Array.prototype.slice.call(arguments)); }
 function getVoyceDashboardData() { return callBackend_('getVoyceDashboardData', Array.prototype.slice.call(arguments)); }
 function getVoyceDashboardStamp() { return callBackend_('getVoyceDashboardStamp', Array.prototype.slice.call(arguments)); }

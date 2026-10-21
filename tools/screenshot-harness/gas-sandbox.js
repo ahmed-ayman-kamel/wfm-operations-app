@@ -62,7 +62,7 @@ function loadBackend(dir) {
   const files = fs.readdirSync(dir).filter(f => f.endsWith('.js') && !/^(test|Temp)\.js$/.test(f));
   // one combined script so top-level const/let declarations share a scope, like Apps Script
   const src = files.map(f => '// ---- ' + f + '\n' + fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n');
-  vm.runInContext(src + '\n;globalThis.__fns = {VOHD_aggregate_, ADHD_aggregate_, MVD_aggregate_, ADH_plan_, MV_backfillPlan_, MV_paidPlan_, ADH_canRun_, MV_canRun_, REPORTING_REGISTRY, DASHBOARDS, VOHD, ADHD, MVD, CONFIG};', ctx, { filename: 'backend-bundle.js' });
+  vm.runInContext(src + '\n;globalThis.__fns = {VOHD_aggregate_, ADHD_aggregate_, MVD_aggregate_, ACD_aggregate_, ADH_plan_, MV_backfillPlan_, MV_paidPlan_, AC_backfillPlan_, ADH_canRun_, MV_canRun_, REPORTING_REGISTRY, DASHBOARDS, VOHD, ADHD, MVD, ACW, CONFIG, EXTRACT_reports_, EXTRACT_public_};', ctx, { filename: 'backend-bundle.js' });
   return ctx.__fns;
 }
 

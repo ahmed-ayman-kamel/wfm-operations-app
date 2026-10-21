@@ -19,7 +19,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_PATH || '/opt/npm-tools/node
   await pg.goto('file://' + file);
   await pg.waitForTimeout(1500);
   for (const a of JSON.parse(actions)) {
-    if (a.js) await pg.evaluate(a.js);
+    if (a.js) { const r = await pg.evaluate(a.js); if (r !== undefined && r !== true) logs.push('js: ' + JSON.stringify(r).slice(0, 120)); }
     if (a.clickText) {
       const ok = await pg.evaluate(t => {
         const el = [...document.querySelectorAll('button,[role=tab],a,div,span,td,tr')].reverse()

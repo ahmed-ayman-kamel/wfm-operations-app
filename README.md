@@ -41,8 +41,8 @@ The app's goals, as reflected in the code:
 | **RTM Handover** | Per-shift checklist (Morning / Mid / Overnight) built from a master task list | Multi-person assignment, "received by" hand-off, comments with file attachments, `@mention` emails, **End Shift** that locks the shift once no task is pending (Managers/Admins can reopen with a reason) |
 | **Tickets** | Lightweight operational ticketing | Types (Issue / Task / Flags), priority, due date, CC, public vs. private, full activity history and comments, email notifications with opt-out, role-based permissions per action |
 | **Personal Assistant** | Private to-do list + AI chat | To-do items stored per user (not in the shared sheet); AI assistant that tries an ordered list of providers (OpenAI, Anthropic, Gemini or any OpenAI-compatible API) and skips one that is rate-limited or down |
-| **Reporting** | Report tools with a common pipeline | "Voyce Performance Report": fetches two vendor reports for a date range (or accepts uploaded CSV/XLSX), recognises each file by its columns, cleans and de-duplicates, and exports CSV/XLSX built in the browser |
-| **Dashboards** | Live KPI dashboards that replaced Excel workbooks | **Voyce Performance** (productivity, CSR, missing calls, offline codes), **Adherence** (schedule adherence from the WFM platform, target 96%), **MVCC Performance** (productivity, CSR, abandoned and short calls). Filters, drill-down tabs, highlights, CSV export, data-health checks |
+| **Reporting** | Report tools and raw-data extraction | **Report tools**: the "Voyce Performance Report" fetches two vendor reports for a date range (or accepts uploaded CSV/XLSX), recognises each file by its columns, cleans and de-duplicates, and exports CSV/XLSX built in the browser. **Extract Data**: download the raw datasets behind each dashboard as CSV or Excel, read live from the source sheets, without opening Google Sheets; role-checked, read-only, and verified against reloads during the download |
+| **Dashboards** | Live KPI dashboards that replaced Excel workbooks | **Voyce Performance** (productivity, CSR, missing calls, offline codes), **Adherence** (schedule adherence from the WFM platform, target 96%), **MVCC Performance** (productivity, CSR, abandoned and short calls), **ACW Performance** (after-call work per accepted call against a 10-second target). Filters, drill-down tabs, highlights, CSV export, data-health checks |
 | **Admin tools** | Run from the Apps Script editor | Schema bootstrap, sharing report, link-sharing lockdown, plain-text hardening of user-typed columns, duplicate-row repair, cache invalidation |
 
 Roles: **Admin**, **Manager**, **RTM** and **Operations** (read-only for most modules). Roles live in a `Roles` sheet and are checked on the server for every call.
@@ -91,20 +91,34 @@ Productivity, CSR, abandoned-call and short-call rates with targets and trends.
 
 ![MVCC Performance dashboard](docs/images/dashboard/dashboard-mvcc-overview.png)
 
+### ACW Performance dashboard
+After-call work per accepted call against the 10-second target, combining call events from the BI tool with ACW time from the WFM platform. KPI cards, highlights, a daily trend split by queue, and breakdowns by manager, supervisor and agent.
+
+![ACW Performance dashboard](docs/images/dashboard/dashboard-acw-overview.png)
+
+### Reporting: Extract Data
+Every dashboard's raw data, one click away. Each card lists the datasets behind a dashboard; only people whose role can open that dashboard see it.
+
+![Extract Data: datasets per dashboard](docs/images/dashboard/reporting-extract-data.png)
+
+Inside a dashboard: download everything as one Excel workbook (one sheet per dataset, with the source's headers and number formats), or each dataset as CSV or Excel, with a live preview of the first rows.
+
+![Extract Data: MVCC datasets with preview](docs/images/dashboard/reporting-extract-mvcc.png)
+
 ### Full dashboard overviews (dark mode)
 
 The complete Overview tab of each dashboard, top to bottom: KPI cards, highlights, totals, trend chart, breakdowns by manager, team, interpreter and language, and heatmaps by team and day.
 
 <table>
+  <tr><th>Voyce Performance</th><th>Adherence</th></tr>
   <tr>
-    <th>Voyce Performance</th>
-    <th>Adherence</th>
-    <th>MVCC Performance</th>
+    <td width="50%"><a href="docs/images/dashboard/dashboard-voyce-full-dark.png"><img src="docs/images/dashboard/dashboard-voyce-full-dark.png" alt="Voyce Performance dashboard, full overview, dark mode"></a></td>
+    <td width="50%"><a href="docs/images/dashboard/dashboard-adherence-full-dark.png"><img src="docs/images/dashboard/dashboard-adherence-full-dark.png" alt="Adherence dashboard, full overview, dark mode"></a></td>
   </tr>
+  <tr><th>MVCC Performance</th><th>ACW Performance</th></tr>
   <tr>
-    <td><a href="docs/images/dashboard/dashboard-voyce-full-dark.png"><img src="docs/images/dashboard/dashboard-voyce-full-dark.png" alt="Voyce Performance dashboard, full overview, dark mode"></a></td>
-    <td><a href="docs/images/dashboard/dashboard-adherence-full-dark.png"><img src="docs/images/dashboard/dashboard-adherence-full-dark.png" alt="Adherence dashboard, full overview, dark mode"></a></td>
-    <td><a href="docs/images/dashboard/dashboard-mvcc-full-dark.png"><img src="docs/images/dashboard/dashboard-mvcc-full-dark.png" alt="MVCC Performance dashboard, full overview, dark mode"></a></td>
+    <td width="50%"><a href="docs/images/dashboard/dashboard-mvcc-full-dark.png"><img src="docs/images/dashboard/dashboard-mvcc-full-dark.png" alt="MVCC Performance dashboard, full overview, dark mode"></a></td>
+    <td width="50%"><a href="docs/images/dashboard/dashboard-acw-full-dark.png"><img src="docs/images/dashboard/dashboard-acw-full-dark.png" alt="ACW Performance dashboard, full overview, dark mode"></a></td>
   </tr>
 </table>
 
@@ -169,7 +183,7 @@ More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | Browser extension | Chrome Manifest V3: service worker, content script bridge (`window.postMessage`), `chrome.scripting`, `chrome.storage` |
 | Front end | Vanilla JavaScript, hand-built canvas/SVG charts, a design-token stylesheet with light/dark themes. No front-end framework and no external scripts |
 
-Size: about 9,300 lines of server-side JavaScript, 11,200 lines of HTML/CSS/JS front end and 600 lines for the browser extension.
+Size: about 10,600 lines of server-side JavaScript, 13,300 lines of HTML/CSS/JS front end and 600 lines for the browser extension.
 
 ## Repository layout
 
@@ -184,8 +198,8 @@ Size: about 9,300 lines of server-side JavaScript, 11,200 lines of HTML/CSS/JS f
 │   │   ├── appsscript.json
 │   │   ├── .clasp.json.example
 │   │   ├── Code.js  api.js  Auth.js  Daybundle.js  Tickets.js  Notify.js ...
-│   │   ├── Dashboards.js  Dash_*.js  Adherence.js  Mvcc.js  Voyceonlinehours.js
-│   │   ├── Reporting.js  ReportAutomation*.js  Assistant.js  Setup.js  Hardening.js
+│   │   ├── Dashboards.js  Dash_*.js  Adherence.js  Mvcc.js  Acw.js  Voyceonlinehours.js
+│   │   ├── Reporting.js  Extract.js  ReportAutomation*.js  Assistant.js  Setup.js  Hardening.js
 │   │   └── Index.html  Styles.html  ToDo.html  Tickets_HTML.html  Dash_*_HTML.html ...
 │   └── front/                   Apps Script front project
 │       ├── appsscript.json
@@ -214,9 +228,9 @@ You need two Google Apps Script projects, a Google account that owns the databas
 6. In the front project's Script Properties set `BACKEND_URL` (backend `/exec` URL) and `MAIL_SIGNING_KEY` (same value as the backend).
 7. Run `showMyAudience()` in the front project and put the printed value into the backend's `API_ALLOWED_AUD` Script Property. Run `checkFrontSetup()` to confirm.
 
-**Browser extension** (for the Adherence and MVCC automations): set your WFM host in `extension/wfm-nice-connector/manifest.json` and `background.js` (replace `your-tenant`), then load the folder in Chrome via *Extensions → Developer mode → Load unpacked*.
+**Browser extension** (for the Adherence, MVCC and ACW automations): set your WFM host in `extension/wfm-nice-connector/manifest.json` and `background.js` (replace `your-tenant`), then load the folder in Chrome via *Extensions → Developer mode → Load unpacked*.
 
-**Optional modules** (each needs its own Script Properties and data spreadsheet): report automation (`VOYCE_USERNAME`, `VOYCE_PASSWORD`, `SISENSE_USERNAME`, `SISENSE_PASSWORD`), dashboards (`VOH_SPREADSHEET_ID`, `ADH_SPREADSHEET_ID`, `MVCC_SPREADSHEET_ID`), AI assistant (providers are added by an Admin in the app).
+**Optional modules** (each needs its own Script Properties and data spreadsheet): report automation (`VOYCE_USERNAME`, `VOYCE_PASSWORD`, `SISENSE_USERNAME`, `SISENSE_PASSWORD`), dashboards (`VOH_SPREADSHEET_ID`, `ADH_SPREADSHEET_ID`, `MVCC_SPREADSHEET_ID`, `ACW_SPREADSHEET_ID`), AI assistant (providers are added by an Admin in the app).
 
 > These steps are reconstructed from the code's own setup functions and comments. They have not been re-run from scratch for this repository.
 
@@ -239,7 +253,7 @@ You need two Google Apps Script projects, a Google account that owns the databas
 
 The live app cannot be shown: it holds real employee names, emails and client performance figures. The screenshots were produced by `tools/screenshot-harness/`, which:
 
-1. loads the **real backend source** into a Node sandbox and runs the app's own aggregation functions (`VOHD_aggregate_`, `ADHD_aggregate_`, `MVD_aggregate_`) over **synthetic raw rows**;
+1. loads the **real backend source** into a Node sandbox and runs the app's own aggregation functions (`VOHD_aggregate_`, `ADHD_aggregate_`, `MVD_aggregate_`, `ACD_aggregate_`) over **synthetic raw rows**;
 2. assembles the **real front-end pages** the way `HtmlService` does and replaces `google.script.run` with a stub that returns those payloads;
 3. renders them in headless Chromium (1440 × 900).
 
